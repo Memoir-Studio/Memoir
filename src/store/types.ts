@@ -1,3 +1,4 @@
+import type { AttachmentFile, SaveAttachmentInput } from "../domain/attachments";
 import type { FolderAppearance } from "../domain/folders";
 import type { NoteExtension, NoteMeta, NavFilter, ScopedFilter } from "../domain/notes";
 import type { AppSettings, ViewMode } from "../domain/settings";
@@ -7,6 +8,7 @@ export type WorkspaceSlice = {
   workspaceRoot: string | null;
   recentWorkspaces: string[];
   notes: NoteMeta[];
+  attachments: AttachmentFile[];
   isLoading: boolean;
   folderAppearances: Record<string, FolderAppearance>;
 };
@@ -23,7 +25,7 @@ export type LibrarySlice = {
   query: string;
   navFilter: NavFilter;
   scopedFilter: ScopedFilter;
-  libraryPanelMode: "notes" | "outline";
+  libraryPanelMode: "notes" | "outline" | "attachments";
 };
 
 export type SettingsSlice = {
@@ -60,6 +62,11 @@ export type AppActions = {
   deleteActiveNote(): Promise<void>;
   toggleFavorite(relativePath?: string): Promise<void>;
   setFolderAppearance(folder: string, appearance: FolderAppearance | null): Promise<void>;
+  refreshAttachments(): Promise<void>;
+  saveAttachments(inputs: SaveAttachmentInput[]): Promise<AttachmentFile[]>;
+  savePastedImages(files: File[]): Promise<string>;
+  importAttachments(): Promise<AttachmentFile[]>;
+  deleteAttachment(relativePath: string): Promise<void>;
   setQuery(query: string): void;
   setNavFilter(navFilter: NavFilter): void;
   setScopedFilter(scopedFilter: ScopedFilter): void;

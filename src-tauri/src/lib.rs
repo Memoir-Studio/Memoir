@@ -7,9 +7,10 @@ mod tests;
 mod window_frame;
 
 use commands::{
-    create_note, delete_draft, delete_note, load_app_state, migrate_legacy_state, read_draft,
-    read_note, rename_note, save_preferences, scan_workspace, set_favorite, set_folder_appearance,
-    write_draft, write_note, AppServices,
+    create_note, delete_attachment, delete_draft, delete_note, import_attachment, load_app_state,
+    migrate_legacy_state, read_draft, read_note, rename_note, save_attachment, save_preferences,
+    scan_attachments, scan_workspace, set_favorite, set_folder_appearance, write_draft, write_note,
+    AppServices,
 };
 use infrastructure::{app_data::AppDataRepository, filesystem::LocalFileSystem};
 use services::{AppStateService, WorkspaceService};
@@ -45,6 +46,10 @@ pub fn run() {
             create_note,
             rename_note,
             delete_note,
+            scan_attachments,
+            save_attachment,
+            import_attachment,
+            delete_attachment,
             load_app_state,
             save_preferences,
             set_favorite,

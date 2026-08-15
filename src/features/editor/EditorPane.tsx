@@ -5,18 +5,63 @@ import { searchKeymap } from "@codemirror/search";
 import { EditorSelection } from "@codemirror/state";
 import { EditorView, keymap, lineNumbers } from "@codemirror/view";
 import { forwardRef, useImperativeHandle, useMemo, useRef } from "react";
+import { collectClipboardImages } from "../../domain/attachments";
 import type { AppSettings } from "../../domain/settings";
 import { useI18n } from "../../i18n/react";
 import { noteStats, parseNote } from "../library/note-utils";
 import { Tag } from "../../components/ui";
 
-function createEditorExtensions(isDark: boolean, settings: AppSettings["editor"]) {
+function insertAt(view: EditorView, from: number, to: number, text: string) {
+  const insertFrom = Math.min(from, view.state.doc.length);
+  const insertTo = Math.min(Math.max(to, insertFrom), view.state.doc.length);
+  view.dispatch({
+    changes: { from: insertFrom, to: insertTo, insert: text },
+    selection: EditorSelection.cursor(insertFrom + text.length),
+  });
+  view.focus();
+}
+
+function createEditorExtensions(
+  isDark: boolean,
+  settings: AppSettings["editor"],
+  onPasteImages?: (files: File[]) => Promise<string>,
+) {
   return [
     history(),
     markdown(),
     ...(settings.lineWrapping ? [EditorView.lineWrapping] : []),
     ...(settings.lineNumbers ? [lineNumbers()] : []),
     keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap, indentWithTab]),
+    EditorView.domEventHandlers({
+      paste(event, view) {
+        if (!onPasteImages) return false;
+        const files = collectClipboardImages(event.clipboardData);
+        if (!files.length) return false;
+        event.preventDefault();
+        const { from, to } = view.state.selection.main;
+        void onPasteImages(files).then((markdown) => {
+          if (markdown) insertAt(view, from, to, markdown);
+        });
+        return true;
+      },
+      drop(event, view) {
+        if (!onPasteImages) return false;
+        const files = collectClipboardImages(event.dataTransfer);
+        if (!files.length) return false;
+        event.preventDefault();
+        const position =
+          view.posAtCoords({ x: event.clientX, y: event.clientY }) ?? view.state.selection.main.from;
+        void onPasteImages(files).then((markdown) => {
+          if (markdown) insertAt(view, position, position, markdown);
+        });
+        return true;
+      },
+      dragover(event) {
+        if (!event.dataTransfer?.types.includes("Files")) return false;
+        event.preventDefault();
+        return true;
+      },
+    }),
     EditorView.theme(
       {
         "&": {
@@ -72,6 +117,7 @@ function createEditorExtensions(isDark: boolean, settings: AppSettings["editor"]
 export interface EditorHandle {
   getScrollElement: () => HTMLElement | null;
   insertSnippet: (before: string, after?: string, placeholder?: string) => void;
+  insertText: (text: string) => void;
 }
 
 interface EditorPaneProps {
@@ -81,6 +127,7 @@ interface EditorPaneProps {
   fileName: string;
   onChange: (content: string) => void;
   onScroll?: () => void;
+  onPasteImages?: (files: File[]) => Promise<string>;
 }
 
 export const EditorPane = forwardRef<EditorHandle, EditorPaneProps>(function EditorPane(
@@ -91,14 +138,15 @@ export const EditorPane = forwardRef<EditorHandle, EditorPaneProps>(function Edi
     fileName,
     onChange,
     onScroll,
+    onPasteImages,
   },
   forwardedRef,
 ) {
   const { t, tc } = useI18n();
   const editorRef = useRef<ReactCodeMirrorRef>(null);
   const extensions = useMemo(
-    () => createEditorExtensions(isDark, settings.editor),
-    [isDark, settings.editor],
+    () => createEditorExtensions(isDark, settings.editor, onPasteImages),
+    [isDark, onPasteImages, settings.editor],
   );
   const parsed = useMemo(() => parseNote(content, fileName), [content, fileName]);
   const stats = useMemo(() => noteStats(content), [content]);
@@ -114,11 +162,17 @@ export const EditorPane = forwardRef<EditorHandle, EditorPaneProps>(function Edi
         const selected = view.state.sliceDoc(selection.from, selection.to);
         const value = selected || placeholder;
         const replacement = `${before}${value}${after}`;
+        insertAt(view, selection.from, selection.to, replacement);
         view.dispatch({
-          changes: { from: selection.from, to: selection.to, insert: replacement },
           selection: EditorSelection.cursor(selection.from + before.length + value.length),
         });
         view.focus();
+      },
+      insertText: (text) => {
+        const view = editorRef.current?.view;
+        if (!view || !text) return;
+        const selection = view.state.selection.main;
+        insertAt(view, selection.from, selection.to, text);
       },
     }),
     [],

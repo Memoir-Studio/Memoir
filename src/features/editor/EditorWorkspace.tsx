@@ -18,13 +18,14 @@ import {
   Strikethrough,
   Trash2,
 } from "lucide-react";
-import { lazy, Suspense, useCallback, useMemo, useRef } from "react";
+import { forwardRef, lazy, Suspense, useCallback, useImperativeHandle, useMemo, useRef } from "react";
 import { IconButton, cn } from "../../components/ui";
 import { isTauriRuntime } from "../../platform/runtime";
 import { useAppStore } from "../../store/app-store";
 import { useI18n } from "../../i18n/react";
 import { parseNote } from "../library/note-utils";
 import { handleWindowDragMouseDown } from "../window/window-drag";
+import { markdownForAttachments } from "../../domain/attachments";
 import type { EditorHandle } from "./EditorPane";
 import { getGateways } from "../../gateways";
 
@@ -39,17 +40,20 @@ function PaneFallback({ label }: { label: string }) {
   );
 }
 
-export function EditorWorkspace({
-  isDark,
-  onRename,
-  onDelete,
-  className,
-}: {
+export const EditorWorkspace = forwardRef<EditorHandle, {
   isDark: boolean;
   onRename: () => void;
   onDelete: () => void;
   className?: string;
-}) {
+}>(function EditorWorkspace(
+  {
+    isDark,
+    onRename,
+    onDelete,
+    className,
+  },
+  forwardedRef,
+) {
   const editorRef = useRef<EditorHandle>(null);
   const previewPaneRef = useRef<HTMLElement>(null);
   const previewArticleRef = useRef<HTMLElement>(null);
@@ -68,6 +72,8 @@ export function EditorWorkspace({
   const setViewMode = useAppStore((state) => state.setViewMode);
   const saveActiveNote = useAppStore((state) => state.saveActiveNote);
   const toggleFavorite = useAppStore((state) => state.toggleFavorite);
+  const savePastedImages = useAppStore((state) => state.savePastedImages);
+  const importAttachments = useAppStore((state) => state.importAttachments);
   const { t } = useI18n();
   const untitled = t("editor.untitledFallback");
   const activeNote = notes.find((note) => note.relativePath === activePath) || null;
@@ -96,6 +102,17 @@ export function EditorWorkspace({
     }, 80);
   }, []);
 
+  useImperativeHandle(
+    forwardedRef,
+    () => ({
+      getScrollElement: () => editorRef.current?.getScrollElement() ?? null,
+      insertSnippet: (before, after, placeholder) =>
+        editorRef.current?.insertSnippet(before, after, placeholder),
+      insertText: (text) => editorRef.current?.insertText(text),
+    }),
+    [],
+  );
+
   const insertSnippet = useCallback(
     (before: string, after = "", placeholder = "") => {
       editorRef.current?.insertSnippet(before, after, placeholder);
@@ -103,13 +120,19 @@ export function EditorWorkspace({
     [],
   );
 
+  const insertImportedImages = useCallback(async () => {
+    const imported = await importAttachments();
+    const markdown = markdownForAttachments(useAppStore.getState().activePath, imported);
+    if (markdown) editorRef.current?.insertText(markdown);
+  }, [importAttachments]);
+
   const toolbar = [
     { label: t("toolbar.heading2"), icon: Heading2, action: () => insertSnippet("## ", "", t("toolbar.placeholderHeading")) },
     { label: t("toolbar.bold"), icon: Bold, action: () => insertSnippet("**", "**", t("toolbar.placeholderText")), divider: true },
     { label: t("toolbar.italic"), icon: Italic, action: () => insertSnippet("_", "_", t("toolbar.placeholderText")) },
     { label: t("toolbar.strikethrough"), icon: Strikethrough, action: () => insertSnippet("~~", "~~", t("toolbar.placeholderText")) },
     { label: t("toolbar.link"), icon: Link, action: () => insertSnippet("[", "](https://)", t("toolbar.placeholderLink")), divider: true },
-    { label: t("toolbar.image"), icon: Image, action: () => insertSnippet("![", "](image.png)", t("toolbar.placeholderImage")) },
+    { label: t("toolbar.image"), icon: Image, action: () => void insertImportedImages() },
     { label: t("toolbar.quote"), icon: Quote, action: () => insertSnippet("> ", "", t("toolbar.placeholderQuote")), divider: true },
     { label: t("toolbar.bulletList"), icon: List, action: () => insertSnippet("- ", "", t("toolbar.placeholderItem")) },
     { label: t("toolbar.orderedList"), icon: ListOrdered, action: () => insertSnippet("1. ", "", t("toolbar.placeholderItem")) },
@@ -230,6 +253,7 @@ export function EditorWorkspace({
                 fileName={activeNote?.fileName || untitled}
                 isDark={isDark}
                 onChange={setContent}
+                onPasteImages={savePastedImages}
                 onScroll={() => syncScroll("editor")}
                 ref={editorRef}
                 settings={settings}
@@ -254,6 +278,6 @@ export function EditorWorkspace({
       )}
     </section>
   );
-}
+});
 
 export default EditorWorkspace;

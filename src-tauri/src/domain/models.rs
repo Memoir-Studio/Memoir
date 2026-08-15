@@ -13,6 +13,17 @@ pub struct NoteFile {
     pub size: u64,
 }
 
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AttachmentFile {
+    pub relative_path: String,
+    pub file_name: String,
+    pub extension: String,
+    pub mime_type: String,
+    pub modified_ms: u128,
+    pub size: u64,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct AppearanceSettings {

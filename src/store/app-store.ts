@@ -1,6 +1,14 @@
 import { create } from "zustand";
 import type { AppGateways } from "../gateways/contracts";
 import { getGateways } from "../gateways";
+import {
+  fileToBase64,
+  markdownForAttachments,
+  MAX_ATTACHMENT_BYTES,
+  suggestedPasteFileName,
+  type AttachmentFile,
+  type SaveAttachmentInput,
+} from "../domain/attachments";
 import { DEFAULT_SETTINGS, mergeSettings, type AppSettings } from "../domain/settings";
 import {
   folderAppearancesForWorkspace,
@@ -82,6 +90,14 @@ function toMessage(error: unknown) {
   return mapGatewayError(error).message;
 }
 
+function mergeAttachments(current: AttachmentFile[], incoming: AttachmentFile[]) {
+  const next = new Map(current.map((item) => [item.relativePath, item]));
+  for (const item of incoming) next.set(item.relativePath, item);
+  return [...next.values()].sort(
+    (left, right) => right.modifiedMs - left.modifiedMs || left.relativePath.localeCompare(right.relativePath),
+  );
+}
+
 export function createAppStore(gateways: AppGateways = getGateways()) {
   let preferencesTimer: number | null = null;
   let draftTimer: number | null = null;
@@ -142,6 +158,7 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
       workspaceRoot: null,
       recentWorkspaces: [],
       notes: [],
+      attachments: [],
       isLoading: false,
       folderAppearances: {},
       activePath: null,
@@ -241,6 +258,7 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
               persistedState.folderAppearances,
               workspaceRoot,
             ),
+            attachments: [],
             activePath: null,
             loadedContentPath: null,
             content: "",
@@ -248,6 +266,7 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
             query: "",
             navFilter: "all",
             scopedFilter: null,
+            libraryPanelMode: "notes",
           });
           await get().refreshWorkspace();
         } catch (error) {
@@ -263,9 +282,10 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
         if (!root) return;
         set({ isLoading: true, error: "" });
         try {
-          const [files, appState] = await Promise.all([
+          const [files, appState, attachments] = await Promise.all([
             gateways.workspace.scanWorkspace(root),
             gateways.persistence.loadAppState(),
+            gateways.workspace.scanAttachments(root),
           ]);
           const notes = await hydrateNotes(gateways, root, files, favoriteSet(appState.favorites, root));
           const preferred =
@@ -281,6 +301,7 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
           const alreadyOpen = selected !== null && get().loadedContentPath === selected;
           set({
             notes,
+            attachments,
             folderAppearances: folderAppearancesForWorkspace(appState.folderAppearances, root),
             activePath: selected,
             isLoading: false,
@@ -529,17 +550,115 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
         }
       },
 
+      async refreshAttachments() {
+        const root = get().workspaceRoot;
+        if (!root) {
+          set({ attachments: [] });
+          return;
+        }
+        try {
+          set({ attachments: await gateways.workspace.scanAttachments(root) });
+        } catch (error) {
+          set({
+            error: storeT(get().settings, "errors.loadAttachments", { message: toMessage(error) }),
+          });
+        }
+      },
+
+      async saveAttachments(inputs: SaveAttachmentInput[]) {
+        const root = get().workspaceRoot;
+        if (!root || inputs.length === 0) return [];
+        try {
+          const saved: AttachmentFile[] = [];
+          for (const input of inputs) {
+            saved.push(await gateways.workspace.saveAttachment(root, input));
+          }
+          set({
+            attachments: mergeAttachments(get().attachments, saved),
+            status: storeT(get().settings, "status.attachmentSaved"),
+            error: "",
+          });
+          return saved;
+        } catch (error) {
+          set({
+            error: storeT(get().settings, "errors.saveAttachment", { message: toMessage(error) }),
+          });
+          return [];
+        }
+      },
+
+      async savePastedImages(files: File[]) {
+        const { workspaceRoot, activePath, settings } = get();
+        if (!workspaceRoot) return "";
+        if (!activePath) {
+          set({ error: storeT(settings, "errors.pasteNeedsNote") });
+          return "";
+        }
+        const oversized = files.find((file) => file.size > MAX_ATTACHMENT_BYTES);
+        if (oversized) {
+          set({ error: storeT(settings, "errors.attachmentTooLarge") });
+          return "";
+        }
+        const inputs = await Promise.all(
+          files.map(async (file) => ({
+            bytesBase64: await fileToBase64(file),
+            fileName: suggestedPasteFileName(file),
+            mimeType: file.type,
+          })),
+        );
+        const saved = await get().saveAttachments(inputs);
+        return markdownForAttachments(get().activePath, saved);
+      },
+
+      async importAttachments() {
+        const root = get().workspaceRoot;
+        if (!root) return [];
+        try {
+          const imported = await gateways.workspace.importAttachments(root);
+          if (imported.length) {
+            set({
+              attachments: mergeAttachments(get().attachments, imported),
+              status: storeT(get().settings, "status.attachmentsImported"),
+              error: "",
+            });
+          }
+          return imported;
+        } catch (error) {
+          set({
+            error: storeT(get().settings, "errors.importAttachment", { message: toMessage(error) }),
+          });
+          return [];
+        }
+      },
+
+      async deleteAttachment(relativePath) {
+        const root = get().workspaceRoot;
+        if (!root || !relativePath) return;
+        try {
+          await gateways.workspace.deleteAttachment(root, relativePath);
+          set({
+            attachments: get().attachments.filter((item) => item.relativePath !== relativePath),
+            status: storeT(get().settings, "status.attachmentDeleted"),
+            error: "",
+          });
+        } catch (error) {
+          set({
+            error: storeT(get().settings, "errors.deleteAttachment", { message: toMessage(error) }),
+          });
+        }
+      },
+
       setQuery(query) {
         set({ query });
       },
       setNavFilter(navFilter) {
-        set({ navFilter, scopedFilter: null, mobilePanel: "library" });
+        set({ navFilter, scopedFilter: null, mobilePanel: "library", libraryPanelMode: "notes" });
       },
       setScopedFilter(scopedFilter) {
-        set({ scopedFilter, navFilter: "all", mobilePanel: "library" });
+        set({ scopedFilter, navFilter: "all", mobilePanel: "library", libraryPanelMode: "notes" });
       },
       setLibraryPanelMode(libraryPanelMode) {
-        set({ libraryPanelMode });
+        set({ libraryPanelMode, mobilePanel: "library" });
       },
       setViewMode(viewMode) {
         set({ viewMode });

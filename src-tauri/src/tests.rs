@@ -416,3 +416,87 @@ fn legacy_migration_writes_state_and_only_reports_persisted_keys() {
         Some("draft".into())
     );
 }
+
+fn sample_png() -> Vec<u8> {
+    use base64::{engine::general_purpose::STANDARD, Engine as _};
+    STANDARD
+        .decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")
+        .unwrap()
+}
+
+#[test]
+fn saves_lists_and_trashes_attachments_inside_the_library() {
+    let workspace = tempdir().unwrap();
+    let root = workspace.path().to_str().unwrap();
+    let filesystem = LocalFileSystem;
+
+    assert!(filesystem.scan_attachments(root).unwrap().is_empty());
+
+    let saved = filesystem
+        .save_attachment(root, &sample_png(), Some("../escape/photo.png"), Some("image/png"))
+        .unwrap();
+    assert_eq!(saved.relative_path, "attachments/photo.png");
+    assert_eq!(saved.extension, "png");
+    assert!(workspace.path().join("attachments/photo.png").exists());
+
+    let duplicate = filesystem
+        .save_attachment(root, &sample_png(), Some("photo.png"), None)
+        .unwrap();
+    assert_eq!(duplicate.relative_path, "attachments/photo-1.png");
+
+    let listed = filesystem.scan_attachments(root).unwrap();
+    assert_eq!(listed.len(), 2);
+    assert!(listed.iter().all(|item| item.relative_path.starts_with("attachments/")));
+
+    let outside = tempdir().unwrap();
+    let source = outside.path().join("diagram.webp");
+    fs::write(&source, sample_png()).unwrap();
+    let imported = filesystem
+        .import_attachment(root, source.to_str().unwrap())
+        .unwrap();
+    assert_eq!(imported.relative_path, "attachments/diagram.png");
+
+    let trashed = filesystem
+        .delete_attachment(root, "attachments/photo.png")
+        .unwrap();
+    assert!(trashed.starts_with(".memoir-trash/"));
+    assert!(!workspace.path().join("attachments/photo.png").exists());
+}
+
+#[test]
+fn rejects_non_image_and_escaping_attachment_paths() {
+    let workspace = tempdir().unwrap();
+    let root = workspace.path().to_str().unwrap();
+    let filesystem = LocalFileSystem;
+
+    assert_eq!(
+        filesystem
+            .save_attachment(root, b"not-an-image", Some("notes.md"), Some("text/markdown"))
+            .unwrap_err()
+            .code,
+        ErrorCode::UnsupportedExtension
+    );
+    assert_eq!(
+        filesystem
+            .delete_attachment(root, "../outside.png")
+            .unwrap_err()
+            .code,
+        ErrorCode::InvalidPath
+    );
+    assert_eq!(
+        filesystem
+            .delete_attachment(root, "notes/photo.png")
+            .unwrap_err()
+            .code,
+        ErrorCode::InvalidPath
+    );
+
+    let huge = vec![0_u8; crate::domain::attachment::MAX_ATTACHMENT_BYTES + 1];
+    assert_eq!(
+        filesystem
+            .save_attachment(root, &huge, Some("huge.png"), Some("image/png"))
+            .unwrap_err()
+            .code,
+        ErrorCode::Io
+    );
+}

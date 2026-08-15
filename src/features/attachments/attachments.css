@@ -1,0 +1,31 @@
+.attachment-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.attachment-card {
+  transition:
+    background-color 150ms var(--memoir-ease),
+    box-shadow 150ms var(--memoir-ease);
+}
+
+.attachment-card:hover,
+.attachment-card:focus-visible {
+  background: color-mix(in srgb, var(--memoir-elevated) 66%, transparent);
+}
+
+.attachment-card.is-menu-target {
+  background: color-mix(in srgb, var(--memoir-elevated) 78%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--memoir-accent) 16%, transparent);
+}
+
+.attachment-thumb {
+  display: grid;
+  aspect-ratio: 4 / 3;
+  place-items: center;
+}
+
+.view-switcher.library-mode-switcher button {
+  width: auto;
+  min-width: 52px;
+  padding-inline: 8px;
+}

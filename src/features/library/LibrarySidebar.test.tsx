@@ -13,6 +13,8 @@ afterEach(() => {
     navFilter: "all",
     scopedFilter: null,
     isSidebarCollapsed: false,
+    attachments: [],
+    libraryPanelMode: "notes",
   });
 });
 

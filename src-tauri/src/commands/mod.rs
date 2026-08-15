@@ -1,7 +1,7 @@
 use crate::{
     domain::{
-        AppError, AppSettings, AppState, FolderAppearance, LegacyStatePayload, MigrationResult,
-        NoteFile,
+        AppError, AppSettings, AppState, AttachmentFile, FolderAppearance, LegacyStatePayload,
+        MigrationResult, NoteFile,
     },
     services::{AppStateService, WorkspaceService},
 };
@@ -77,6 +77,48 @@ pub fn delete_note(
     relative_path: String,
 ) -> Result<String, AppError> {
     services.workspace.delete(&root, &relative_path)
+}
+
+#[tauri::command]
+pub fn scan_attachments(
+    services: State<'_, AppServices>,
+    root: String,
+) -> Result<Vec<AttachmentFile>, AppError> {
+    services.workspace.scan_attachments(&root)
+}
+
+#[tauri::command]
+pub fn save_attachment(
+    services: State<'_, AppServices>,
+    root: String,
+    bytes_base64: String,
+    file_name: Option<String>,
+    mime_type: Option<String>,
+) -> Result<AttachmentFile, AppError> {
+    services.workspace.save_attachment(
+        &root,
+        &bytes_base64,
+        file_name.as_deref(),
+        mime_type.as_deref(),
+    )
+}
+
+#[tauri::command]
+pub fn import_attachment(
+    services: State<'_, AppServices>,
+    root: String,
+    source_path: String,
+) -> Result<AttachmentFile, AppError> {
+    services.workspace.import_attachment(&root, &source_path)
+}
+
+#[tauri::command]
+pub fn delete_attachment(
+    services: State<'_, AppServices>,
+    root: String,
+    relative_path: String,
+) -> Result<String, AppError> {
+    services.workspace.delete_attachment(&root, &relative_path)
 }
 
 #[tauri::command]

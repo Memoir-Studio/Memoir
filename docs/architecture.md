@@ -69,6 +69,10 @@ Workspace commands:
 - `create_note`
 - `rename_note`
 - `delete_note`
+- `scan_attachments`
+- `save_attachment`
+- `import_attachment`
+- `delete_attachment`
 
 Persistence commands:
 
@@ -131,12 +135,15 @@ app-data/
 
 Drafts are separate files so typing does not rewrite the whole state file. State and draft writes create a sibling temp file, `sync`, then `rename`.
 
+Pasted and imported images are ordinary files in workspace `attachments/`. They are not stored in app-data. The browser demo keeps them in memory as data URLs.
+
 The browser build is an in-memory demo. It does not read or write real files, and it does not persist settings.
 
 ## Path safety
 
 - Reject empty paths, absolute paths, `.`, `..`, and any non-normal path component.
-- Only `.md` / `.mdx`.
+- Only `.md` / `.mdx` for notes.
+- Attachments live in workspace `attachments/`. Writes accept only image extensions (`png`, `jpg`, `jpeg`, `gif`, `webp`, `bmp`, `avif`, `svg`), stay inside that folder, and are capped at 20 MB. Deletes go to `.memoir-trash/` like notes.
 - Canonicalize before read, write-of-existing, rename, and delete; the result must still be inside the workspace.
 - Before creating a new file, canonicalize the nearest existing parent so a symlink cannot escape.
 - Scan skips symbolic links, any directory whose name starts with `.`, and `node_modules`, `dist`, `build`, `target`, `.next`, `.turbo`. `.git` and `.memoir-trash` are skipped as hidden names.

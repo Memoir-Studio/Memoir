@@ -88,6 +88,51 @@ pub fn resolve_new_note(root: &str, relative_path: &str) -> AppResult<(PathBuf, 
     Ok((root, target))
 }
 
+pub fn is_attachment_relative(relative: &Path) -> bool {
+    let mut components = relative.components();
+    matches!(
+        components.next(),
+        Some(Component::Normal(name)) if name == crate::domain::attachment::ATTACHMENTS_DIR
+    ) && components.next().is_some()
+}
+
+pub fn resolve_existing_attachment(
+    root: &str,
+    relative_path: &str,
+) -> AppResult<(PathBuf, PathBuf)> {
+    let root = normalize_root(root)?;
+    let relative = validate_relative_path(relative_path)?;
+    crate::domain::attachment::validate_attachment_extension(&relative)?;
+    if !is_attachment_relative(&relative) {
+        return Err(AppError::invalid_path(
+            "Attachments must stay in the attachments folder.",
+        ));
+    }
+    let joined = root.join(relative);
+    let canonical = joined
+        .canonicalize()
+        .map_err(|error| AppError::io("Resolve attachment", &joined, error))?;
+    ensure_inside(&root, &canonical)?;
+    if !canonical.is_file() {
+        return Err(AppError::not_found("Attachment does not exist."));
+    }
+    Ok((root, canonical))
+}
+
+pub fn resolve_new_attachment(root: &str, relative_path: &str) -> AppResult<(PathBuf, PathBuf)> {
+    let root = normalize_root(root)?;
+    let relative = validate_relative_path(relative_path)?;
+    crate::domain::attachment::validate_attachment_extension(&relative)?;
+    if !is_attachment_relative(&relative) {
+        return Err(AppError::invalid_path(
+            "Attachments must stay in the attachments folder.",
+        ));
+    }
+    let target = root.join(&relative);
+    validate_nearest_existing_parent(&root, &target)?;
+    Ok((root, target))
+}
+
 pub fn validate_nearest_existing_parent(root: &Path, target: &Path) -> AppResult<()> {
     let mut current = target.parent().unwrap_or(root);
     while !current.exists() {

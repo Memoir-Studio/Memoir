@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { markdownForAttachments } from "../domain/attachments";
 import { resolveLocale, t } from "../i18n";
 import { AUTOSAVE_INTERVAL_MS, createAppStore } from "./app-store";
 import { createMockGateways } from "../test/mock-gateways";
@@ -282,5 +283,39 @@ describe("app store actions", () => {
     expect(store.getState().content).toBe("# Keep editing");
     expect(store.getState().activePath).toBe("one.md");
     expect(store.getState().scopedFilter).toEqual({ type: "folder", value: "日记" });
+  });
+
+  it("saves pasted images into the attachment library and returns note-relative markdown", async () => {
+    const gateways = createMockGateways();
+    const store = createAppStore(gateways);
+    await store.getState().openWorkspace("/workspace");
+
+    const saved = await store.getState().saveAttachments([
+      { bytesBase64: "AAAA", fileName: "paste-1.png", mimeType: "image/png" },
+    ]);
+    expect(saved[0]?.relativePath).toBe("attachments/paste-1.png");
+    expect(store.getState().attachments.map((item) => item.relativePath)).toEqual([
+      "attachments/paste-1.png",
+    ]);
+    expect(markdownForAttachments("日记/today.md", saved)).toBe(
+      "![paste-1](../attachments/paste-1.png)",
+    );
+
+    await store.getState().deleteAttachment("attachments/paste-1.png");
+    expect(store.getState().attachments).toEqual([]);
+  });
+
+  it("requires an open note before pasting images", async () => {
+    const gateways = createMockGateways();
+    const store = createAppStore(gateways);
+    await store.getState().openWorkspace("/workspace");
+    store.setState({ activePath: null, loadedContentPath: null, content: "", savedContent: "" });
+
+    const markdown = await store.getState().savePastedImages([
+      new File([new Uint8Array([1, 2, 3])], "image.png", { type: "image/png" }),
+    ]);
+    expect(markdown).toBe("");
+    expect(store.getState().error.length).toBeGreaterThan(0);
+    expect(gateways.workspace.savedAttachments).toEqual([]);
   });
 });

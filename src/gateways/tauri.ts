@@ -2,6 +2,8 @@ import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { openPath, openUrl } from "@tauri-apps/plugin-opener";
 import type { AppState, LegacyStatePayload, MigrationResult } from "../domain/app-state";
+import type { AttachmentFile, SaveAttachmentInput } from "../domain/attachments";
+import { ATTACHMENT_EXTENSIONS } from "../domain/attachments";
 import type { FolderAppearance } from "../domain/folders";
 import type { RawNoteFile } from "../domain/notes";
 import type { AppSettings } from "../domain/settings";
@@ -48,6 +50,37 @@ export class TauriWorkspaceGateway implements WorkspaceGateway {
 
   deleteNote(root: string, relativePath: string) {
     return call<string>("delete_note", { root, relativePath });
+  }
+
+  scanAttachments(root: string) {
+    return call<AttachmentFile[]>("scan_attachments", { root });
+  }
+
+  saveAttachment(root: string, input: SaveAttachmentInput) {
+    return call<AttachmentFile>("save_attachment", {
+      root,
+      bytesBase64: input.bytesBase64,
+      fileName: input.fileName,
+      mimeType: input.mimeType,
+    });
+  }
+
+  async importAttachments(root: string) {
+    const selected = await openDialog({
+      multiple: true,
+      filters: [{ name: "Images", extensions: [...ATTACHMENT_EXTENSIONS] }],
+    });
+    if (!selected) return [];
+    const paths = Array.isArray(selected) ? selected : [selected];
+    const imported: AttachmentFile[] = [];
+    for (const sourcePath of paths) {
+      imported.push(await call<AttachmentFile>("import_attachment", { root, sourcePath }));
+    }
+    return imported;
+  }
+
+  deleteAttachment(root: string, relativePath: string) {
+    return call<string>("delete_attachment", { root, relativePath });
   }
 
   openPath(path: string) {

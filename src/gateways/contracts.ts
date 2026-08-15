@@ -1,4 +1,5 @@
 import type { AppState, LegacyStatePayload, MigrationResult } from "../domain/app-state";
+import type { AttachmentFile, SaveAttachmentInput } from "../domain/attachments";
 import type { FolderAppearance } from "../domain/folders";
 import type { NoteExtension, RawNoteFile } from "../domain/notes";
 import type { AppSettings } from "../domain/settings";
@@ -19,6 +20,10 @@ export interface WorkspaceGateway {
   createNote(input: CreateNoteInput): Promise<string>;
   renameNote(root: string, oldRelativePath: string, newRelativePath: string): Promise<string>;
   deleteNote(root: string, relativePath: string): Promise<string>;
+  scanAttachments(root: string): Promise<AttachmentFile[]>;
+  saveAttachment(root: string, input: SaveAttachmentInput): Promise<AttachmentFile>;
+  importAttachments(root: string): Promise<AttachmentFile[]>;
+  deleteAttachment(root: string, relativePath: string): Promise<string>;
   openPath(path: string): Promise<void>;
   openExternal(url: string): Promise<void>;
   resolveMediaPath(path: string): string;

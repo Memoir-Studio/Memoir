@@ -1,3 +1,4 @@
+pub mod attachment;
 pub mod error;
 pub mod models;
 pub mod path;

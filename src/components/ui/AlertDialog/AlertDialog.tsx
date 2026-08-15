@@ -7,6 +7,7 @@ export function AlertDialog({
   title,
   description,
   confirmLabel,
+  hint,
   onConfirm,
   onClose,
 }: {
@@ -14,6 +15,7 @@ export function AlertDialog({
   title: string;
   description: string;
   confirmLabel: string;
+  hint?: string;
   onConfirm: () => void;
   onClose: () => void;
 }) {
@@ -37,7 +39,7 @@ export function AlertDialog({
       open={open}
       title={title}
     >
-      <p className="text-sm text-muted">{t("dialog.recycleHint")}</p>
+      <p className="text-sm text-muted">{hint ?? t("dialog.recycleHint")}</p>
     </Dialog>
   );
 }

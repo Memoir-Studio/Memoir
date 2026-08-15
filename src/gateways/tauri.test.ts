@@ -41,6 +41,30 @@ describe("Tauri gateways", () => {
     });
   });
 
+  it("saves attachments with camelCase DTOs", async () => {
+    const { TauriWorkspaceGateway } = await import("./tauri");
+    invoke.mockResolvedValue({
+      relativePath: "attachments/paste.png",
+      fileName: "paste.png",
+      extension: "png",
+      mimeType: "image/png",
+      modifiedMs: 1,
+      size: 12,
+    });
+    const gateway = new TauriWorkspaceGateway();
+    await gateway.saveAttachment("/notes", {
+      bytesBase64: "AAAA",
+      fileName: "paste.png",
+      mimeType: "image/png",
+    });
+    expect(invoke).toHaveBeenCalledWith("save_attachment", {
+      root: "/notes",
+      bytesBase64: "AAAA",
+      fileName: "paste.png",
+      mimeType: "image/png",
+    });
+  });
+
   it("maps structured command errors", async () => {
     const { TauriWorkspaceGateway } = await import("./tauri");
     invoke.mockRejectedValue({

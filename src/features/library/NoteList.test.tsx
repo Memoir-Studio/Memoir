@@ -17,6 +17,7 @@ afterEach(() => {
     navFilter: "all",
     scopedFilter: null,
     libraryPanelMode: "notes",
+    attachments: [],
   });
 });
 
@@ -109,6 +110,34 @@ describe("NoteList", () => {
       "location",
     );
     expect(view.getByRole("button", { name: "Install" })).toHaveAttribute("data-depth", "3");
+  });
+
+  it("shows the attachment library when switching panels", async () => {
+    useAppStore.setState({
+      attachments: [
+        {
+          relativePath: "attachments/shot.png",
+          fileName: "shot.png",
+          extension: "png",
+          mimeType: "image/png",
+          modifiedMs: 1,
+          size: 12,
+        },
+      ],
+      libraryPanelMode: "notes",
+    });
+    const user = userEvent.setup();
+    const view = render(
+      <NoteList
+        onCreate={() => undefined}
+        onDelete={() => undefined}
+        onRename={() => undefined}
+      />,
+    );
+
+    await user.click(view.getByRole("button", { name: "附件" }));
+    expect(view.getByText("shot.png")).toBeInTheDocument();
+    expect(view.getByRole("button", { name: "导入图片" })).toBeInTheDocument();
   });
 
   it("opens a note context menu for rename, favorite and delete", async () => {

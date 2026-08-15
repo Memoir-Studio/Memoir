@@ -1,5 +1,5 @@
 use crate::{
-    domain::{AppResult, NoteFile},
+    domain::{AppResult, AttachmentFile, NoteFile},
     infrastructure::filesystem::LocalFileSystem,
 };
 
@@ -50,4 +50,39 @@ impl WorkspaceService {
     pub fn delete(&self, root: &str, relative_path: &str) -> AppResult<String> {
         self.filesystem.delete_note(root, relative_path)
     }
+
+    pub fn scan_attachments(&self, root: &str) -> AppResult<Vec<AttachmentFile>> {
+        self.filesystem.scan_attachments(root)
+    }
+
+    pub fn save_attachment(
+        &self,
+        root: &str,
+        bytes_base64: &str,
+        file_name: Option<&str>,
+        mime_type: Option<&str>,
+    ) -> AppResult<AttachmentFile> {
+        let bytes = decode_attachment_bytes(bytes_base64)?;
+        self.filesystem
+            .save_attachment(root, &bytes, file_name, mime_type)
+    }
+
+    pub fn import_attachment(&self, root: &str, source_path: &str) -> AppResult<AttachmentFile> {
+        self.filesystem.import_attachment(root, source_path)
+    }
+
+    pub fn delete_attachment(&self, root: &str, relative_path: &str) -> AppResult<String> {
+        self.filesystem.delete_attachment(root, relative_path)
+    }
+}
+
+fn decode_attachment_bytes(bytes_base64: &str) -> AppResult<Vec<u8>> {
+    use base64::{engine::general_purpose::STANDARD, Engine as _};
+    STANDARD.decode(bytes_base64.trim()).map_err(|error| {
+        crate::domain::AppError::new(
+            crate::domain::ErrorCode::Io,
+            "Attachment data is not valid base64.",
+        )
+        .with_details(error.to_string())
+    })
 }

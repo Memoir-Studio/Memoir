@@ -1,6 +1,15 @@
 import type { AppState, LegacyStatePayload } from "../domain/app-state";
 import { APP_STATE_VERSION } from "../domain/app-state";
+import type { AttachmentFile, SaveAttachmentInput } from "../domain/attachments";
+import {
+  ATTACHMENTS_DIR,
+  extensionFromFileName,
+  extensionFromMime,
+  mimeFromExtension,
+  sanitizeAttachmentFileName,
+} from "../domain/attachments";
 import type { FolderAppearance } from "../domain/folders";
+import { resolveWorkspaceFilePath } from "../domain/paths";
 import {
   folderAppearancesForWorkspace,
   normalizeFolderAppearance,
@@ -94,6 +103,8 @@ function createDefaultState(): AppState {
 export class BrowserWorkspaceGateway implements WorkspaceGateway {
   private files = new Map<string, string>(DEMO_NOTES);
   private modified = new Map<string, number>(DEMO_NOTES.map(([path]) => [path, Date.now()]));
+  private attachments = new Map<string, AttachmentFile>();
+  private media = new Map<string, string>();
 
   async chooseWorkspace(_title?: string) {
     return DEMO_ROOT;
@@ -173,6 +184,67 @@ export class BrowserWorkspaceGateway implements WorkspaceGateway {
     return `.memoir-trash/${relativePath}`;
   }
 
+  async scanAttachments(root: string) {
+    this.assertRoot(root);
+    return [...this.attachments.values()].sort(
+      (left, right) => right.modifiedMs - left.modifiedMs || left.relativePath.localeCompare(right.relativePath),
+    );
+  }
+
+  async saveAttachment(root: string, input: SaveAttachmentInput) {
+    this.assertRoot(root);
+    const extension =
+      extensionFromFileName(input.fileName || "") || extensionFromMime(input.mimeType || "") || "png";
+    const stem = sanitizeAttachmentFileName((input.fileName || "image").replace(/\.[^.]+$/, ""));
+    let fileName = `${stem}.${extension}`;
+    let index = 1;
+    while (this.attachments.has(`${ATTACHMENTS_DIR}/${fileName}`)) {
+      fileName = `${stem}-${index}.${extension}`;
+      index += 1;
+    }
+    const relativePath = `${ATTACHMENTS_DIR}/${fileName}`;
+    const attachment: AttachmentFile = {
+      relativePath,
+      fileName,
+      extension,
+      mimeType: mimeFromExtension(extension),
+      modifiedMs: Date.now(),
+      size: Math.ceil((input.bytesBase64.length * 3) / 4),
+    };
+    this.attachments.set(relativePath, attachment);
+    const dataUrl = `data:${attachment.mimeType};base64,${input.bytesBase64}`;
+    this.media.set(relativePath, dataUrl);
+    this.media.set(resolveWorkspaceFilePath(DEMO_ROOT, relativePath), dataUrl);
+    return attachment;
+  }
+
+  async importAttachments(root: string) {
+    this.assertRoot(root);
+    const files = await pickBrowserFiles();
+    const imported: AttachmentFile[] = [];
+    for (const file of files) {
+      const bytesBase64 = await blobToBase64(file);
+      imported.push(
+        await this.saveAttachment(root, {
+          bytesBase64,
+          fileName: file.name,
+          mimeType: file.type,
+        }),
+      );
+    }
+    return imported;
+  }
+
+  async deleteAttachment(root: string, relativePath: string) {
+    this.assertRoot(root);
+    if (!this.attachments.delete(relativePath)) {
+      throw new GatewayError({ code: "not_found", message: "Demo attachment does not exist." });
+    }
+    this.media.delete(relativePath);
+    this.media.delete(resolveWorkspaceFilePath(DEMO_ROOT, relativePath));
+    return `.memoir-trash/${relativePath}`;
+  }
+
   async openPath() {}
 
   async openExternal(url: string) {
@@ -180,7 +252,7 @@ export class BrowserWorkspaceGateway implements WorkspaceGateway {
   }
 
   resolveMediaPath(path: string) {
-    return path;
+    return this.media.get(path) ?? path;
   }
 
   private assertRoot(root: string) {
@@ -259,6 +331,36 @@ export class BrowserPersistenceGateway implements PersistenceGateway {
   async migrateLegacyState(_payload: LegacyStatePayload) {
     return { migratedKeys: [] };
   }
+}
+
+function blobToBase64(file: Blob) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = String(reader.result || "");
+      const comma = result.indexOf(",");
+      resolve(comma >= 0 ? result.slice(comma + 1) : result);
+    };
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
+function pickBrowserFiles() {
+  return new Promise<File[]>((resolve) => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*";
+    input.multiple = true;
+    input.hidden = true;
+    const finish = (files: File[]) => {
+      input.remove();
+      resolve(files);
+    };
+    input.addEventListener("change", () => finish(Array.from(input.files ?? [])), { once: true });
+    document.body.append(input);
+    input.click();
+  });
 }
 
 export function createBrowserGateways(): AppGateways {

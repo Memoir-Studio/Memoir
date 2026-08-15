@@ -1,4 +1,6 @@
 import type { AppState } from "../domain/app-state";
+import type { AttachmentFile, SaveAttachmentInput } from "../domain/attachments";
+import { ATTACHMENTS_DIR, mimeFromExtension } from "../domain/attachments";
 import type { FolderAppearance } from "../domain/folders";
 import {
   folderAppearancesForWorkspace,
@@ -18,8 +20,12 @@ export class MockWorkspaceGateway implements WorkspaceGateway {
   files = new Map<string, string>([
     ["one.md", "---\ntitle: One\ntags: [test]\n---\n\n# One\n\nOriginal"],
   ]);
+  attachments = new Map<string, AttachmentFile>();
   writes: Array<{ path: string; content: string }> = [];
+  savedAttachments: SaveAttachmentInput[] = [];
   failWrite = false;
+  failAttachment = false;
+  nextImported: AttachmentFile[] = [];
 
   async chooseWorkspace(_title?: string) {
     return "/workspace";
@@ -62,6 +68,40 @@ export class MockWorkspaceGateway implements WorkspaceGateway {
 
   async deleteNote(_root: string, relativePath: string) {
     this.files.delete(relativePath);
+    return `.memoir-trash/${relativePath}`;
+  }
+
+  async scanAttachments(): Promise<AttachmentFile[]> {
+    return [...this.attachments.values()];
+  }
+
+  async saveAttachment(_root: string, input: SaveAttachmentInput) {
+    if (this.failAttachment) throw new Error("attachment disk full");
+    this.savedAttachments.push(input);
+    const fileName = input.fileName || "paste.png";
+    const relativePath = `${ATTACHMENTS_DIR}/${fileName}`;
+    const attachment: AttachmentFile = {
+      relativePath,
+      fileName,
+      extension: fileName.split(".").pop() || "png",
+      mimeType: input.mimeType || mimeFromExtension(fileName.split(".").pop() || "png"),
+      modifiedMs: Date.now(),
+      size: 12,
+    };
+    this.attachments.set(relativePath, attachment);
+    return attachment;
+  }
+
+  async importAttachments() {
+    if (this.failAttachment) throw new Error("attachment disk full");
+    for (const attachment of this.nextImported) {
+      this.attachments.set(attachment.relativePath, attachment);
+    }
+    return [...this.nextImported];
+  }
+
+  async deleteAttachment(_root: string, relativePath: string) {
+    this.attachments.delete(relativePath);
     return `.memoir-trash/${relativePath}`;
   }
 

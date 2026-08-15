@@ -5,9 +5,11 @@ import {
   FileText,
   ListTree,
   Loader2,
+  Paperclip,
   Plus,
   Search,
   Star,
+  Upload,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { IconButton, Input, Surface, Tag, cn } from "../../components/ui";
@@ -16,6 +18,7 @@ import { useAppStore } from "../../store/app-store";
 import { handleWindowDragMouseDown } from "../window/window-drag";
 import { formatRelativeTime } from "../../i18n";
 import { useI18n } from "../../i18n/react";
+import { AttachmentLibrary } from "../attachments/AttachmentLibrary";
 import { NoteContextMenu, type NoteMenuTarget } from "./NoteContextMenu";
 import { NoteOutline } from "./NoteOutline";
 import { extractHeadings, filterNotes, parseNote } from "./note-utils";
@@ -24,11 +27,13 @@ export function NoteList({
   onCreate,
   onRename,
   onDelete,
+  onInsertAttachment,
   className,
 }: {
   onCreate: () => void;
   onRename: (path: string) => void;
   onDelete: (path: string) => void;
+  onInsertAttachment?: (markdown: string) => void;
   className?: string;
 }) {
   const notes = useAppStore((state) => state.notes);
@@ -43,6 +48,7 @@ export function NoteList({
   const setQuery = useAppStore((state) => state.setQuery);
   const setMode = useAppStore((state) => state.setLibraryPanelMode);
   const selectNote = useAppStore((state) => state.selectNote);
+  const importAttachments = useAppStore((state) => state.importAttachments);
   const { t, tc, locale } = useI18n();
   const [menuTarget, setMenuTarget] = useState<NoteMenuTarget | null>(null);
   const filteredNotes = filterNotes(notes, query, navFilter, scopedFilter);
@@ -82,13 +88,29 @@ export function NoteList({
             <ListTree className="h-3.5 w-3.5" />
             <span>{t("library.outline")}</span>
           </IconButton>
+          <IconButton
+            active={mode === "attachments"}
+            label={t("library.attachments")}
+            onClick={() => setMode("attachments")}
+          >
+            <Paperclip className="h-3.5 w-3.5" />
+            <span>{t("library.attachments")}</span>
+          </IconButton>
         </div>
-        <IconButton label={t("library.newNote")} onClick={onCreate}>
-          <Plus className="h-4 w-4" />
-        </IconButton>
+        {mode === "attachments" ? (
+          <IconButton label={t("library.importAttachment")} onClick={() => void importAttachments()}>
+            <Upload className="h-4 w-4" />
+          </IconButton>
+        ) : (
+          <IconButton label={t("library.newNote")} onClick={onCreate}>
+            <Plus className="h-4 w-4" />
+          </IconButton>
+        )}
       </header>
 
-      {mode === "notes" ? (
+      {mode === "attachments" ? (
+        <AttachmentLibrary onInsert={onInsertAttachment} />
+      ) : mode === "notes" ? (
         <div className="memoir-fade-in flex min-h-0 flex-1 flex-col">
           <label className="note-search relative mx-3 mt-2.5 block">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted" />

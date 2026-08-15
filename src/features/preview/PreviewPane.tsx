@@ -11,6 +11,7 @@ import * as runtime from "react/jsx-runtime";
 import { getGateways } from "../../gateways";
 import { Tag } from "../../components/ui";
 import type { NoteMeta } from "../../domain/notes";
+import { noteDirectory, resolveWorkspaceFilePath } from "../../domain/paths";
 import { useI18n } from "../../i18n/react";
 import { parseNote } from "../library/note-utils";
 import { rehypeTaskOffsets, toggleTaskAtOffset } from "./task-list";
@@ -68,13 +69,6 @@ function Steps({ children }: { children: ReactNode }) {
   );
 }
 
-function joinPath(...parts: string[]) {
-  return parts
-    .filter(Boolean)
-    .join("/")
-    .replace(/\/{2,}/g, "/");
-}
-
 function previewComponents(
   root: string | null,
   relativePath: string | null,
@@ -82,6 +76,7 @@ function previewComponents(
   labels: { toggleTask: string; loadingMermaid: string },
 ): MDXComponents {
   const gateway = getGateways().workspace;
+  const directory = relativePath ? noteDirectory(relativePath) : "";
   return {
     Callout,
     Badge,
@@ -98,10 +93,7 @@ function previewComponents(
           if (/^https?:/i.test(href)) {
             void gateway.openExternal(href);
           } else if (root) {
-            const directory = relativePath?.includes("/")
-              ? relativePath.slice(0, relativePath.lastIndexOf("/"))
-              : "";
-            void gateway.openPath(joinPath(root, directory, href));
+            void gateway.openPath(resolveWorkspaceFilePath(root, directory, href));
           }
         }}
       >
@@ -112,14 +104,11 @@ function previewComponents(
       if (!src || /^(https?:|data:|blob:)/i.test(src) || !root) {
         return <img {...props} alt={alt || ""} src={src} />;
       }
-      const directory = relativePath?.includes("/")
-        ? relativePath.slice(0, relativePath.lastIndexOf("/"))
-        : "";
       return (
         <img
           {...props}
           alt={alt || ""}
-          src={gateway.resolveMediaPath(joinPath(root, directory, src))}
+          src={gateway.resolveMediaPath(resolveWorkspaceFilePath(root, directory, src))}
         />
       );
     },

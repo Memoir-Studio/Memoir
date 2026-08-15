@@ -13,6 +13,7 @@
 @import "./components/ui/ContextMenu/ContextMenu.css";
 @import "./features/window/window.css";
 @import "./features/library/library.css";
+@import "./features/attachments/attachments.css";
 @import "./features/workspace/workspace.css";
 @import "./features/editor/editor.css";
 @import "./features/preview/preview.css";
