@@ -137,7 +137,7 @@ See [`docs/architecture.md`](docs/architecture.md) for the Tauri command contrac
 
 ## Status
 
-Memoir is **0.1.0**. The editor, library, preview, and desktop persistence are usable day to day; plugins and sync are not part of this release.
+Memoir is in early development. The editor, library, preview, and desktop persistence are usable day to day; plugins and sync are not part of this release.
 
 ## Contributing
 
