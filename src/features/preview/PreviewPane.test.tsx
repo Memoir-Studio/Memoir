@@ -85,6 +85,23 @@ describe("PreviewPane task list", () => {
   });
 });
 
+describe("PreviewPane source lines", () => {
+  it("tags rendered blocks with markdown source lines", () => {
+    const view = render(
+      <PreviewPane
+        activePath="hello.md"
+        content={"# Title\n\nParagraph\n"}
+        note={{ ...note, relativePath: "hello.md", fileName: "hello.md", title: "Title" }}
+        onContentChange={() => undefined}
+        root="/notes"
+      />,
+    );
+
+    expect(view.getByRole("heading", { name: "Title" })).toHaveAttribute("data-source-line", "1");
+    expect(view.getByText("Paragraph")).toHaveAttribute("data-source-line", "3");
+  });
+});
+
 describe("PreviewPane images", () => {
   it("keeps adjacent markdown images in the same paragraph", () => {
     const view = render(

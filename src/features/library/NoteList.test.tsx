@@ -2,7 +2,12 @@ import { cleanup, fireEvent, render } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useAppStore } from "../../store/app-store";
+import { exportNotePdf } from "../export/export-note-pdf";
 import { NoteList } from "./NoteList";
+
+vi.mock("../export/export-note-pdf", () => ({
+  exportNotePdf: vi.fn(),
+}));
 
 afterEach(() => {
   cleanup();
@@ -183,5 +188,35 @@ describe("NoteList", () => {
     fireEvent.contextMenu(card, { clientX: 24, clientY: 48 });
     await user.click(view.getByRole("menuitem", { name: "删除" }));
     expect(onDelete).toHaveBeenCalledWith("alpha.md");
+  });
+
+  it("exports the note as PDF from the context menu", async () => {
+    useAppStore.setState({
+      workspaceRoot: "/workspace",
+      notes: [
+        {
+          relativePath: "alpha.md",
+          fileName: "alpha.md",
+          extension: "md",
+          modifiedMs: 1,
+          size: 10,
+          title: "Alpha Guide",
+          tags: ["docs"],
+          excerpt: "Searchable content",
+          favorite: false,
+        },
+      ],
+    });
+    const user = userEvent.setup();
+    const view = render(
+      <NoteList onCreate={() => undefined} onDelete={() => undefined} onRename={() => undefined} />,
+    );
+
+    fireEvent.contextMenu(view.getByRole("button", { name: "Alpha Guide" }), {
+      clientX: 24,
+      clientY: 48,
+    });
+    await user.click(view.getByRole("menuitem", { name: "导出 PDF" }));
+    expect(exportNotePdf).toHaveBeenCalledWith("alpha.md");
   });
 });

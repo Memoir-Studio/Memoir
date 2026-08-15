@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { BrowserWorkspaceGateway } from "./browser";
 
 describe("BrowserWorkspaceGateway", () => {
@@ -25,6 +25,19 @@ describe("BrowserWorkspaceGateway", () => {
     expect(await gateway.readNote("demo://memoir", path)).toContain(
       'tags: ["leetcode", "rust"]',
     );
+  });
+
+  it("downloads a PDF export in the browser demo", async () => {
+    const createObjectURL = vi.fn(() => "blob:export");
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal("URL", { ...URL, createObjectURL, revokeObjectURL });
+    const gateway = new BrowserWorkspaceGateway();
+    const path = await gateway.chooseExportPath({ defaultPath: "demo://memoir/two.pdf" });
+    expect(path).toBe("two.pdf");
+    await gateway.writeExportFile(path, "AAAA");
+    expect(createObjectURL).toHaveBeenCalled();
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:export");
+    vi.unstubAllGlobals();
   });
 
   it("stores pasted attachments in memory and resolves them as data URLs", async () => {

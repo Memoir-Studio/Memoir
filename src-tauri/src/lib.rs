@@ -10,7 +10,7 @@ use commands::{
     create_note, delete_attachment, delete_draft, delete_note, drafts_exist, import_attachment,
     load_app_state, migrate_legacy_state, read_draft, read_note, rename_note, save_attachment,
     save_preferences, scan_attachments, scan_workspace, set_favorite, set_folder_appearance,
-    write_draft, write_note,
+    write_draft, write_export_file, write_note,
     AppServices,
 };
 use infrastructure::{app_data::AppDataRepository, filesystem::LocalFileSystem};
@@ -59,7 +59,8 @@ pub fn run() {
             read_draft,
             write_draft,
             delete_draft,
-            migrate_legacy_state
+            migrate_legacy_state,
+            write_export_file
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -163,6 +163,15 @@ pub fn delete_attachment(
 }
 
 #[tauri::command]
+pub fn write_export_file(
+    services: State<'_, AppServices>,
+    path: String,
+    bytes_base64: String,
+) -> Result<(), AppError> {
+    services.workspace.write_export_file(&path, &bytes_base64)
+}
+
+#[tauri::command]
 pub fn load_app_state(services: State<'_, AppServices>) -> Result<AppState, AppError> {
     services.app_state.load()
 }

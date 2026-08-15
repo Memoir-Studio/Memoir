@@ -3,6 +3,7 @@ import {
   BookOpen,
   Braces,
   ExternalLink,
+  FileDown,
   Heading2,
   Image,
   Italic,
@@ -18,7 +19,7 @@ import {
   Strikethrough,
   Trash2,
 } from "lucide-react";
-import { forwardRef, lazy, Suspense, useCallback, useImperativeHandle, useMemo, useRef } from "react";
+import { forwardRef, lazy, Suspense, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { IconButton, cn } from "../../components/ui";
 import { isTauriRuntime } from "../../platform/runtime";
 import { useAppStore } from "../../store/app-store";
@@ -27,6 +28,16 @@ import { parseNote } from "../library/note-utils";
 import { handleWindowDragMouseDown } from "../window/window-drag";
 import { markdownForAttachments } from "../../domain/attachments";
 import type { EditorHandle } from "./EditorPane";
+import {
+  bodySourceLineOffset,
+  collectPreviewAnchors,
+  countDocumentLines,
+  lineForScrollTop,
+  scrollTopForLine,
+  syncViewportOffset,
+  type ScrollAnchor,
+} from "./scroll-sync";
+import { exportNotePdf } from "../export/export-note-pdf";
 import { getGateways } from "../../gateways";
 
 const EditorPane = lazy(() => import("./EditorPane"));
@@ -56,9 +67,15 @@ export const EditorWorkspace = forwardRef<EditorHandle, {
 ) {
   const editorRef = useRef<EditorHandle>(null);
   const previewPaneRef = useRef<HTMLElement>(null);
-  const previewArticleRef = useRef<HTMLElement>(null);
-  const scrollSourceRef = useRef<"editor" | "preview" | null>(null);
-  const scrollResetRef = useRef<number | null>(null);
+  const ignoreScrollRef = useRef(false);
+  const lastScrollSourceRef = useRef<"editor" | "preview" | null>(null);
+  const pendingScrollRef = useRef<"editor" | "preview" | null>(null);
+  const scrollRafRef = useRef(0);
+  const anchorCacheRef = useRef<{
+    content: string;
+    height: number;
+    items: ScrollAnchor[];
+  } | null>(null);
   const workspaceRoot = useAppStore((state) => state.workspaceRoot);
   const notes = useAppStore((state) => state.notes);
   const activePath = useAppStore((state) => state.activePath);
@@ -75,6 +92,7 @@ export const EditorWorkspace = forwardRef<EditorHandle, {
   const savePastedImages = useAppStore((state) => state.savePastedImages);
   const importAttachments = useAppStore((state) => state.importAttachments);
   const { t } = useI18n();
+  const [isExporting, setIsExporting] = useState(false);
   const untitled = t("editor.untitledFallback");
   const activeNote = notes.find((note) => note.relativePath === activePath) || null;
   const hasDocument = Boolean(activeNote && loadedContentPath === activePath);
@@ -84,28 +102,116 @@ export const EditorWorkspace = forwardRef<EditorHandle, {
   );
   const isDirty = hasDocument && content !== savedContent;
 
-  const syncScroll = useCallback((source: "editor" | "preview") => {
-    const editorScroller = editorRef.current?.getScrollElement();
+  const lockForeignScroll = useCallback(() => {
+    ignoreScrollRef.current = true;
+    window.requestAnimationFrame(() => {
+      ignoreScrollRef.current = false;
+    });
+  }, []);
+
+  const applyScrollTop = useCallback((element: HTMLElement, nextTop: number) => {
+    if (Math.abs(element.scrollTop - nextTop) < 1) return;
+    lockForeignScroll();
+    element.scrollTop = nextTop;
+  }, [lockForeignScroll]);
+
+  const getPreviewAnchors = useCallback(() => {
     const previewScroller = previewPaneRef.current;
-    if (!editorScroller || !previewScroller || scrollSourceRef.current) return;
-    const from = source === "editor" ? editorScroller : previewScroller;
-    const to = source === "editor" ? previewScroller : editorScroller;
-    const fromRange = from.scrollHeight - from.clientHeight;
-    const toRange = to.scrollHeight - to.clientHeight;
-    if (fromRange <= 0 || toRange <= 0) return;
-    scrollSourceRef.current = source;
-    to.scrollTop = (from.scrollTop / fromRange) * toRange;
-    if (scrollResetRef.current !== null) window.clearTimeout(scrollResetRef.current);
-    scrollResetRef.current = window.setTimeout(() => {
-      scrollSourceRef.current = null;
-      scrollResetRef.current = null;
-    }, 80);
+    if (!previewScroller) return [];
+    const cached = anchorCacheRef.current;
+    if (cached && cached.content === content && cached.height === previewScroller.scrollHeight) {
+      return cached.items;
+    }
+    const items = collectPreviewAnchors(
+      previewScroller,
+      bodySourceLineOffset(content, parsed.body),
+    );
+    anchorCacheRef.current = {
+      content,
+      height: previewScroller.scrollHeight,
+      items,
+    };
+    return items;
+  }, [content, parsed.body]);
+
+  const performScrollSync = useCallback(
+    (source: "editor" | "preview") => {
+      const editor = editorRef.current;
+      const editorScroller = editor?.getScrollElement();
+      const previewScroller = previewPaneRef.current;
+      if (!editor || !editorScroller || !previewScroller) return;
+      const lastLine = countDocumentLines(content);
+      const anchors = getPreviewAnchors();
+      const editorOffset = syncViewportOffset(editorScroller.clientHeight);
+      const previewOffset = syncViewportOffset(previewScroller.clientHeight);
+      lastScrollSourceRef.current = source;
+      if (source === "editor") {
+        const line = editor.getVisibleLine(editorOffset);
+        if (line == null) return;
+        applyScrollTop(
+          previewScroller,
+          scrollTopForLine(line, anchors, previewScroller, lastLine, previewOffset),
+        );
+        return;
+      }
+      lockForeignScroll();
+      editor.scrollToLine(
+        lineForScrollTop(previewScroller.scrollTop, anchors, previewScroller, lastLine, previewOffset),
+        editorOffset,
+      );
+    },
+    [applyScrollTop, content, getPreviewAnchors, lockForeignScroll],
+  );
+
+  const syncScroll = useCallback(
+    (source: "editor" | "preview") => {
+      if (ignoreScrollRef.current) return;
+      pendingScrollRef.current = source;
+      if (scrollRafRef.current) return;
+      scrollRafRef.current = window.requestAnimationFrame(() => {
+        scrollRafRef.current = 0;
+        const pending = pendingScrollRef.current;
+        pendingScrollRef.current = null;
+        if (pending) performScrollSync(pending);
+      });
+    },
+    [performScrollSync],
+  );
+
+  const viewModeRef = useRef(viewMode);
+  viewModeRef.current = viewMode;
+  const previewObserverRef = useRef<ResizeObserver | null>(null);
+
+  const attachPreviewArticle = useCallback(
+    (node: HTMLElement | null) => {
+      previewObserverRef.current?.disconnect();
+      previewObserverRef.current = null;
+      if (!node) return;
+      const observer = new ResizeObserver(() => {
+        if (viewModeRef.current !== "split") return;
+        anchorCacheRef.current = null;
+        if (lastScrollSourceRef.current === "preview" || ignoreScrollRef.current) return;
+        performScrollSync("editor");
+      });
+      observer.observe(node);
+      previewObserverRef.current = observer;
+    },
+    [performScrollSync],
+  );
+
+  useEffect(() => {
+    return () => {
+      if (scrollRafRef.current) window.cancelAnimationFrame(scrollRafRef.current);
+      previewObserverRef.current?.disconnect();
+    };
   }, []);
 
   useImperativeHandle(
     forwardedRef,
     () => ({
       getScrollElement: () => editorRef.current?.getScrollElement() ?? null,
+      getVisibleLine: (offset) => editorRef.current?.getVisibleLine(offset) ?? null,
+      scrollToLine: (line, offset) => editorRef.current?.scrollToLine(line, offset),
       insertSnippet: (before, after, placeholder) =>
         editorRef.current?.insertSnippet(before, after, placeholder),
       insertText: (text) => editorRef.current?.insertText(text),
@@ -119,6 +225,16 @@ export const EditorWorkspace = forwardRef<EditorHandle, {
     },
     [],
   );
+
+  const exportActivePdf = useCallback(async () => {
+    if (!activePath || isExporting) return;
+    setIsExporting(true);
+    try {
+      await exportNotePdf(activePath);
+    } finally {
+      setIsExporting(false);
+    }
+  }, [activePath, isExporting]);
 
   const insertImportedImages = useCallback(async () => {
     const imported = await importAttachments();
@@ -199,6 +315,13 @@ export const EditorWorkspace = forwardRef<EditorHandle, {
             <Save className="h-4 w-4" />
           </IconButton>
           <IconButton
+            disabled={!hasDocument || isExporting}
+            label={isExporting ? t("editor.exportingPdf") : t("editor.exportPdf")}
+            onClick={() => void exportActivePdf()}
+          >
+            <FileDown className="h-4 w-4" />
+          </IconButton>
+          <IconButton
             className="max-[760px]:hidden"
             label={t("editor.openInSystem")}
             onClick={() =>
@@ -264,7 +387,7 @@ export const EditorWorkspace = forwardRef<EditorHandle, {
             <Suspense fallback={<PaneFallback label={t("editor.loadingPreview")} />}>
               <PreviewPane
                 activePath={activePath}
-                articleRef={previewArticleRef}
+                articleRef={attachPreviewArticle}
                 content={content}
                 note={activeNote}
                 onContentChange={setContent}

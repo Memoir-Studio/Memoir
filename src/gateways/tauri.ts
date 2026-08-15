@@ -1,5 +1,5 @@
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
-import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { openPath, openUrl } from "@tauri-apps/plugin-opener";
 import type { AppState, LegacyStatePayload, MigrationResult } from "../domain/app-state";
 import type { AttachmentFile, SaveAttachmentInput } from "../domain/attachments";
@@ -93,6 +93,20 @@ export class TauriWorkspaceGateway implements WorkspaceGateway {
 
   resolveMediaPath(path: string) {
     return convertFileSrc(path);
+  }
+
+  async chooseExportPath({ defaultPath, title }: { defaultPath: string; title?: string }) {
+    const selected = await saveDialog({
+      defaultPath,
+      filters: [{ name: "PDF", extensions: ["pdf"] }],
+      title: title || "Export PDF",
+    });
+    if (typeof selected !== "string" || !selected) return null;
+    return selected.toLowerCase().endsWith(".pdf") ? selected : `${selected}.pdf`;
+  }
+
+  writeExportFile(path: string, bytesBase64: string) {
+    return call<void>("write_export_file", { path, bytesBase64 });
   }
 }
 

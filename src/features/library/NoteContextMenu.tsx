@@ -1,4 +1,5 @@
-import { Copy, ExternalLink, FileText, PencilLine, Star, Trash2 } from "lucide-react";
+import { Copy, ExternalLink, FileDown, FileText, PencilLine, Star, Trash2 } from "lucide-react";
+import { exportNotePdf } from "../export/export-note-pdf";
 import {
   ContextMenu,
   ContextMenuItem,
@@ -86,6 +87,11 @@ export function NoteContextMenu({
           if (!workspaceRoot) return;
           void getGateways().workspace.openPath(`${workspaceRoot}/${note.relativePath}`);
         }}
+      />
+      <ContextMenuItem
+        icon={<FileDown />}
+        label={t("menu.exportPdf")}
+        onSelect={() => void exportNotePdf(note.relativePath)}
       />
       <ContextMenuSeparator />
       <ContextMenuItem

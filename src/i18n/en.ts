@@ -83,6 +83,7 @@ export const en = {
   "menu.rename": "Rename",
   "menu.copyPath": "Copy path",
   "menu.openInSystem": "Reveal in system",
+  "menu.exportPdf": "Export PDF",
   "menu.delete": "Delete",
   "menu.fallback": "Context menu",
   "menu.openFolder": "Open",
@@ -108,6 +109,8 @@ export const en = {
   "editor.favorite": "Favorite",
   "editor.save": "Save",
   "editor.openInSystem": "Reveal in system",
+  "editor.exportPdf": "Export PDF",
+  "editor.exportingPdf": "Exporting PDF…",
   "editor.rename": "Rename",
   "editor.delete": "Delete",
   "editor.toolbar": "Markdown toolbar",
@@ -158,6 +161,7 @@ export const en = {
   "dialog.tagCreate": "Create “{name}”",
   "dialog.removeTag": "Remove {name}",
   "dialog.relativePath": "Relative path",
+  "dialog.exportPdf": "Export PDF",
   "dialog.deleteNote": "Delete note",
   "dialog.deleteConfirm": "Delete “{title}”?",
   "dialog.currentNote": "the current note",
@@ -246,6 +250,7 @@ export const en = {
   "status.attachmentSaved": "Saved to the attachment library",
   "status.attachmentsImported": "Attachments imported",
   "status.attachmentDeleted": "Attachment moved to trash",
+  "status.exportedPdf": "Exported PDF",
 
   "errors.savePreferences": "Couldn't save settings: {message}",
   "errors.saveDraft": "Couldn't save draft: {message}",
@@ -265,6 +270,7 @@ export const en = {
   "errors.deleteAttachment": "Couldn't delete attachment: {message}",
   "errors.pasteNeedsNote": "Open a note before pasting an image.",
   "errors.attachmentTooLarge": "That image is larger than 20 MB.",
+  "errors.exportPdf": "Couldn't export PDF: {message}",
 
   "workspace.chooseFolder": "Choose a notes folder",
 } satisfies Record<MessageKey, string>;

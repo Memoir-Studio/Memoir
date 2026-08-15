@@ -264,6 +264,28 @@ export class BrowserWorkspaceGateway implements WorkspaceGateway {
     return this.media.get(path) ?? path;
   }
 
+  async chooseExportPath({ defaultPath }: { defaultPath: string; title?: string }) {
+    return defaultPath.split(/[\\/]/).pop() || "note.pdf";
+  }
+
+  async writeExportFile(path: string, bytesBase64: string) {
+    const fileName = path.split(/[\\/]/).pop() || "note.pdf";
+    const binary = atob(bytesBase64);
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1) {
+      bytes[index] = binary.charCodeAt(index);
+    }
+    const url = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+    const anchor = document.createElement("a");
+    anchor.download = fileName;
+    anchor.href = url;
+    anchor.rel = "noopener";
+    document.body.append(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  }
+
   private assertRoot(root: string) {
     if (root !== DEMO_ROOT) {
       throw new GatewayError({ code: "invalid_path", message: "Browser mode only supports the demo workspace." });

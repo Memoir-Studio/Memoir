@@ -2,13 +2,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const invoke = vi.fn();
 const open = vi.fn();
+const save = vi.fn();
 const openPath = vi.fn();
 
 vi.mock("@tauri-apps/api/core", () => ({
   invoke,
   convertFileSrc: (path: string) => `asset://${path}`,
 }));
-vi.mock("@tauri-apps/plugin-dialog", () => ({ open }));
+vi.mock("@tauri-apps/plugin-dialog", () => ({ open, save }));
 vi.mock("@tauri-apps/plugin-opener", () => ({
   openPath,
   openUrl: vi.fn(),
@@ -18,6 +19,7 @@ describe("Tauri gateways", () => {
   beforeEach(() => {
     invoke.mockReset();
     open.mockReset();
+    save.mockReset();
     openPath.mockReset();
   });
 
@@ -90,6 +92,20 @@ describe("Tauri gateways", () => {
       workspaceRoot: "/notes",
       folder: "日记",
       appearance: { emoji: "📔", color: "coral" },
+    });
+  });
+
+  it("saves a PDF export to the chosen path", async () => {
+    const { TauriWorkspaceGateway } = await import("./tauri");
+    save.mockResolvedValue("/tmp/two");
+    invoke.mockResolvedValue(undefined);
+    const gateway = new TauriWorkspaceGateway();
+    const path = await gateway.chooseExportPath({ defaultPath: "/notes/two.pdf", title: "导出 PDF" });
+    expect(path).toBe("/tmp/two.pdf");
+    await gateway.writeExportFile(path!, "AAAA");
+    expect(invoke).toHaveBeenCalledWith("write_export_file", {
+      path: "/tmp/two.pdf",
+      bytesBase64: "AAAA",
     });
   });
 

@@ -118,6 +118,18 @@ export class MockWorkspaceGateway implements WorkspaceGateway {
   resolveMediaPath(path: string) {
     return path;
   }
+
+  nextExportPath: string | null = "/tmp/note.pdf";
+  savedExports: Array<{ path: string; bytesBase64: string }> = [];
+
+  async chooseExportPath({ defaultPath }: { defaultPath: string; title?: string }) {
+    if (this.nextExportPath === null) return null;
+    return this.nextExportPath || defaultPath;
+  }
+
+  async writeExportFile(path: string, bytesBase64: string) {
+    this.savedExports.push({ path, bytesBase64 });
+  }
 }
 
 export class MockPersistenceGateway implements PersistenceGateway {

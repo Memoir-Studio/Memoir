@@ -34,6 +34,7 @@ export default function MermaidBlock({ code }: { code: string }) {
   return (
     <div
       className="my-4 overflow-auto rounded-lg border border-border bg-elevated p-4"
+      data-mermaid-pending={svg ? undefined : ""}
       dangerouslySetInnerHTML={{ __html: svg || "Rendering diagram..." }}
     />
   );

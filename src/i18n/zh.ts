@@ -80,6 +80,7 @@ export const zh = {
   "menu.rename": "重命名",
   "menu.copyPath": "复制路径",
   "menu.openInSystem": "在系统中打开",
+  "menu.exportPdf": "导出 PDF",
   "menu.delete": "删除",
   "menu.fallback": "上下文菜单",
   "menu.openFolder": "打开",
@@ -105,6 +106,8 @@ export const zh = {
   "editor.favorite": "收藏",
   "editor.save": "保存",
   "editor.openInSystem": "在系统中打开",
+  "editor.exportPdf": "导出 PDF",
+  "editor.exportingPdf": "正在导出 PDF…",
   "editor.rename": "重命名",
   "editor.delete": "删除",
   "editor.toolbar": "Markdown 工具栏",
@@ -155,6 +158,7 @@ export const zh = {
   "dialog.tagCreate": "新建 “{name}”",
   "dialog.removeTag": "移除 {name}",
   "dialog.relativePath": "相对路径",
+  "dialog.exportPdf": "导出 PDF",
   "dialog.deleteNote": "删除笔记",
   "dialog.deleteConfirm": "确认删除“{title}”？",
   "dialog.currentNote": "当前笔记",
@@ -243,6 +247,7 @@ export const zh = {
   "status.attachmentSaved": "已保存到附件库",
   "status.attachmentsImported": "已导入附件",
   "status.attachmentDeleted": "附件已移入回收站",
+  "status.exportedPdf": "已导出 PDF",
 
   "errors.savePreferences": "设置保存失败：{message}",
   "errors.saveDraft": "草稿保存失败：{message}",
@@ -262,6 +267,7 @@ export const zh = {
   "errors.deleteAttachment": "附件删除失败：{message}",
   "errors.pasteNeedsNote": "请先打开一篇笔记，再粘贴图片。",
   "errors.attachmentTooLarge": "图片超过 20 MB，无法保存到附件库。",
+  "errors.exportPdf": "导出 PDF 失败：{message}",
 
   "workspace.chooseFolder": "选择笔记文件夹",
 } as const;

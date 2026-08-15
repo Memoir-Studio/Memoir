@@ -4,7 +4,8 @@ import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirro
 import { searchKeymap } from "@codemirror/search";
 import { EditorSelection } from "@codemirror/state";
 import { EditorView, keymap, lineNumbers } from "@codemirror/view";
-import { forwardRef, useImperativeHandle, useMemo, useRef } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from "react";
+import { clamp } from "./scroll-sync";
 import { collectClipboardImages, padMarkdownBlock } from "../../domain/attachments";
 import type { AppSettings } from "../../domain/settings";
 import { useI18n } from "../../i18n/react";
@@ -30,6 +31,34 @@ function insertMarkdownBlock(view: EditorView, from: number, to: number, text: s
       ? view.state.doc.sliceString(insertTo, Math.min(view.state.doc.length, insertTo + 2))
       : "";
   insertAt(view, insertFrom, insertTo, padMarkdownBlock(text, before, after));
+}
+
+function visibleLineAtOffset(view: EditorView, offset: number) {
+  const y = view.scrollDOM.getBoundingClientRect().top + offset - view.documentTop;
+  if (y <= 0) return 1;
+  const lastBlock = view.lineBlockAt(view.state.doc.length);
+  if (y >= lastBlock.top + lastBlock.height) return view.state.doc.lines + 1;
+  const block = view.lineBlockAtHeight(y);
+  const line = view.state.doc.lineAt(block.from);
+  const progress = block.height > 0 ? (y - block.top) / block.height : 0;
+  return line.number + clamp(progress, 0, 0.999);
+}
+
+function scrollViewToLine(view: EditorView, line: number, offset: number) {
+  if (line <= 1) {
+    view.scrollDOM.scrollTop = 0;
+    return;
+  }
+  if (line >= view.state.doc.lines + 1) {
+    view.scrollDOM.scrollTop = view.scrollDOM.scrollHeight;
+    return;
+  }
+  const lineNumber = clamp(Math.floor(line), 1, view.state.doc.lines);
+  const fraction = clamp(line - lineNumber, 0, 0.999);
+  const block = view.lineBlockAt(view.state.doc.line(lineNumber).from);
+  const targetY = block.top + block.height * fraction;
+  const currentY = view.scrollDOM.getBoundingClientRect().top + offset - view.documentTop;
+  view.scrollDOM.scrollTop += targetY - currentY;
 }
 
 function createEditorExtensions(
@@ -84,6 +113,8 @@ function createEditorExtensions(
         ".cm-scroller": {
           height: "100%",
           overflow: "auto",
+          overflowAnchor: "none",
+          overscrollBehavior: "contain",
           backgroundColor: "var(--memoir-canvas)",
           fontFamily: "var(--memoir-mono-font)",
         },
@@ -127,6 +158,8 @@ function createEditorExtensions(
 
 export interface EditorHandle {
   getScrollElement: () => HTMLElement | null;
+  getVisibleLine: (offset?: number) => number | null;
+  scrollToLine: (line: number, offset?: number) => void;
   insertSnippet: (before: string, after?: string, placeholder?: string) => void;
   insertText: (text: string) => void;
 }
@@ -155,6 +188,9 @@ export const EditorPane = forwardRef<EditorHandle, EditorPaneProps>(function Edi
 ) {
   const { t, tc } = useI18n();
   const editorRef = useRef<ReactCodeMirrorRef>(null);
+  const onScrollRef = useRef(onScroll);
+  const detachScrollRef = useRef<(() => void) | null>(null);
+  onScrollRef.current = onScroll;
   const extensions = useMemo(
     () => createEditorExtensions(isDark, settings.editor, onPasteImages),
     [isDark, onPasteImages, settings.editor],
@@ -162,10 +198,20 @@ export const EditorPane = forwardRef<EditorHandle, EditorPaneProps>(function Edi
   const parsed = useMemo(() => parseNote(content, fileName), [content, fileName]);
   const stats = useMemo(() => noteStats(content), [content]);
 
+  useEffect(() => () => detachScrollRef.current?.(), []);
+
   useImperativeHandle(
     forwardedRef,
     () => ({
       getScrollElement: () => editorRef.current?.view?.scrollDOM || null,
+      getVisibleLine: (offset = 0) => {
+        const view = editorRef.current?.view;
+        return view ? visibleLineAtOffset(view, offset) : null;
+      },
+      scrollToLine: (line, offset = 0) => {
+        const view = editorRef.current?.view;
+        if (view) scrollViewToLine(view, line, offset);
+      },
       insertSnippet: (before, after = "", placeholder = "") => {
         const view = editorRef.current?.view;
         if (!view) return;
@@ -200,8 +246,12 @@ export const EditorPane = forwardRef<EditorHandle, EditorPaneProps>(function Edi
         extensions={extensions}
         height="100%"
         onChange={onChange}
-        onUpdate={(update) => {
-          if (update.docChanged || update.selectionSet || update.viewportChanged) onScroll?.();
+        onCreateEditor={(view) => {
+          detachScrollRef.current?.();
+          const handleScroll = () => onScrollRef.current?.();
+          view.scrollDOM.addEventListener("scroll", handleScroll, { passive: true });
+          detachScrollRef.current = () => view.scrollDOM.removeEventListener("scroll", handleScroll);
+          handleScroll();
         }}
         ref={editorRef}
         value={content}

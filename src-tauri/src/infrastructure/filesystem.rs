@@ -17,7 +17,7 @@ use crate::{
 };
 use std::{
     fs, io,
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
     time::SystemTime,
 };
 
@@ -53,6 +53,11 @@ impl LocalFileSystem {
         };
         create_parent_dirs(&root_path, &target)?;
         atomic_write(&target, content.as_bytes())
+    }
+
+    pub fn write_export_file(&self, path: &str, bytes: &[u8]) -> AppResult<()> {
+        let path = validate_export_path(path)?;
+        atomic_write(&path, bytes)
     }
 
     pub fn create_note(
@@ -452,6 +457,35 @@ fn yaml_tags(tags: Option<&[String]>) -> String {
     } else {
         format!("[{}]", tags.join(", "))
     }
+}
+
+fn validate_export_path(path: &str) -> AppResult<PathBuf> {
+    let trimmed = path.trim();
+    if trimmed.is_empty() {
+        return Err(AppError::invalid_path("Export path is empty."));
+    }
+    let path = PathBuf::from(trimmed);
+    if !path.is_absolute() {
+        return Err(AppError::invalid_path("Export path must be absolute."));
+    }
+    if path
+        .components()
+        .any(|component| matches!(component, Component::ParentDir))
+    {
+        return Err(AppError::invalid_path("Export path is invalid."));
+    }
+    let extension = path
+        .extension()
+        .and_then(|value| value.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    if extension != "pdf" {
+        return Err(AppError::new(
+            crate::domain::ErrorCode::UnsupportedExtension,
+            "Only PDF export is supported.",
+        ));
+    }
+    Ok(path)
 }
 
 fn unique_trash_path(trash: &Path, timestamp: u64, file_name: &str) -> PathBuf {

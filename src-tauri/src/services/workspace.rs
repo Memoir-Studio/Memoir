@@ -354,6 +354,11 @@ impl WorkspaceService {
         self.filesystem.delete_attachment(root, relative_path)
     }
 
+    pub fn write_export_file(&self, path: &str, bytes_base64: &str) -> AppResult<()> {
+        let bytes = decode_base64(bytes_base64, "Export data is not valid base64.")?;
+        self.filesystem.write_export_file(path, &bytes)
+    }
+
     fn lock_index(&self) -> std::sync::MutexGuard<'_, Option<OpenWorkspaceIndex>> {
         self.index
             .lock()
@@ -551,13 +556,14 @@ fn fs_metadata(path: &Path) -> (u128, u64) {
 }
 
 fn decode_attachment_bytes(bytes_base64: &str) -> AppResult<Vec<u8>> {
+    decode_base64(bytes_base64, "Attachment data is not valid base64.")
+}
+
+fn decode_base64(bytes_base64: &str, message: &str) -> AppResult<Vec<u8>> {
     use base64::{engine::general_purpose::STANDARD, Engine as _};
     STANDARD.decode(bytes_base64.trim()).map_err(|error| {
-        crate::domain::AppError::new(
-            crate::domain::ErrorCode::Io,
-            "Attachment data is not valid base64.",
-        )
-        .with_details(error.to_string())
+        crate::domain::AppError::new(crate::domain::ErrorCode::Io, message)
+            .with_details(error.to_string())
     })
 }
 

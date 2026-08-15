@@ -1,5 +1,7 @@
 .preview-pane {
   animation: memoir-fade-in var(--memoir-motion-fast) var(--memoir-ease);
+  overflow-anchor: none;
+  overscroll-behavior: contain;
   background:
     linear-gradient(90deg, color-mix(in srgb, var(--memoir-panel) 25%, transparent), transparent 40px),
     var(--memoir-canvas);
@@ -212,4 +214,35 @@
   .preview-pane {
     background: var(--memoir-canvas);
   }
+}
+
+.memoir-pdf-export {
+  position: fixed;
+  left: -12000px;
+  top: 0;
+  z-index: -1;
+  overflow: visible;
+  background: #ffffff;
+  color: #222222;
+  pointer-events: none;
+}
+
+.memoir-pdf-preview {
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 48px 56px 64px !important;
+  background: #ffffff !important;
+  color: #222222 !important;
+}
+
+.memoir-pdf-preview h1,
+.memoir-pdf-preview h2,
+.memoir-pdf-preview h3,
+.memoir-pdf-preview h4,
+.memoir-pdf-preview h5,
+.memoir-pdf-preview h6,
+.memoir-pdf-preview strong,
+.memoir-pdf-preview p,
+.memoir-pdf-preview li {
+  color: #222222;
 }

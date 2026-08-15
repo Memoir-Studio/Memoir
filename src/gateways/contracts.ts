@@ -27,6 +27,8 @@ export interface WorkspaceGateway {
   openPath(path: string): Promise<void>;
   openExternal(url: string): Promise<void>;
   resolveMediaPath(path: string): string;
+  chooseExportPath(input: { defaultPath: string; title?: string }): Promise<string | null>;
+  writeExportFile(path: string, bytesBase64: string): Promise<void>;
 }
 
 export interface PersistenceGateway {

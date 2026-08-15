@@ -549,6 +549,32 @@ fn rejects_non_image_and_escaping_attachment_paths() {
 }
 
 #[test]
+fn writes_absolute_pdf_export_files_and_rejects_invalid_paths() {
+    let dir = tempdir().unwrap();
+    let dest = dir.path().join("note.pdf");
+    let filesystem = LocalFileSystem;
+    filesystem
+        .write_export_file(dest.to_str().unwrap(), b"%PDF-1.4 test")
+        .unwrap();
+    assert_eq!(fs::read(&dest).unwrap(), b"%PDF-1.4 test");
+
+    assert_eq!(
+        filesystem
+            .write_export_file("note.pdf", b"x")
+            .unwrap_err()
+            .code,
+        ErrorCode::InvalidPath
+    );
+    assert_eq!(
+        filesystem
+            .write_export_file(dir.path().join("note.txt").to_str().unwrap(), b"x")
+            .unwrap_err()
+            .code,
+        ErrorCode::UnsupportedExtension
+    );
+}
+
+#[test]
 fn workspace_scan_returns_cached_metadata_and_skips_unchanged_reads() {
     let workspace = tempdir().unwrap();
     let root = workspace.path().to_str().unwrap();
