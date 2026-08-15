@@ -1,11 +1,14 @@
-import { cleanup, render, waitFor, within } from "@testing-library/react";
+import { act, cleanup, render, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
+import { setGatewaysForTests } from "../gateways";
 import { useAppStore } from "../store/app-store";
 import AppShell from "./AppShell";
 
 afterEach(() => {
   cleanup();
+  delete (window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__;
+  setGatewaysForTests(null);
   useAppStore.setState({
     workspaceRoot: null,
     notes: [],
@@ -19,6 +22,8 @@ afterEach(() => {
     error: "",
     navFilter: "all",
     scopedFilter: null,
+    attachments: [],
+    libraryPanelMode: "notes",
   });
 });
 
@@ -53,5 +58,34 @@ describe("AppShell folder appearance", () => {
       expect(useAppStore.getState().folderAppearances.日记).toEqual({ emoji: "📔" });
     });
     expect(view.getAllByText("📔").length).toBeGreaterThan(0);
+  });
+});
+
+describe("AppShell window chrome", () => {
+  it("shows window controls on the empty workspace screen in the desktop runtime", async () => {
+    Object.defineProperty(window, "__TAURI_INTERNALS__", {
+      value: {},
+      configurable: true,
+    });
+    const initialize = useAppStore.getState().initialize;
+    useAppStore.setState({
+      initialize: async () => undefined,
+      initialized: true,
+      workspaceRoot: null,
+    });
+
+    try {
+      const view = render(<AppShell />);
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(view.getByRole("button", { name: /关闭窗口|close window/i })).toBeInTheDocument();
+      expect(view.getByRole("button", { name: /最小化|minimize/i })).toBeInTheDocument();
+      expect(view.getByRole("button", { name: /最大化|maximize/i })).toBeInTheDocument();
+      expect(view.getByRole("button", { name: /打开文件夹|open folder/i })).toBeInTheDocument();
+      expect(document.querySelector(".memoir-window-drag-bar")).toBeTruthy();
+    } finally {
+      useAppStore.setState({ initialize });
+    }
   });
 });

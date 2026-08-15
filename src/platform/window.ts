@@ -1,4 +1,4 @@
-import { isTauriRuntime } from "./runtime";
+import { detectHostOs, isTauriRuntime, type HostOs } from "./runtime";
 
 export type WindowResizeDirection =
   | "East"
@@ -21,6 +21,18 @@ export function applyWindowFrameState(
 ) {
   if (expanded) root.dataset.maximized = "true";
   else delete root.dataset.maximized;
+}
+
+export function applyHostWindowChrome(
+  root: HTMLElement = document.documentElement,
+  os: HostOs = detectHostOs(),
+) {
+  root.dataset.os = os;
+  if (isTauriRuntime() && os === "windows") {
+    root.dataset.windowFrame = "flush";
+  } else {
+    delete root.dataset.windowFrame;
+  }
 }
 
 export async function watchWindowFrameState(onChange: (expanded: boolean) => void) {

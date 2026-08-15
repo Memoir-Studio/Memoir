@@ -1,3 +1,4 @@
+import type { MouseEvent, ReactNode } from "react";
 import { useI18n } from "../../i18n/react";
 import { isTauriRuntime } from "../../platform/runtime";
 import {
@@ -5,6 +6,7 @@ import {
   startWindowResize,
   type WindowResizeDirection,
 } from "../../platform/window";
+import { handleWindowDragMouseDown } from "./window-drag";
 
 const resizeHandles: Array<{ direction: WindowResizeDirection; className: string }> = [
   { direction: "North", className: "left-3 right-3 top-0 h-1.5 cursor-ns-resize" },
@@ -55,11 +57,44 @@ export function WindowChrome({ controlsHidden = false }: { controlsHidden?: bool
         {resizeHandles.map(({ direction, className }) => (
           <div
             className={`pointer-events-auto absolute ${className}`}
+            data-window-drag="ignore"
             key={direction}
-            onMouseDown={() => void startWindowResize(direction)}
+            onMouseDown={(event) => {
+              event.stopPropagation();
+              void startWindowResize(direction);
+            }}
           />
         ))}
       </div>
     </>
+  );
+}
+
+export function WindowFrame({
+  children,
+  controlsHidden = false,
+  surfaceDrag = false,
+}: {
+  children: ReactNode;
+  controlsHidden?: boolean;
+  surfaceDrag?: boolean;
+}) {
+  const onSurfaceMouseDown = surfaceDrag
+    ? (event: MouseEvent<HTMLDivElement>) => handleWindowDragMouseDown(event)
+    : undefined;
+
+  return (
+    <div className="memoir-window-frame" onMouseDown={onSurfaceMouseDown}>
+      <WindowChrome controlsHidden={controlsHidden} />
+      {surfaceDrag && isTauriRuntime() && (
+        <div
+          aria-hidden="true"
+          className="memoir-window-drag-bar"
+          data-tauri-drag-region=""
+          onMouseDown={handleWindowDragMouseDown}
+        />
+      )}
+      {children}
+    </div>
   );
 }

@@ -1,9 +1,10 @@
 import { FolderOpen, Library, Menu, Pencil } from "lucide-react";
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Button, StatusNotice } from "../components/ui";
+import type { EditorHandle } from "../features/editor/EditorPane";
 import { LibrarySidebar } from "../features/library/LibrarySidebar";
 import { NoteList } from "../features/library/NoteList";
-import { WindowChrome } from "../features/window/WindowChrome";
+import { WindowFrame } from "../features/window/WindowChrome";
 import {
   useWorkspaceDialogs,
   WorkspaceDialogsProvider,
@@ -15,7 +16,7 @@ import { migrateLegacyStorage } from "../migrations/legacy-storage";
 import { applyInterfaceZoom, watchSystemScale } from "../platform/dpi";
 import { installNativeContextMenuBlock } from "../platform/native-context-menu";
 import { isTauriRuntime } from "../platform/runtime";
-import { applyWindowFrameState, watchWindowFrameState } from "../platform/window";
+import { applyHostWindowChrome, applyWindowFrameState, watchWindowFrameState } from "../platform/window";
 import { useAppStore } from "../store/app-store";
 
 const SettingsDialog = lazy(() => import("../features/settings/SettingsDialog"));
@@ -25,7 +26,7 @@ function EmptyState() {
   const openWorkspace = useAppStore((state) => state.openWorkspace);
   const { t } = useI18n();
   return (
-    <div className="memoir-window-frame">
+    <WindowFrame surfaceDrag>
       <section className="workspace-shell grid place-items-center px-6">
         <div className="max-w-lg text-center">
           <div className="mx-auto mb-5 grid h-12 w-12 place-items-center rounded-xl bg-accent text-accent-contrast">
@@ -39,7 +40,7 @@ function EmptyState() {
           </Button>
         </div>
       </section>
-    </div>
+    </WindowFrame>
   );
 }
 
@@ -66,14 +67,14 @@ function WorkspaceLayout({
   const setMobilePanel = useAppStore((state) => state.setMobilePanel);
   const { openCreate, openDelete, openRename } = useWorkspaceDialogs();
   const { t } = useI18n();
+  const editorRef = useRef<EditorHandle>(null);
   const panelClass = (panel: "navigation" | "library" | "editor") =>
     mobilePanel === panel
       ? "max-[760px]:fixed max-[760px]:bottom-0 max-[760px]:left-0 max-[760px]:top-12 max-[760px]:z-20 max-[760px]:flex max-[760px]:w-[min(86vw,320px)] max-[760px]:shadow-2xl"
       : "max-[760px]:hidden";
 
   return (
-    <div className="memoir-window-frame">
-      <WindowChrome controlsHidden={isSidebarCollapsed} />
+    <WindowFrame controlsHidden={isSidebarCollapsed}>
       <main
         className={`workspace-shell relative grid min-h-0 grid-rows-[minmax(0,1fr)] text-text ${
           isSidebarCollapsed
@@ -97,6 +98,7 @@ function WorkspaceLayout({
           className={panelClass("library")}
           onCreate={() => openCreate()}
           onDelete={openDelete}
+          onInsertAttachment={(markdown) => editorRef.current?.insertText(markdown)}
           onRename={openRename}
         />
         <Suspense
@@ -111,6 +113,7 @@ function WorkspaceLayout({
             isDark={isDark}
             onDelete={openDelete}
             onRename={openRename}
+            ref={editorRef}
           />
         </Suspense>
 
@@ -175,7 +178,7 @@ function WorkspaceLayout({
           />
         </Suspense>
       </main>
-    </div>
+    </WindowFrame>
   );
 }
 
@@ -254,6 +257,10 @@ export default function AppShell() {
     };
   }, []);
 
+  useLayoutEffect(() => {
+    applyHostWindowChrome();
+  }, []);
+
   useEffect(() => {
     let disposed = false;
     let unlisten: (() => void) | undefined;
@@ -325,8 +332,8 @@ export default function AppShell() {
 function LoadingScreen() {
   const { t } = useI18n();
   return (
-    <div className="memoir-window-frame">
+    <WindowFrame surfaceDrag>
       <div className="workspace-shell grid place-items-center text-sm text-muted">{t("app.loading")}</div>
-    </div>
+    </WindowFrame>
   );
 }

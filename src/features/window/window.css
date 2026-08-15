@@ -16,6 +16,14 @@
   gap: 8px;
 }
 
+.memoir-window-drag-bar {
+  position: absolute;
+  inset-inline: var(--memoir-window-inset);
+  top: var(--memoir-window-inset);
+  z-index: 25;
+  height: 44px;
+}
+
 .workspace-shell {
   height: 100%;
   overflow: hidden;
@@ -37,15 +45,23 @@
     inset 0 1px rgb(255 255 255 / 5%);
 }
 
-:root[data-maximized="true"] {
+:root[data-maximized="true"],
+:root[data-window-frame="flush"] {
   --memoir-window-inset: 0px;
 }
 
-:root[data-maximized="true"] .memoir-window-frame {
+:root[data-maximized="true"] body,
+:root[data-window-frame="flush"] body {
+  background: var(--memoir-canvas);
+}
+
+:root[data-maximized="true"] .memoir-window-frame,
+:root[data-window-frame="flush"] .memoir-window-frame {
   padding: 0;
 }
 
-:root[data-maximized="true"] .workspace-shell {
+:root[data-maximized="true"] .workspace-shell,
+:root[data-window-frame="flush"] .workspace-shell {
   border: 0;
   border-radius: 0;
   box-shadow: none;
@@ -66,7 +82,8 @@
     padding: 0;
   }
 
-  .memoir-window-controls {
+  .memoir-window-controls,
+  .memoir-window-drag-bar {
     display: none;
   }
 
