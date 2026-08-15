@@ -1,0 +1,269 @@
+import type { AppState, LegacyStatePayload } from "../domain/app-state";
+import { APP_STATE_VERSION } from "../domain/app-state";
+import type { FolderAppearance } from "../domain/folders";
+import {
+  folderAppearancesForWorkspace,
+  normalizeFolderAppearance,
+  normalizeFolderKey,
+} from "../domain/folders";
+import type { RawNoteFile } from "../domain/notes";
+import { DEFAULT_SETTINGS } from "../domain/settings";
+import { GatewayError } from "../domain/errors";
+import type { AppGateways, CreateNoteInput, PersistenceGateway, WorkspaceGateway } from "./contracts";
+
+const DEMO_ROOT = "demo://memoir";
+const DEMO_NOTES: Array<[string, string]> = [
+  [
+    "welcome.mdx",
+    `---
+title: Welcome to Memoir
+tags: [memoir, mdx]
+---
+
+# Welcome to Memoir
+
+This in-memory demo supports **Markdown**, MDX components, Mermaid, and editing.
+
+<Callout type="tip" title="Browser demo">
+  Browser preview never writes real app state to localStorage.
+</Callout>
+`,
+  ],
+  [
+    "日记/today.md",
+    `---
+title: 今日记录
+tags: [diary]
+---
+
+# 今日记录
+
+写一点今天的事。
+`,
+  ],
+  [
+    "思考/inbox.md",
+    `---
+title: 随手记
+tags: [ideas]
+---
+
+# 随手记
+
+把念头先放在这里。
+`,
+  ],
+  [
+    "LeetCode/two-sum.md",
+    `---
+title: Two Sum
+tags: [leetcode]
+---
+
+# Two Sum
+
+Practice note for the classic problem.
+`,
+  ],
+];
+
+function yamlQuote(value: string) {
+  return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+}
+
+function yamlTags(tags?: string[]) {
+  const quoted = (tags ?? [])
+    .map((tag) => tag.trim())
+    .filter(Boolean)
+    .map(yamlQuote);
+  return quoted.length ? `[${quoted.join(", ")}]` : "[]";
+}
+
+function createDefaultState(): AppState {
+  return {
+    version: APP_STATE_VERSION,
+    preferences: DEFAULT_SETTINGS,
+    recentWorkspaces: [],
+    lastWorkspace: null,
+    sidebarCollapsed: false,
+    favorites: {},
+    folderAppearances: {},
+  };
+}
+
+export class BrowserWorkspaceGateway implements WorkspaceGateway {
+  private files = new Map<string, string>(DEMO_NOTES);
+  private modified = new Map<string, number>(DEMO_NOTES.map(([path]) => [path, Date.now()]));
+
+  async chooseWorkspace(_title?: string) {
+    return DEMO_ROOT;
+  }
+
+  async scanWorkspace(root: string): Promise<RawNoteFile[]> {
+    this.assertRoot(root);
+    return [...this.files.entries()].map(([relativePath, content]) => ({
+      relativePath,
+      fileName: relativePath.split("/").pop() || relativePath,
+      extension: relativePath.endsWith(".mdx") ? "mdx" : "md",
+      modifiedMs: this.modified.get(relativePath) || Date.now(),
+      size: new Blob([content]).size,
+    }));
+  }
+
+  async readNote(root: string, relativePath: string) {
+    this.assertRoot(root);
+    const content = this.files.get(relativePath);
+    if (content === undefined) {
+      throw new GatewayError({ code: "not_found", message: "Demo note does not exist." });
+    }
+    return content;
+  }
+
+  async writeNote(root: string, relativePath: string, content: string) {
+    this.assertRoot(root);
+    if (!this.files.has(relativePath)) {
+      throw new GatewayError({ code: "not_found", message: "Demo note does not exist." });
+    }
+    this.files.set(relativePath, content);
+    this.modified.set(relativePath, Date.now());
+  }
+
+  async createNote({ root, title, extension, folder, tags }: CreateNoteInput) {
+    this.assertRoot(root);
+    const slug = title
+      .trim()
+      .toLowerCase()
+      .replace(/[^\p{Letter}\p{Number}]+/gu, "-")
+      .replace(/^-|-$/g, "") || "untitled";
+    const prefix = folder?.replace(/^\/|\/$/g, "");
+    let index = 0;
+    let relativePath = `${prefix ? `${prefix}/` : ""}${slug}.${extension}`;
+    while (this.files.has(relativePath)) {
+      index += 1;
+      relativePath = `${prefix ? `${prefix}/` : ""}${slug}-${index}.${extension}`;
+    }
+    this.files.set(
+      relativePath,
+      `---\ntitle: ${yamlQuote(title)}\ntags: ${yamlTags(tags)}\n---\n\n# ${title}\n`,
+    );
+    this.modified.set(relativePath, Date.now());
+    return relativePath;
+  }
+
+  async renameNote(root: string, oldRelativePath: string, newRelativePath: string) {
+    this.assertRoot(root);
+    const content = this.files.get(oldRelativePath);
+    if (content === undefined) {
+      throw new GatewayError({ code: "not_found", message: "Demo note does not exist." });
+    }
+    if (this.files.has(newRelativePath)) {
+      throw new GatewayError({ code: "conflict", message: "A demo note already exists there." });
+    }
+    this.files.delete(oldRelativePath);
+    this.files.set(newRelativePath, content);
+    this.modified.set(newRelativePath, Date.now());
+    return newRelativePath;
+  }
+
+  async deleteNote(root: string, relativePath: string) {
+    this.assertRoot(root);
+    if (!this.files.delete(relativePath)) {
+      throw new GatewayError({ code: "not_found", message: "Demo note does not exist." });
+    }
+    return `.memoir-trash/${relativePath}`;
+  }
+
+  async openPath() {}
+
+  async openExternal(url: string) {
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
+
+  resolveMediaPath(path: string) {
+    return path;
+  }
+
+  private assertRoot(root: string) {
+    if (root !== DEMO_ROOT) {
+      throw new GatewayError({ code: "invalid_path", message: "Browser mode only supports the demo workspace." });
+    }
+  }
+}
+
+export class BrowserPersistenceGateway implements PersistenceGateway {
+  private state = createDefaultState();
+  private drafts = new Map<string, string>();
+
+  async loadAppState() {
+    return structuredClone(this.state);
+  }
+
+  async savePreferences(
+    preferences: AppState["preferences"],
+    lastWorkspace: string | null,
+    sidebarCollapsed: boolean,
+  ) {
+    this.state = {
+      ...this.state,
+      preferences,
+      lastWorkspace,
+      sidebarCollapsed,
+      recentWorkspaces:
+        lastWorkspace === DEMO_ROOT
+          ? [DEMO_ROOT, ...this.state.recentWorkspaces.filter((root) => root !== DEMO_ROOT)]
+          : this.state.recentWorkspaces,
+    };
+    return structuredClone(this.state);
+  }
+
+  async setFavorite(workspaceRoot: string, relativePath: string, favorite: boolean) {
+    const current = new Set(this.state.favorites[workspaceRoot] || []);
+    if (favorite) current.add(relativePath);
+    else current.delete(relativePath);
+    this.state = {
+      ...this.state,
+      favorites: { ...this.state.favorites, [workspaceRoot]: [...current] },
+    };
+    return structuredClone(this.state);
+  }
+
+  async setFolderAppearance(
+    workspaceRoot: string,
+    folder: string,
+    appearance: FolderAppearance | null,
+  ) {
+    const key = normalizeFolderKey(folder);
+    const current = folderAppearancesForWorkspace(this.state.folderAppearances, workspaceRoot);
+    const nextAppearance = appearance ? normalizeFolderAppearance(appearance) : undefined;
+    if (nextAppearance) current[key] = nextAppearance;
+    else delete current[key];
+    const folderAppearances = { ...this.state.folderAppearances };
+    if (Object.keys(current).length) folderAppearances[workspaceRoot] = current;
+    else delete folderAppearances[workspaceRoot];
+    this.state = { ...this.state, folderAppearances };
+    return structuredClone(this.state);
+  }
+
+  async readDraft(workspaceRoot: string, relativePath: string) {
+    return this.drafts.get(`${workspaceRoot}\0${relativePath}`) ?? null;
+  }
+
+  async writeDraft(workspaceRoot: string, relativePath: string, content: string) {
+    this.drafts.set(`${workspaceRoot}\0${relativePath}`, content);
+  }
+
+  async deleteDraft(workspaceRoot: string, relativePath: string) {
+    this.drafts.delete(`${workspaceRoot}\0${relativePath}`);
+  }
+
+  async migrateLegacyState(_payload: LegacyStatePayload) {
+    return { migratedKeys: [] };
+  }
+}
+
+export function createBrowserGateways(): AppGateways {
+  return {
+    workspace: new BrowserWorkspaceGateway(),
+    persistence: new BrowserPersistenceGateway(),
+  };
+}

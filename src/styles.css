@@ -1,0 +1,19 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+@import "katex/dist/katex.min.css";
+
+@import "./styles/tokens.css";
+@import "./styles/base.css";
+@import "./components/ui/Button/Button.css";
+@import "./components/ui/Input/Input.css";
+@import "./components/ui/Select/Select.css";
+@import "./components/ui/Combobox/Combobox.css";
+@import "./components/ui/TagInput/TagInput.css";
+@import "./components/ui/Dialog/Dialog.css";
+@import "./components/ui/ContextMenu/ContextMenu.css";
+@import "./features/window/window.css";
+@import "./features/library/library.css";
+@import "./features/workspace/workspace.css";
+@import "./features/editor/editor.css";
+@import "./features/preview/preview.css";
+@import "./features/settings/settings.css";

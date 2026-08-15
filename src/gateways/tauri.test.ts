@@ -1,0 +1,71 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const invoke = vi.fn();
+const open = vi.fn();
+const openPath = vi.fn();
+
+vi.mock("@tauri-apps/api/core", () => ({
+  invoke,
+  convertFileSrc: (path: string) => `asset://${path}`,
+}));
+vi.mock("@tauri-apps/plugin-dialog", () => ({ open }));
+vi.mock("@tauri-apps/plugin-opener", () => ({
+  openPath,
+  openUrl: vi.fn(),
+}));
+
+describe("Tauri gateways", () => {
+  beforeEach(() => {
+    invoke.mockReset();
+    open.mockReset();
+    openPath.mockReset();
+  });
+
+  it("uses camelCase DTOs for workspace commands", async () => {
+    const { TauriWorkspaceGateway } = await import("./tauri");
+    invoke.mockResolvedValue("new-note.md");
+    const gateway = new TauriWorkspaceGateway();
+    await gateway.createNote({
+      root: "/notes",
+      title: "New",
+      extension: "md",
+      folder: "work",
+      tags: ["team"],
+    });
+    expect(invoke).toHaveBeenCalledWith("create_note", {
+      root: "/notes",
+      title: "New",
+      extension: "md",
+      folder: "work",
+      tags: ["team"],
+    });
+  });
+
+  it("maps structured command errors", async () => {
+    const { TauriWorkspaceGateway } = await import("./tauri");
+    invoke.mockRejectedValue({
+      code: "invalid_path",
+      message: "Outside workspace",
+      details: "../note.md",
+    });
+    const gateway = new TauriWorkspaceGateway();
+    await expect(gateway.readNote("/notes", "../note.md")).rejects.toMatchObject({
+      name: "GatewayError",
+      code: "invalid_path",
+      message: "Outside workspace",
+      details: "../note.md",
+    });
+  });
+
+  it("sends folder appearance updates with camelCase DTOs", async () => {
+    const { TauriPersistenceGateway } = await import("./tauri");
+    invoke.mockResolvedValue({ folderAppearances: {} });
+    const gateway = new TauriPersistenceGateway();
+    await gateway.setFolderAppearance("/notes", "日记", { emoji: "📔", color: "coral" });
+    expect(invoke).toHaveBeenCalledWith("set_folder_appearance", {
+      workspaceRoot: "/notes",
+      folder: "日记",
+      appearance: { emoji: "📔", color: "coral" },
+    });
+  });
+});

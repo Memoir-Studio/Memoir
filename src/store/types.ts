@@ -1,0 +1,83 @@
+import type { FolderAppearance } from "../domain/folders";
+import type { NoteExtension, NoteMeta, NavFilter, ScopedFilter } from "../domain/notes";
+import type { AppSettings, ViewMode } from "../domain/settings";
+import type { SettingsSection } from "../features/settings/types";
+
+export type WorkspaceSlice = {
+  workspaceRoot: string | null;
+  recentWorkspaces: string[];
+  notes: NoteMeta[];
+  isLoading: boolean;
+  folderAppearances: Record<string, FolderAppearance>;
+};
+
+export type DocumentSlice = {
+  activePath: string | null;
+  loadedContentPath: string | null;
+  content: string;
+  savedContent: string;
+  isSaving: boolean;
+};
+
+export type LibrarySlice = {
+  query: string;
+  navFilter: NavFilter;
+  scopedFilter: ScopedFilter;
+  libraryPanelMode: "notes" | "outline";
+};
+
+export type SettingsSlice = {
+  settings: AppSettings;
+};
+
+export type UiSlice = {
+  initialized: boolean;
+  status: string;
+  error: string;
+  viewMode: ViewMode;
+  isSidebarCollapsed: boolean;
+  settingsOpen: boolean;
+  settingsSection: SettingsSection;
+  mobilePanel: "editor" | "library" | "navigation";
+};
+
+export type AppActions = {
+  initialize(): Promise<void>;
+  openWorkspace(root?: string): Promise<void>;
+  refreshWorkspace(preferredPath?: string | null): Promise<void>;
+  selectNote(relativePath: string): Promise<void>;
+  setContent(content: string): void;
+  saveActiveNote(): Promise<void>;
+  createNote(input: {
+    title: string;
+    extension: NoteExtension;
+    folder?: string;
+    tags?: string[];
+  }): Promise<void>;
+  renameNote(relativePath: string, newRelativePath: string): Promise<void>;
+  renameActiveNote(newRelativePath: string): Promise<void>;
+  deleteNote(relativePath: string): Promise<void>;
+  deleteActiveNote(): Promise<void>;
+  toggleFavorite(relativePath?: string): Promise<void>;
+  setFolderAppearance(folder: string, appearance: FolderAppearance | null): Promise<void>;
+  setQuery(query: string): void;
+  setNavFilter(navFilter: NavFilter): void;
+  setScopedFilter(scopedFilter: ScopedFilter): void;
+  setLibraryPanelMode(mode: LibrarySlice["libraryPanelMode"]): void;
+  setViewMode(mode: ViewMode): void;
+  setSidebarCollapsed(collapsed: boolean): void;
+  setSettings(settings: AppSettings): void;
+  resetSettings(): void;
+  openSettings(section?: SettingsSection): void;
+  closeSettings(): void;
+  setSettingsSection(section: SettingsSection): void;
+  setMobilePanel(panel: UiSlice["mobilePanel"]): void;
+  clearError(): void;
+};
+
+export type AppStore = WorkspaceSlice &
+  DocumentSlice &
+  LibrarySlice &
+  SettingsSlice &
+  UiSlice &
+  AppActions;

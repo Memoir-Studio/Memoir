@@ -1,0 +1,111 @@
+.memoir-select {
+  position: relative;
+  display: inline-flex;
+  min-width: 168px;
+  max-width: 100%;
+}
+
+.memoir-select-field {
+  display: flex;
+  width: 100%;
+  height: 33px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 9px 0 11px;
+  color: var(--memoir-text);
+  font-size: 12px;
+  font-weight: 550;
+  line-height: 1;
+  text-align: left;
+  cursor: pointer;
+}
+
+.memoir-select-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.memoir-select-caret {
+  flex-shrink: 0;
+  width: 13px;
+  height: 13px;
+  color: var(--memoir-muted);
+  transition: transform var(--memoir-motion-fast) var(--memoir-ease);
+}
+
+.memoir-select-caret.is-open {
+  transform: rotate(180deg);
+}
+
+.memoir-select-menu {
+  position: fixed;
+  z-index: 70;
+  max-height: min(280px, calc(100vh - 16px));
+  padding: 5px;
+  overflow: auto;
+  border: 1px solid color-mix(in srgb, var(--memoir-border) 86%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--memoir-elevated) 96%, var(--memoir-panel));
+  box-shadow:
+    0 16px 40px rgb(37 33 27 / 18%),
+    0 4px 12px rgb(37 33 27 / 8%),
+    inset 0 1px rgb(255 255 255 / 52%);
+  opacity: 0;
+  transform: translateY(4px) scale(0.98);
+  transition:
+    opacity var(--memoir-motion-fast) var(--memoir-ease),
+    transform var(--memoir-motion-fast) var(--memoir-ease);
+}
+
+.memoir-select-menu.is-open {
+  opacity: 1;
+  transform: none;
+}
+
+.memoir-select-option {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 16px;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 30px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--memoir-text);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  text-align: left;
+  cursor: pointer;
+}
+
+.memoir-select-option.is-active {
+  background: color-mix(in srgb, var(--memoir-accent-soft) 82%, var(--memoir-elevated));
+  outline: none;
+}
+
+.memoir-select-option.is-selected {
+  font-weight: 650;
+}
+
+.memoir-select-option svg {
+  width: 13px;
+  height: 13px;
+  color: var(--memoir-accent);
+}
+
+.memoir-select-option.is-create {
+  color: var(--memoir-muted);
+}
+
+.memoir-select-empty {
+  padding: 8px 10px;
+  color: var(--memoir-muted);
+  font-size: 12px;
+  font-weight: 500;
+}

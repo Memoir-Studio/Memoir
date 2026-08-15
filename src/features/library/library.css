@@ -1,0 +1,500 @@
+.sidebar-nav-item,
+.sidebar-section-title,
+.sidebar-footer {
+  font-family: "SF Pro Text", "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
+  font-synthesis: none;
+}
+
+.library-sidebar {
+  -webkit-text-size-adjust: none;
+  text-size-adjust: none;
+}
+
+.sidebar-nav-item {
+  height: 34px;
+  color: color-mix(in srgb, var(--memoir-text) 72%, var(--memoir-muted));
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: -0.01em;
+  transition:
+    color 150ms var(--memoir-ease),
+    background-color 150ms var(--memoir-ease),
+    box-shadow 150ms var(--memoir-ease);
+}
+
+.sidebar-nav-icon {
+  display: grid;
+  width: 16px;
+  height: 16px;
+  flex: none;
+  place-items: center;
+  overflow: hidden;
+}
+
+.sidebar-nav-icon svg {
+  width: 15px;
+  height: 15px;
+}
+
+.sidebar-nav-item:hover {
+  color: var(--memoir-text);
+  background: color-mix(in srgb, var(--memoir-elevated) 54%, transparent);
+}
+
+.sidebar-nav-item.is-active {
+  background: color-mix(in srgb, var(--memoir-accent-soft) 76%, var(--memoir-panel));
+  color: var(--memoir-text);
+  font-weight: 600;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--memoir-accent) 9%, transparent);
+}
+
+.sidebar-nav-item.is-active .sidebar-nav-icon svg {
+  color: var(--memoir-accent);
+}
+
+.sidebar-nav-main,
+.sidebar-folder-customize {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+.sidebar-nav-main {
+  min-width: 0;
+  min-height: 34px;
+}
+
+.sidebar-folder-emoji {
+  display: grid;
+  width: 16px;
+  height: 16px;
+  place-items: center;
+  font-size: 13px;
+  line-height: 1;
+}
+
+.sidebar-nav-item[data-folder-color] {
+  --folder-color: var(--memoir-accent);
+}
+
+.sidebar-nav-item[data-folder-color="coral"] { --folder-color: #d65f4d; }
+.sidebar-nav-item[data-folder-color="blue"] { --folder-color: #3f7edb; }
+.sidebar-nav-item[data-folder-color="green"] { --folder-color: #3e9b73; }
+.sidebar-nav-item[data-folder-color="gold"] { --folder-color: #b98b09; }
+.sidebar-nav-item[data-folder-color="violet"] { --folder-color: #8a65d1; }
+.sidebar-nav-item[data-folder-color="slate"] { --folder-color: #607287; }
+.sidebar-nav-item[data-folder-color="ink"] { --folder-color: #343532; }
+
+[data-theme="dark"] .sidebar-nav-item[data-folder-color="ink"] {
+  --folder-color: #efede7;
+}
+
+.sidebar-nav-item[data-folder-color] .sidebar-nav-icon svg {
+  color: var(--folder-color);
+}
+
+.sidebar-nav-item[data-folder-color] .sidebar-folder-emoji {
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--folder-color) 18%, transparent);
+}
+
+.sidebar-nav-item[data-folder-color].is-active {
+  background: color-mix(in srgb, var(--folder-color) 16%, var(--memoir-panel));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--folder-color) 18%, transparent);
+}
+
+.sidebar-nav-item[data-folder-color].is-active .sidebar-nav-icon svg {
+  color: var(--folder-color);
+}
+
+.sidebar-folder-item {
+  position: relative;
+}
+
+.sidebar-folder-customize {
+  position: absolute;
+  top: 50%;
+  right: 22px;
+  display: grid;
+  width: 18px;
+  height: 18px;
+  place-items: center;
+  border-radius: 5px;
+  color: var(--memoir-muted);
+  opacity: 0;
+  transform: translateY(-50%);
+  transition:
+    opacity 150ms var(--memoir-ease),
+    background-color 150ms var(--memoir-ease),
+    color 150ms var(--memoir-ease);
+}
+
+.sidebar-folder-customize svg {
+  width: 13px;
+  height: 13px;
+}
+
+.sidebar-nav-item:hover .sidebar-folder-customize,
+.sidebar-nav-item:focus-within .sidebar-folder-customize,
+.sidebar-folder-customize:focus-visible {
+  opacity: 1;
+}
+
+.sidebar-folder-customize:hover,
+.sidebar-folder-customize:focus-visible {
+  color: var(--memoir-text);
+  background: var(--memoir-elevated);
+}
+
+.sidebar-nav-count {
+  color: color-mix(in srgb, var(--memoir-muted) 78%, transparent);
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.sidebar-nav-item.is-active .sidebar-nav-count {
+  color: color-mix(in srgb, var(--memoir-text) 54%, var(--memoir-muted));
+}
+
+.sidebar-group {
+  border-top: 1px solid color-mix(in srgb, var(--memoir-border) 44%, transparent);
+}
+
+.sidebar-section-title {
+  color: color-mix(in srgb, var(--memoir-muted) 82%, transparent);
+  font-size: 10px;
+  line-height: 1;
+  letter-spacing: 0.04em;
+}
+
+.sidebar-section-title button {
+  display: grid;
+  width: 18px;
+  height: 18px;
+  place-items: center;
+  border-radius: 5px;
+  color: var(--memoir-muted);
+}
+
+.sidebar-section-title button:hover {
+  color: var(--memoir-text);
+  background: var(--memoir-elevated);
+}
+
+.sidebar-footer {
+  border-top: 1px solid color-mix(in srgb, var(--memoir-border) 72%, transparent);
+  background: color-mix(in srgb, var(--memoir-panel) 92%, var(--memoir-elevated));
+}
+
+.note-search input {
+  border-color: color-mix(in srgb, var(--memoir-border) 54%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--memoir-elevated) 42%, var(--memoir-panel));
+  color: var(--memoir-text);
+  font-family: "SF Pro Text", "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
+  font-size: 12px;
+  font-weight: 450;
+  letter-spacing: -0.01em;
+  box-shadow: none;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.note-search input::placeholder {
+  color: color-mix(in srgb, var(--memoir-muted) 82%, transparent);
+  opacity: 1;
+}
+
+.note-search input:focus-visible {
+  outline: none;
+}
+
+.note-search input:hover,
+.note-search input:focus {
+  border-color: color-mix(in srgb, var(--memoir-border) 88%, transparent);
+  background: color-mix(in srgb, var(--memoir-elevated) 72%, var(--memoir-panel));
+  box-shadow: 0 1px 4px rgb(72 62 48 / 4%);
+}
+
+.note-list-panel {
+  width: 100%;
+  max-width: 100%;
+  contain: inline-size;
+}
+
+.outline-list {
+  font-family: "SF Pro Text", "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
+  font-synthesis: none;
+}
+
+.outline-caption {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  padding: 8px 16px 0 16px;
+  color: color-mix(in srgb, var(--memoir-text) 52%, var(--memoir-muted));
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+.outline-caption-icon {
+  width: 14px;
+  height: 14px;
+  color: color-mix(in srgb, var(--memoir-muted) 92%, var(--memoir-text));
+}
+
+.outline-items {
+  display: grid;
+  flex: 1 1 auto;
+  align-content: start;
+  min-height: 0;
+  padding: 6px 10px 18px 6px;
+}
+
+.outline-item {
+  --outline-inset: 14px;
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  min-width: 0;
+  min-height: 34px;
+  padding: 7px 12px 7px var(--outline-inset);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: color-mix(in srgb, var(--memoir-text) 38%, var(--memoir-muted));
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.5;
+  letter-spacing: -0.01em;
+  text-align: left;
+  transition: color 150ms var(--memoir-ease);
+}
+
+.outline-item[data-depth="1"] {
+  color: color-mix(in srgb, var(--memoir-text) 86%, var(--memoir-muted));
+  font-weight: 500;
+}
+
+.outline-item:hover {
+  color: var(--memoir-text);
+  background: transparent;
+}
+
+.outline-item.is-active,
+.outline-item[aria-current="true"] {
+  color: var(--memoir-accent);
+  font-weight: 500;
+  background: transparent;
+}
+
+.outline-item-mark {
+  display: block;
+  width: 3px;
+  height: 14px;
+  border-radius: 999px;
+  background: transparent;
+}
+
+.outline-item.is-active .outline-item-mark,
+.outline-item[aria-current="true"] .outline-item-mark {
+  background: currentColor;
+}
+
+.outline-item-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.outline-empty {
+  padding: 28px 12px;
+  color: var(--memoir-muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+[data-density="compact"] .outline-item {
+  min-height: 28px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+.note-card {
+  position: relative;
+  transition:
+    background-color 150ms var(--memoir-ease),
+    border-color 150ms var(--memoir-ease),
+    box-shadow 150ms var(--memoir-ease);
+}
+
+.note-card:hover {
+  background: color-mix(in srgb, var(--memoir-elevated) 66%, transparent);
+}
+
+.note-card.is-active {
+  border-color: color-mix(in srgb, var(--memoir-border) 92%, transparent);
+  background: var(--memoir-elevated);
+  box-shadow:
+    0 1px 2px rgb(65 56 43 / 7%),
+    0 8px 20px rgb(65 56 43 / 5%);
+}
+
+.note-card.is-menu-target {
+  background: color-mix(in srgb, var(--memoir-elevated) 78%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--memoir-accent) 16%, transparent);
+}
+
+.note-card.is-active::before,
+.note-card.is-dirty::before {
+  position: absolute;
+  top: 10px;
+  bottom: 10px;
+  left: -1px;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--memoir-accent);
+  content: "";
+}
+
+.view-switcher.library-mode-switcher {
+  border-radius: 10px;
+  padding: 3px;
+}
+
+.view-switcher.library-mode-switcher button {
+  width: 64px;
+  height: 30px;
+  border-radius: 8px;
+  gap: 5px;
+  font-size: 11px;
+}
+
+.folder-appearance-label {
+  color: color-mix(in srgb, var(--memoir-muted) 90%, var(--memoir-text));
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.folder-appearance-preview {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid color-mix(in srgb, var(--memoir-border) 80%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--memoir-panel) 72%, var(--memoir-elevated));
+  color: var(--memoir-text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.folder-appearance-preview[data-folder-color] .sidebar-nav-icon svg {
+  color: var(--folder-color, var(--memoir-accent));
+}
+
+.folder-appearance-preview[data-folder-color="coral"] { --folder-color: #d65f4d; }
+.folder-appearance-preview[data-folder-color="blue"] { --folder-color: #3f7edb; }
+.folder-appearance-preview[data-folder-color="green"] { --folder-color: #3e9b73; }
+.folder-appearance-preview[data-folder-color="gold"] { --folder-color: #b98b09; }
+.folder-appearance-preview[data-folder-color="violet"] { --folder-color: #8a65d1; }
+.folder-appearance-preview[data-folder-color="slate"] { --folder-color: #607287; }
+.folder-appearance-preview[data-folder-color="ink"] { --folder-color: #343532; }
+
+.folder-appearance-preview[data-folder-color] .sidebar-folder-emoji {
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--folder-color) 18%, transparent);
+}
+
+.folder-emoji-grid {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.folder-emoji-button {
+  display: grid;
+  height: 32px;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--memoir-panel) 70%, transparent);
+  font-size: 16px;
+  line-height: 1;
+  transition:
+    background 150ms var(--memoir-ease),
+    box-shadow 150ms var(--memoir-ease);
+}
+
+.folder-emoji-button:hover {
+  background: color-mix(in srgb, var(--memoir-elevated) 88%, var(--memoir-panel));
+}
+
+.folder-emoji-button[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--memoir-accent-soft) 78%, var(--memoir-elevated));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--memoir-accent) 22%, transparent);
+}
+
+.folder-color-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.folder-color-swatch {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border: 3px solid var(--memoir-elevated);
+  border-radius: 999px;
+  background: var(--swatch);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--swatch) 30%, var(--memoir-border));
+  color: #ffffff;
+}
+
+.folder-color-swatch svg {
+  width: 11px;
+  height: 11px;
+  stroke-width: 3;
+}
+
+.folder-color-swatch[aria-pressed="true"] {
+  box-shadow:
+    0 0 0 2px var(--memoir-elevated),
+    0 0 0 4px var(--swatch, var(--memoir-border));
+}
+
+.folder-color-swatch.is-default {
+  background:
+    linear-gradient(
+      135deg,
+      transparent 46%,
+      color-mix(in srgb, var(--memoir-muted) 55%, transparent) 46% 54%,
+      transparent 54%
+    ),
+    var(--memoir-elevated);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--memoir-border) 88%, transparent);
+}
+
+.folder-color-swatch.is-default[aria-pressed="true"] {
+  box-shadow:
+    0 0 0 2px var(--memoir-elevated),
+    0 0 0 4px var(--memoir-muted);
+}

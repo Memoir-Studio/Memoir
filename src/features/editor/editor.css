@@ -1,0 +1,87 @@
+.workspace-header {
+  background: color-mix(in srgb, var(--memoir-elevated) 68%, var(--memoir-canvas));
+  backdrop-filter: blur(14px);
+}
+
+.save-state-dot {
+  display: block;
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 999px;
+  background: #5ca878;
+  box-shadow: 0 0 0 2px color-mix(in srgb, #5ca878 14%, transparent);
+  transition:
+    background 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.save-state-dot[data-state="dirty"] {
+  background: var(--memoir-danger);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--memoir-danger) 14%, transparent);
+}
+
+.save-state-dot[data-state="saving"] {
+  background: var(--memoir-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--memoir-accent) 16%, transparent);
+  animation: save-state-pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes save-state-pulse {
+  50% {
+    opacity: 0.45;
+    transform: scale(0.82);
+  }
+}
+
+.view-switcher {
+  border: 1px solid color-mix(in srgb, var(--memoir-border) 88%, transparent);
+  background: color-mix(in srgb, var(--memoir-panel) 74%, transparent);
+}
+
+.view-switcher button {
+  width: 27px;
+  height: 25px;
+  border-radius: 6px;
+  transition:
+    color 150ms var(--memoir-ease),
+    background-color 150ms var(--memoir-ease),
+    box-shadow 150ms var(--memoir-ease);
+}
+
+.view-switcher button[aria-pressed="true"] {
+  color: var(--memoir-text);
+  background: var(--memoir-elevated);
+  box-shadow:
+    0 1px 2px rgb(35 33 29 / 10%),
+    inset 0 0 0 1px rgb(255 255 255 / 46%);
+}
+
+.markdown-toolbar {
+  background: color-mix(in srgb, var(--memoir-elevated) 76%, var(--memoir-canvas));
+}
+
+.markdown-toolbar .format-button {
+  width: 29px;
+  height: 29px;
+  border-radius: 6px;
+}
+
+.markdown-toolbar .toolbar-divider {
+  border-left: 1px solid color-mix(in srgb, var(--memoir-border) 82%, transparent);
+}
+
+.editor-pane {
+  animation: memoir-fade-in var(--memoir-motion-fast) var(--memoir-ease);
+  box-shadow: inset -1px 0 color-mix(in srgb, var(--memoir-border) 42%, transparent);
+}
+
+.editor-statusbar {
+  box-shadow: 0 -4px 16px rgb(67 58 45 / 3%);
+}
+
+@media (max-width: 980px) {
+  .cm-content {
+    padding-inline: 22px !important;
+  }
+}

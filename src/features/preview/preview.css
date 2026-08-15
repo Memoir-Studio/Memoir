@@ -1,0 +1,215 @@
+.preview-pane {
+  animation: memoir-fade-in var(--memoir-motion-fast) var(--memoir-ease);
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--memoir-panel) 25%, transparent), transparent 40px),
+    var(--memoir-canvas);
+}
+
+[data-body-font="serif"] .memoir-preview {
+  font-family: ui-serif, "Songti SC", STSong, Georgia, serif;
+}
+
+.memoir-preview {
+  width: 100%;
+  max-width: 760px;
+  margin-inline: auto;
+  color: var(--memoir-text);
+  font-size: var(--memoir-body-size);
+  line-height: var(--memoir-line-height);
+  overflow-wrap: break-word;
+  letter-spacing: 0;
+}
+
+[data-content-width="narrow"] .memoir-preview { max-width: 590px; }
+[data-content-width="wide"] .memoir-preview { max-width: 860px; }
+[data-content-width="full"] .memoir-preview { max-width: none; }
+
+.memoir-preview h1,
+.memoir-preview h2,
+.memoir-preview h3,
+.memoir-preview h4,
+.memoir-preview h5,
+.memoir-preview h6,
+.memoir-preview strong {
+  color: var(--memoir-text);
+}
+
+.memoir-preview h1 {
+  margin-bottom: 0.85em;
+  font-size: 2.15em;
+  line-height: 1.18;
+  letter-spacing: -0.035em;
+}
+
+.memoir-preview h2 {
+  margin-top: 2em;
+  padding-top: 0.18em;
+  font-size: 1.45em;
+  line-height: 1.3;
+  letter-spacing: -0.025em;
+}
+
+.memoir-preview h3 {
+  margin-top: 1.7em;
+  font-size: 1.14em;
+  letter-spacing: -0.015em;
+}
+
+.memoir-preview p,
+.memoir-preview li {
+  color: color-mix(in srgb, var(--memoir-text) 91%, var(--memoir-muted));
+}
+
+.memoir-preview .task-list-item > input[type="checkbox"] {
+  cursor: pointer;
+  accent-color: var(--memoir-accent);
+}
+
+.memoir-preview .task-list-item > input[type="checkbox"]:hover {
+  filter: brightness(0.96);
+}
+
+.memoir-preview hr {
+  margin-block: 2.6em;
+  border-color: color-mix(in srgb, var(--memoir-border) 82%, transparent);
+}
+
+.memoir-preview blockquote {
+  margin-inline: 0;
+  border-left: 3px solid color-mix(in srgb, var(--memoir-border) 84%, var(--memoir-muted));
+  color: var(--memoir-muted);
+  font-style: normal;
+}
+
+.memoir-preview blockquote p::before,
+.memoir-preview blockquote p::after {
+  content: none;
+}
+
+.memoir-preview a {
+  color: var(--memoir-accent);
+  text-decoration-color: color-mix(in srgb, var(--memoir-accent) 42%, transparent);
+  text-underline-offset: 3px;
+}
+
+.memoir-preview pre {
+  border: 1px solid color-mix(in srgb, var(--memoir-border) 88%, var(--memoir-muted));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--memoir-panel) 88%, var(--memoir-canvas));
+  color: color-mix(in srgb, var(--memoir-text) 92%, var(--memoir-muted));
+  box-shadow:
+    inset 0 1px rgb(255 255 255 / 38%),
+    0 1px 2px rgb(49 43 35 / 3%);
+}
+
+.memoir-preview pre code {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  font-family: var(--memoir-mono-font);
+  font-size: 0.88em;
+  font-weight: 450;
+  line-height: 1.72;
+  text-shadow: none;
+}
+
+[data-theme="dark"] .memoir-preview pre {
+  border-color: color-mix(in srgb, var(--memoir-border) 88%, var(--memoir-muted));
+  background: color-mix(in srgb, var(--memoir-elevated) 72%, var(--memoir-canvas));
+  color: color-mix(in srgb, var(--memoir-text) 90%, var(--memoir-muted));
+  box-shadow: inset 0 1px rgb(255 255 255 / 3%);
+}
+
+.memoir-preview :not(pre) > code {
+  border: 1px solid color-mix(in srgb, var(--memoir-border) 78%, transparent);
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--memoir-panel) 78%, transparent);
+  padding: 0.14em 0.38em;
+  color: var(--memoir-accent);
+  font-family: var(--memoir-mono-font);
+  font-size: 0.86em;
+  font-weight: 500;
+}
+
+.memoir-preview :not(pre) > code::before,
+.memoir-preview :not(pre) > code::after {
+  content: none;
+}
+
+.memoir-preview table {
+  overflow: hidden;
+  border: 1px solid var(--memoir-border);
+  border-radius: 8px;
+  font-size: 0.92em;
+}
+
+.memoir-preview thead {
+  background: var(--memoir-panel);
+}
+
+.memoir-preview th,
+.memoir-preview td {
+  border-color: var(--memoir-border);
+}
+
+/* Tailwind Preflight forces `img { display: block }`, and Typography
+   adds ~2em vertical margins — both stack README badge rows. */
+.memoir-preview img {
+  display: inline-block;
+  max-width: 100%;
+  height: auto;
+  margin: 0.15em 0.28em;
+  vertical-align: middle;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.memoir-preview p > img:only-child,
+.memoir-preview p > a:only-child > img:only-child {
+  display: block;
+  margin: 1.4em auto;
+  border: 1px solid var(--memoir-border);
+  border-radius: 10px;
+  box-shadow: 0 8px 28px rgb(46 40 31 / 8%);
+}
+
+[data-theme="dark"] .memoir-preview p > img:only-child,
+[data-theme="dark"] .memoir-preview p > a:only-child > img:only-child {
+  box-shadow: 0 8px 28px rgb(0 0 0 / 28%);
+}
+
+.memoir-preview [align="center"] {
+  text-align: center;
+}
+
+.memoir-preview [align="left"] {
+  text-align: left;
+}
+
+.memoir-preview [align="right"] {
+  text-align: right;
+}
+
+.memoir-preview [data-callout="tip"] {
+  --memoir-accent: #43a96f;
+  --memoir-accent-soft: #e6f4eb;
+}
+
+[data-theme="dark"] .memoir-preview [data-callout="tip"] {
+  --memoir-accent: #68c28c;
+  --memoir-accent-soft: #223b2b;
+}
+
+@media (max-width: 980px) {
+  .memoir-preview {
+    padding-inline: 24px;
+  }
+}
+
+@media (max-width: 760px) {
+  .preview-pane {
+    background: var(--memoir-canvas);
+  }
+}

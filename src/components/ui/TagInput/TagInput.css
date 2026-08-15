@@ -1,0 +1,115 @@
+.memoir-tag-input {
+  position: relative;
+  display: block;
+  width: 100%;
+}
+
+.memoir-tag-input-field {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  min-height: 32px;
+  padding: 4px 28px 4px 6px;
+  border: 1px solid color-mix(in srgb, var(--memoir-border) 90%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--memoir-elevated) 88%, var(--memoir-panel));
+  box-shadow: inset 0 1px rgb(255 255 255 / 36%);
+  transition:
+    border-color 150ms var(--memoir-ease),
+    background-color 150ms var(--memoir-ease),
+    box-shadow 150ms var(--memoir-ease);
+}
+
+.memoir-tag-input-field:hover {
+  border-color: color-mix(in srgb, var(--memoir-border) 100%, transparent);
+}
+
+.memoir-tag-input-field:focus-within {
+  border-color: color-mix(in srgb, var(--memoir-accent) 55%, var(--memoir-border));
+  background: var(--memoir-elevated);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--memoir-accent) 14%, transparent),
+    inset 0 1px rgb(255 255 255 / 36%);
+}
+
+.memoir-tag-input-field input {
+  flex: 1 1 72px;
+  min-width: 72px;
+  height: 22px;
+  padding: 0 2px;
+  border: 0;
+  background: transparent;
+  color: var(--memoir-text);
+  font: inherit;
+  font-size: 13px;
+  letter-spacing: -0.01em;
+  outline: none;
+}
+
+.memoir-tag-input-field input::placeholder {
+  color: var(--memoir-muted);
+}
+
+.memoir-tag-input-chip {
+  max-width: 100%;
+  gap: 1px;
+  padding-right: 2px;
+}
+
+.memoir-tag-input-remove {
+  display: grid;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--memoir-muted);
+}
+
+.memoir-tag-input-remove:hover,
+.memoir-tag-input-remove:focus-visible {
+  background: color-mix(in srgb, var(--memoir-accent-soft) 80%, transparent);
+  color: var(--memoir-text);
+  outline: none;
+}
+
+.memoir-tag-input-remove svg {
+  width: 11px;
+  height: 11px;
+}
+
+.memoir-tag-input-caret {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  color: var(--memoir-muted);
+  cursor: pointer;
+  transition: transform var(--memoir-motion-fast) var(--memoir-ease);
+}
+
+.memoir-tag-input-caret.is-open {
+  transform: rotate(180deg);
+}
+
+.memoir-tag-input-caret svg {
+  width: 13px;
+  height: 13px;
+}
+
+[data-theme="dark"] .memoir-tag-input-field {
+  box-shadow: inset 0 1px rgb(255 255 255 / 4%);
+}
+
+[data-theme="dark"] .memoir-tag-input-field:focus-within {
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--memoir-accent) 20%, transparent),
+    inset 0 1px rgb(255 255 255 / 4%);
+}

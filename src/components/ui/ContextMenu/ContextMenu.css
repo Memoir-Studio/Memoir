@@ -1,0 +1,79 @@
+.memoir-context-menu {
+  position: fixed;
+  z-index: 60;
+  min-width: 188px;
+  padding: 5px;
+  border: 1px solid color-mix(in srgb, var(--memoir-border) 86%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--memoir-elevated) 96%, var(--memoir-panel));
+  box-shadow:
+    0 16px 40px rgb(37 33 27 / 18%),
+    0 4px 12px rgb(37 33 27 / 8%),
+    inset 0 1px rgb(255 255 255 / 52%);
+  opacity: 0;
+  transform: translateY(4px) scale(0.98);
+  transition:
+    opacity var(--memoir-motion-fast) var(--memoir-ease),
+    transform var(--memoir-motion-fast) var(--memoir-ease);
+}
+
+.memoir-context-menu.is-open {
+  opacity: 1;
+  transform: none;
+}
+
+.memoir-context-menu-item {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 30px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--memoir-text);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  text-align: left;
+}
+
+.memoir-context-menu-item:hover,
+.memoir-context-menu-item:focus-visible {
+  background: color-mix(in srgb, var(--memoir-accent-soft) 82%, var(--memoir-elevated));
+  outline: none;
+}
+
+.memoir-context-menu-item.is-danger {
+  color: var(--memoir-danger);
+}
+
+.memoir-context-menu-item.is-danger:hover,
+.memoir-context-menu-item.is-danger:focus-visible {
+  background: color-mix(in srgb, var(--memoir-danger) 12%, var(--memoir-elevated));
+}
+
+.memoir-context-menu-item:disabled {
+  opacity: 0.45;
+}
+
+.memoir-context-menu-icon {
+  display: grid;
+  width: 16px;
+  height: 16px;
+  place-items: center;
+  color: currentColor;
+}
+
+.memoir-context-menu-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.memoir-context-menu-separator {
+  height: 1px;
+  margin: 4px 6px;
+  background: color-mix(in srgb, var(--memoir-border) 88%, transparent);
+}

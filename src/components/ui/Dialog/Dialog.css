@@ -1,0 +1,86 @@
+.memoir-field-label {
+  display: grid;
+  gap: 7px;
+  color: var(--memoir-muted);
+  font-size: 12px;
+  font-weight: 550;
+  letter-spacing: -0.012em;
+}
+
+.memoir-overlay {
+  opacity: 0;
+  transition: opacity var(--memoir-motion) var(--memoir-ease);
+}
+
+.memoir-overlay.is-open {
+  opacity: 1;
+}
+
+.memoir-dialog {
+  border: 1px solid color-mix(in srgb, var(--memoir-border) 86%, transparent);
+  border-radius: 14px;
+  background: var(--memoir-elevated);
+  box-shadow:
+    0 28px 72px rgb(37 33 27 / 24%),
+    0 8px 24px rgb(37 33 27 / 10%),
+    inset 0 1px rgb(255 255 255 / 52%);
+  opacity: 0;
+  transform: translateY(6px) scale(0.985);
+  transition:
+    opacity var(--memoir-motion) var(--memoir-ease),
+    transform var(--memoir-motion) var(--memoir-ease);
+}
+
+.memoir-dialog.is-open {
+  opacity: 1;
+  transform: none;
+}
+
+.memoir-dialog > header {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 10px 8px 20px;
+  border-bottom: 1px solid color-mix(in srgb, var(--memoir-border) 78%, transparent);
+  background: color-mix(in srgb, var(--memoir-elevated) 96%, transparent);
+}
+
+.memoir-dialog > header h2 {
+  margin: 0;
+  color: var(--memoir-text);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+}
+
+.memoir-dialog > header button {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+}
+
+.memoir-dialog-body {
+  padding: 16px 20px 18px;
+}
+
+.memoir-dialog-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 14px 16px 16px;
+  border-top: 1px solid color-mix(in srgb, var(--memoir-border) 72%, transparent);
+}
+
+[data-theme="dark"] .memoir-dialog,
+[data-theme="dark"] .settings-dialog,
+[data-theme="dark"] .memoir-context-menu,
+[data-theme="dark"] .memoir-select-menu {
+  box-shadow:
+    0 28px 72px rgb(0 0 0 / 46%),
+    0 8px 24px rgb(0 0 0 / 26%),
+    inset 0 1px rgb(255 255 255 / 5%);
+}

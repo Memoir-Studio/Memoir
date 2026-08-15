@@ -1,0 +1,142 @@
+name: Build Installers
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Platforms to build
+        type: choice
+        required: true
+        default: all
+        options:
+          - all
+          - linux
+          - windows
+          - macos
+      draft_release:
+        description: Also upload installers to a draft GitHub Release
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-installers-${{ github.ref }}-${{ inputs.platform }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  prepare:
+    name: Prepare matrix
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - id: set-matrix
+        env:
+          PLATFORM: ${{ inputs.platform }}
+        run: |
+          python3 <<'PY'
+          import json
+          import os
+
+          targets = [
+              {
+                  "name": "linux-x86_64",
+                  "family": "linux",
+                  "runner": "ubuntu-24.04",
+                  "rust_target": "",
+                  "args": "--bundles deb,rpm",
+              },
+              {
+                  "name": "windows-x86_64",
+                  "family": "windows",
+                  "runner": "windows-2025",
+                  "rust_target": "",
+                  "args": "--bundles nsis",
+              },
+              {
+                  "name": "macos-aarch64",
+                  "family": "macos",
+                  "runner": "macos-26",
+                  "rust_target": "aarch64-apple-darwin",
+                  "args": "--target aarch64-apple-darwin --bundles dmg",
+              },
+              {
+                  "name": "macos-x86_64",
+                  "family": "macos",
+                  "runner": "macos-26",
+                  "rust_target": "x86_64-apple-darwin",
+                  "args": "--target x86_64-apple-darwin --bundles dmg",
+              },
+          ]
+
+          platform = os.environ["PLATFORM"]
+          selected = targets if platform == "all" else [t for t in targets if t["family"] == platform]
+          matrix = json.dumps({"include": selected}, separators=(",", ":"))
+
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as fh:
+              fh.write(f"matrix={matrix}\n")
+          PY
+
+  build:
+    name: ${{ matrix.name }}
+    needs: prepare
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.prepare.outputs.matrix) }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_target }}
+
+      - name: Cache Rust
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: ./src-tauri -> target
+          shared-key: ${{ matrix.name }}
+
+      - name: Install Linux build dependencies
+        if: matrix.family == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            xdg-utils \
+            rpm
+
+      - name: Install frontend dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build installers
+        uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tauriScript: bun tauri
+          args: ${{ matrix.args }}
+          uploadWorkflowArtifacts: true
+          workflowArtifactNamePattern: memoir-[platform]-[arch]-[bundle]
+          tagName: ${{ inputs.draft_release && 'v__VERSION__' || '' }}
+          releaseName: ${{ inputs.draft_release && 'Memoir v__VERSION__' || '' }}
+          releaseBody: ${{ inputs.draft_release && 'See the assets to download this version and install.' || '' }}
+          releaseDraft: ${{ inputs.draft_release }}
+          prerelease: false

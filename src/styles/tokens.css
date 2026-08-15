@@ -1,0 +1,101 @@
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+@theme inline {
+  --color-canvas: var(--memoir-canvas);
+  --color-panel: var(--memoir-panel);
+  --color-elevated: var(--memoir-elevated);
+  --color-border: var(--memoir-border);
+  --color-text: var(--memoir-text);
+  --color-muted: var(--memoir-muted);
+  --color-accent: var(--memoir-accent);
+  --color-accent-soft: var(--memoir-accent-soft);
+  --color-accent-contrast: var(--memoir-accent-contrast);
+  --color-danger: var(--memoir-danger);
+}
+
+:root {
+  font-family: Inter, "SF Pro Text", "PingFang SC", "Microsoft YaHei", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color-scheme: light;
+  --memoir-canvas: #fbfaf6;
+  --memoir-panel: #f5f3ee;
+  --memoir-elevated: #fffefb;
+  --memoir-border: #e7e3db;
+  --memoir-text: #292a27;
+  --memoir-muted: #8c8982;
+  --memoir-accent: #343532;
+  --memoir-accent-soft: #e7e5df;
+  --memoir-accent-contrast: #ffffff;
+  --memoir-danger: #c94c41;
+  --memoir-mono-font: "SFMono-Regular", "Cascadia Code", "Roboto Mono", Menlo, Monaco, Consolas, monospace;
+  --memoir-body-size: 15px;
+  --memoir-line-height: 1.8;
+  --memoir-motion: 160ms;
+  --memoir-motion-fast: 140ms;
+  --memoir-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --memoir-window-inset: 8px;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --memoir-canvas: #171714;
+  --memoir-panel: #1d1d1a;
+  --memoir-elevated: #24241f;
+  --memoir-border: #37362f;
+  --memoir-text: #f0eee8;
+  --memoir-muted: #a5a198;
+  --memoir-accent: #efede7;
+  --memoir-accent-soft: #393832;
+  --memoir-accent-contrast: #171715;
+  --memoir-danger: #ef766b;
+}
+
+[data-accent="ink"] {
+  --memoir-accent: #343532;
+  --memoir-accent-soft: #e7e5df;
+}
+
+[data-theme="dark"][data-accent="ink"] {
+  --memoir-accent: #efede7;
+  --memoir-accent-soft: #393832;
+}
+
+[data-accent="coral"] {
+  --memoir-accent: #d65f4d;
+  --memoir-accent-soft: #f6e3de;
+}
+
+[data-accent="blue"] {
+  --memoir-accent: #3f7edb;
+  --memoir-accent-soft: #e7effb;
+}
+
+[data-accent="green"] {
+  --memoir-accent: #3e9b73;
+  --memoir-accent-soft: #e5f3ed;
+}
+
+[data-accent="gold"] {
+  --memoir-accent: #b98b09;
+  --memoir-accent-soft: #f8f0d6;
+}
+
+[data-accent="violet"] {
+  --memoir-accent: #8a65d1;
+  --memoir-accent-soft: #eee8f9;
+}
+
+[data-accent="slate"] {
+  --memoir-accent: #607287;
+  --memoir-accent-soft: #e9edf1;
+}
+
+[data-theme="dark"][data-accent]:not([data-accent="ink"]) {
+  --memoir-accent-soft: color-mix(in srgb, var(--memoir-accent) 25%, var(--memoir-panel));
+}
+
+[data-background="pure"] {
+  --memoir-canvas: var(--memoir-elevated);
+}

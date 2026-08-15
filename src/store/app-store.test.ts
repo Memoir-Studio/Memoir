@@ -1,0 +1,286 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { resolveLocale, t } from "../i18n";
+import { AUTOSAVE_INTERVAL_MS, createAppStore } from "./app-store";
+import { createMockGateways } from "../test/mock-gateways";
+
+function translated(store: ReturnType<typeof createAppStore>, key: "status.draftRestored" | "status.saved") {
+  return t(resolveLocale(store.getState().settings.appearance.locale), key);
+}
+
+describe("app store actions", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("loads workspace, restores draft, edits and saves through gateways", async () => {
+    const gateways = createMockGateways();
+    gateways.persistence.drafts.set("/workspace:one.md", "# Draft");
+    const store = createAppStore(gateways);
+
+    await store.getState().openWorkspace("/workspace");
+    expect(store.getState().activePath).toBe("one.md");
+    expect(store.getState().content).toBe("# Draft");
+    expect(store.getState().status).toBe(translated(store, "status.draftRestored"));
+
+    store.getState().setContent("# Edited");
+    vi.advanceTimersByTime(500);
+    await Promise.resolve();
+    expect(gateways.persistence.drafts.get("/workspace:one.md")).toBe("# Edited");
+
+    await store.getState().saveActiveNote();
+    expect(gateways.workspace.writes).toEqual([{ path: "one.md", content: "# Edited" }]);
+    expect(gateways.persistence.drafts.has("/workspace:one.md")).toBe(false);
+    expect(store.getState().savedContent).toBe("# Edited");
+  });
+
+  it("keeps dirty content and exposes save failures", async () => {
+    const gateways = createMockGateways();
+    gateways.workspace.failWrite = true;
+    const store = createAppStore(gateways);
+    await store.getState().openWorkspace("/workspace");
+    store.getState().setContent("# Unsaved");
+
+    await store.getState().saveActiveNote();
+    expect(store.getState().savedContent).not.toBe("# Unsaved");
+    expect(store.getState().content).toBe("# Unsaved");
+    expect(store.getState().error).toContain("disk full");
+  });
+
+  it("updates favorites and CRUD state", async () => {
+    const gateways = createMockGateways();
+    const store = createAppStore(gateways);
+    await store.getState().openWorkspace("/workspace");
+
+    await store.getState().toggleFavorite();
+    expect(store.getState().notes[0].favorite).toBe(true);
+    expect(gateways.persistence.state.favorites["/workspace"]).toEqual(["one.md"]);
+
+    await store.getState().createNote({ title: "Second", extension: "mdx" });
+    expect(store.getState().activePath).toBe("second.mdx");
+
+    await store.getState().renameActiveNote("renamed.mdx");
+    expect(store.getState().activePath).toBe("renamed.mdx");
+
+    await store.getState().deleteActiveNote();
+    expect(store.getState().notes.some((note) => note.relativePath === "renamed.mdx")).toBe(
+      false,
+    );
+  });
+
+  it("saves and clears folder appearance for the current workspace", async () => {
+    const gateways = createMockGateways();
+    const store = createAppStore(gateways);
+    await store.getState().openWorkspace("/workspace");
+
+    await store.getState().setFolderAppearance("日记", { emoji: "📔 日记", color: "coral" });
+    expect(store.getState().folderAppearances).toEqual({
+      日记: { emoji: "📔", color: "coral" },
+    });
+    expect(gateways.persistence.state.folderAppearances["/workspace"]).toEqual({
+      日记: { emoji: "📔", color: "coral" },
+    });
+
+    await store.getState().setFolderAppearance("日记", null);
+    expect(store.getState().folderAppearances).toEqual({});
+    expect(gateways.persistence.state.folderAppearances["/workspace"]).toBeUndefined();
+  });
+
+  it("renames, favorites and deletes a note that is not active", async () => {
+    const gateways = createMockGateways();
+    const store = createAppStore(gateways);
+    await store.getState().openWorkspace("/workspace");
+    await store.getState().createNote({ title: "Second", extension: "md" });
+    await store.getState().selectNote("one.md");
+    store.getState().setContent("# Keep editing");
+
+    await store.getState().toggleFavorite("second.md");
+    expect(store.getState().notes.find((note) => note.relativePath === "second.md")?.favorite).toBe(
+      true,
+    );
+    expect(store.getState().activePath).toBe("one.md");
+    expect(store.getState().content).toBe("# Keep editing");
+
+    await store.getState().renameNote("second.md", "kept.md");
+    expect(store.getState().activePath).toBe("one.md");
+    expect(store.getState().content).toBe("# Keep editing");
+    expect(store.getState().notes.some((note) => note.relativePath === "kept.md")).toBe(true);
+    expect(gateways.persistence.state.favorites["/workspace"]).toEqual(["kept.md"]);
+
+    await store.getState().deleteNote("kept.md");
+    expect(store.getState().notes.some((note) => note.relativePath === "kept.md")).toBe(false);
+    expect(store.getState().activePath).toBe("one.md");
+    expect(store.getState().content).toBe("# Keep editing");
+  });
+
+  it("switches views, persists settings and reports successful save state", async () => {
+    const gateways = createMockGateways();
+    const store = createAppStore(gateways);
+    await store.getState().openWorkspace("/workspace");
+
+    store.getState().setViewMode("preview");
+    expect(store.getState().viewMode).toBe("preview");
+
+    store.getState().setSettings({
+      ...store.getState().settings,
+      editor: {
+        ...store.getState().settings.editor,
+        fontSize: 17,
+      },
+    });
+    vi.advanceTimersByTime(350);
+    await Promise.resolve();
+    expect(gateways.persistence.state.preferences.editor.fontSize).toBe(17);
+
+    store.getState().setContent("# Saved");
+    await store.getState().saveActiveNote();
+    expect(store.getState().status).toBe(translated(store, "status.saved"));
+    expect(store.getState().isSaving).toBe(false);
+  });
+
+  it("autosaves an open dirty note every 3 seconds", async () => {
+    const gateways = createMockGateways();
+    const store = createAppStore(gateways);
+    await store.getState().openWorkspace("/workspace");
+
+    store.getState().setContent("# Autosave me");
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_INTERVAL_MS - 1);
+    expect(gateways.workspace.writes).toEqual([]);
+
+    await vi.advanceTimersByTimeAsync(1);
+    expect(gateways.workspace.writes).toEqual([{ path: "one.md", content: "# Autosave me" }]);
+    expect(store.getState().savedContent).toBe("# Autosave me");
+    expect(store.getState().status).toBe(translated(store, "status.saved"));
+    expect(store.getState().notes[0].dirty).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_INTERVAL_MS);
+    expect(gateways.workspace.writes).toHaveLength(1);
+  });
+
+  it("autosaves the latest dirty content on the 3s cadence", async () => {
+    const gateways = createMockGateways();
+    const store = createAppStore(gateways);
+    await store.getState().openWorkspace("/workspace");
+
+    store.getState().setContent("# A");
+    await vi.advanceTimersByTimeAsync(1500);
+    store.getState().setContent("# AB");
+    await vi.advanceTimersByTimeAsync(1500);
+
+    expect(gateways.workspace.writes).toEqual([{ path: "one.md", content: "# AB" }]);
+  });
+
+  it("autosaves a restored draft only while that note stays open", async () => {
+    const gateways = createMockGateways();
+    gateways.persistence.drafts.set("/workspace:one.md", "# Draft");
+    const store = createAppStore(gateways);
+    await store.getState().openWorkspace("/workspace");
+
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_INTERVAL_MS);
+    expect(gateways.workspace.writes).toEqual([{ path: "one.md", content: "# Draft" }]);
+    expect(gateways.persistence.drafts.has("/workspace:one.md")).toBe(false);
+  });
+
+  it("does not autosave after switching away from a dirty note", async () => {
+    const gateways = createMockGateways();
+    const store = createAppStore(gateways);
+    await store.getState().openWorkspace("/workspace");
+    await store.getState().createNote({ title: "Second", extension: "md" });
+    await store.getState().selectNote("one.md");
+
+    store.getState().setContent("# Leave unsaved");
+    await store.getState().selectNote("second.md");
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_INTERVAL_MS);
+
+    expect(gateways.workspace.writes).toEqual([]);
+    expect(gateways.persistence.drafts.get("/workspace:one.md")).toBe("# Leave unsaved");
+    expect(store.getState().savedContent).toBe("# Second");
+  });
+
+  it("does not apply a finished save to a different note", async () => {
+    const gateways = createMockGateways();
+    let releaseWrite!: () => void;
+    const writeGate = new Promise<void>((resolve) => {
+      releaseWrite = resolve;
+    });
+    const originalWrite = gateways.workspace.writeNote.bind(gateways.workspace);
+    gateways.workspace.writeNote = async (root, path, content) => {
+      await writeGate;
+      return originalWrite(root, path, content);
+    };
+
+    const store = createAppStore(gateways);
+    await store.getState().openWorkspace("/workspace");
+    await store.getState().createNote({ title: "Second", extension: "md" });
+    await store.getState().selectNote("one.md");
+    store.getState().setContent("# Old note");
+
+    const savePromise = store.getState().saveActiveNote();
+    await store.getState().selectNote("second.md");
+    releaseWrite();
+    await savePromise;
+
+    expect(store.getState().activePath).toBe("second.md");
+    expect(store.getState().content).toBe("# Second");
+    expect(store.getState().savedContent).toBe("# Second");
+    expect(gateways.workspace.writes).toEqual([{ path: "one.md", content: "# Old note" }]);
+  });
+
+  it("scans the last workspace on startup", async () => {
+    const gateways = createMockGateways();
+    gateways.persistence.state.lastWorkspace = "/workspace";
+    const scan = vi.spyOn(gateways.workspace, "scanWorkspace");
+    const store = createAppStore(gateways);
+
+    await store.getState().initialize();
+
+    expect(scan).toHaveBeenCalledWith("/workspace");
+    expect(store.getState().workspaceRoot).toBe("/workspace");
+    expect(store.getState().notes.map((note) => note.relativePath)).toEqual(["one.md"]);
+    expect(store.getState().activePath).toBe("one.md");
+    expect(store.getState().initialized).toBe(true);
+  });
+
+  it("loads recent workspaces and keeps them when switching", async () => {
+    const gateways = createMockGateways();
+    gateways.persistence.state.lastWorkspace = "/workspace";
+    gateways.persistence.state.recentWorkspaces = ["/workspace", "/archive"];
+    const store = createAppStore(gateways);
+
+    await store.getState().initialize();
+    expect(store.getState().workspaceRoot).toBe("/workspace");
+    expect(store.getState().recentWorkspaces).toEqual(["/workspace", "/archive"]);
+
+    await store.getState().openWorkspace("/archive");
+    expect(store.getState().workspaceRoot).toBe("/archive");
+    expect(store.getState().recentWorkspaces).toEqual(["/archive", "/workspace"]);
+  });
+
+  it("flushes a dirty draft before switching workspaces", async () => {
+    const gateways = createMockGateways();
+    const store = createAppStore(gateways);
+    await store.getState().openWorkspace("/workspace");
+    store.getState().setContent("# Unsaved burst");
+
+    await store.getState().openWorkspace("/archive");
+    expect(gateways.persistence.drafts.get("/workspace:one.md")).toBe("# Unsaved burst");
+    expect(store.getState().workspaceRoot).toBe("/archive");
+    expect(store.getState().content).not.toBe("# Unsaved burst");
+  });
+
+  it("does not reset the editor when reopening the current workspace", async () => {
+    const gateways = createMockGateways();
+    const store = createAppStore(gateways);
+    await store.getState().openWorkspace("/workspace");
+    store.getState().setContent("# Keep editing");
+    store.getState().setScopedFilter({ type: "folder", value: "日记" });
+
+    await store.getState().openWorkspace("/workspace");
+    expect(store.getState().content).toBe("# Keep editing");
+    expect(store.getState().activePath).toBe("one.md");
+    expect(store.getState().scopedFilter).toEqual({ type: "folder", value: "日记" });
+  });
+});
