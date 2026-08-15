@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
+  attachmentMonthDir,
+  attachmentRelativePath,
   collectClipboardImages,
   escapeMarkdownAlt,
   formatBytes,
   isImageFile,
   markdownForAttachments,
   markdownImageForAttachment,
+  padMarkdownBlock,
   sanitizeAttachmentFileName,
   suggestedPasteFileName,
 } from "./attachments";
@@ -27,22 +30,38 @@ describe("attachments", () => {
 
   it("builds markdown that stays relative to the current note", () => {
     const attachment = {
-      relativePath: "attachments/paste-1.png",
+      relativePath: ".memoir-attachments/2026-08/paste-1.png",
       fileName: "paste-1.png",
     };
     expect(markdownImageForAttachment("welcome.md", attachment)).toBe(
-      "![paste-1](attachments/paste-1.png)",
+      "![paste-1](.memoir-attachments/2026-08/paste-1.png)",
     );
     expect(markdownImageForAttachment("日记/today.md", attachment)).toBe(
-      "![paste-1](../attachments/paste-1.png)",
+      "![paste-1](../.memoir-attachments/2026-08/paste-1.png)",
     );
     expect(escapeMarkdownAlt("weird [alt]")).toBe("weird alt");
     expect(
       markdownForAttachments("welcome.md", [
         attachment,
-        { relativePath: "attachments/b.gif", fileName: "b.gif" },
+        { relativePath: ".memoir-attachments/2026-08/b.gif", fileName: "b.gif" },
       ]),
-    ).toBe("![paste-1](attachments/paste-1.png)\n\n![b](attachments/b.gif)");
+    ).toBe(
+      "![paste-1](.memoir-attachments/2026-08/paste-1.png)\n\n![b](.memoir-attachments/2026-08/b.gif)",
+    );
+  });
+
+  it("nests new files under a year-month folder", () => {
+    const now = new Date("2026-08-15T14:30:52");
+    expect(attachmentMonthDir(now)).toBe("2026-08");
+    expect(attachmentRelativePath("photo.png", now)).toBe(
+      ".memoir-attachments/2026-08/photo.png",
+    );
+  });
+
+  it("pads attachment markdown so it does not glue onto the current line", () => {
+    expect(padMarkdownBlock("![a](a.png)", "```mermaid", "graph LR")).toBe("\n\n![a](a.png)\n\n");
+    expect(padMarkdownBlock("![a](a.png)", "# Title\n\n", "\n\nnext")).toBe("![a](a.png)");
+    expect(padMarkdownBlock("![a](a.png)", "line\n", "more")).toBe("\n![a](a.png)\n\n");
   });
 
   it("formats sizes and recognizes image files", () => {

@@ -112,7 +112,7 @@ describe("NoteList", () => {
     expect(view.getByRole("button", { name: "Install" })).toHaveAttribute("data-depth", "3");
   });
 
-  it("shows the attachment library when switching panels", async () => {
+  it("shows the attachment library from the sidebar, not a duplicate header tab", () => {
     useAppStore.setState({
       attachments: [
         {
@@ -124,9 +124,8 @@ describe("NoteList", () => {
           size: 12,
         },
       ],
-      libraryPanelMode: "notes",
+      libraryPanelMode: "attachments",
     });
-    const user = userEvent.setup();
     const view = render(
       <NoteList
         onCreate={() => undefined}
@@ -135,7 +134,7 @@ describe("NoteList", () => {
       />,
     );
 
-    await user.click(view.getByRole("button", { name: "附件" }));
+    expect(view.queryByRole("button", { name: "附件" })).not.toBeInTheDocument();
     expect(view.getByText("shot.png")).toBeInTheDocument();
     expect(view.getByRole("button", { name: "导入图片" })).toBeInTheDocument();
   });

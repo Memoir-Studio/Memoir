@@ -1,7 +1,9 @@
 use crate::domain::{AppError, AppResult};
-use std::path::Path;
+use std::path::{Component, Path};
+use std::time::{SystemTime, UNIX_EPOCH};
 
-pub const ATTACHMENTS_DIR: &str = "attachments";
+pub const ATTACHMENTS_DIR: &str = ".memoir-attachments";
+pub const LEGACY_ATTACHMENTS_DIR: &str = "attachments";
 pub const MAX_ATTACHMENT_BYTES: usize = 20 * 1024 * 1024;
 pub const ATTACHMENT_EXTENSIONS: [&str; 8] = [
     "png", "jpg", "jpeg", "gif", "webp", "bmp", "avif", "svg",
@@ -9,6 +11,45 @@ pub const ATTACHMENT_EXTENSIONS: [&str; 8] = [
 
 pub fn is_attachment_extension(extension: &str) -> bool {
     ATTACHMENT_EXTENSIONS.contains(&extension.to_ascii_lowercase().as_str())
+}
+
+pub fn is_attachment_root_name(name: &std::ffi::OsStr) -> bool {
+    name == ATTACHMENTS_DIR || name == LEGACY_ATTACHMENTS_DIR
+}
+
+pub fn is_attachment_relative(relative: &Path) -> bool {
+    let mut components = relative.components();
+    matches!(
+        components.next(),
+        Some(Component::Normal(name)) if is_attachment_root_name(name)
+    ) && components.next().is_some()
+}
+
+pub fn attachment_month_dir() -> String {
+    attachment_month_dir_at(SystemTime::now())
+}
+
+pub fn attachment_month_dir_at(now: SystemTime) -> String {
+    let secs = now
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_secs())
+        .unwrap_or(0);
+    let (year, month) = unix_utc_year_month(secs);
+    format!("{year:04}-{month:02}")
+}
+
+fn unix_utc_year_month(secs: u64) -> (i32, u32) {
+    let days = (secs / 86_400) as i64;
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = (z - era * 146_097) as u64;
+    let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365;
+    let year = yoe as i64 + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 };
+    let year = if month <= 2 { year + 1 } else { year };
+    (year as i32, month as u32)
 }
 
 pub fn validate_attachment_extension(path: &Path) -> AppResult<String> {

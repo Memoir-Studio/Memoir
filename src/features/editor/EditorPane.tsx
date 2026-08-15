@@ -5,7 +5,7 @@ import { searchKeymap } from "@codemirror/search";
 import { EditorSelection } from "@codemirror/state";
 import { EditorView, keymap, lineNumbers } from "@codemirror/view";
 import { forwardRef, useImperativeHandle, useMemo, useRef } from "react";
-import { collectClipboardImages } from "../../domain/attachments";
+import { collectClipboardImages, padMarkdownBlock } from "../../domain/attachments";
 import type { AppSettings } from "../../domain/settings";
 import { useI18n } from "../../i18n/react";
 import { noteStats, parseNote } from "../library/note-utils";
@@ -19,6 +19,17 @@ function insertAt(view: EditorView, from: number, to: number, text: string) {
     selection: EditorSelection.cursor(insertFrom + text.length),
   });
   view.focus();
+}
+
+function insertMarkdownBlock(view: EditorView, from: number, to: number, text: string) {
+  const insertFrom = Math.min(from, view.state.doc.length);
+  const insertTo = Math.min(Math.max(to, insertFrom), view.state.doc.length);
+  const before = insertFrom > 0 ? view.state.doc.sliceString(Math.max(0, insertFrom - 2), insertFrom) : "";
+  const after =
+    insertTo < view.state.doc.length
+      ? view.state.doc.sliceString(insertTo, Math.min(view.state.doc.length, insertTo + 2))
+      : "";
+  insertAt(view, insertFrom, insertTo, padMarkdownBlock(text, before, after));
 }
 
 function createEditorExtensions(
@@ -40,7 +51,7 @@ function createEditorExtensions(
         event.preventDefault();
         const { from, to } = view.state.selection.main;
         void onPasteImages(files).then((markdown) => {
-          if (markdown) insertAt(view, from, to, markdown);
+          if (markdown) insertMarkdownBlock(view, from, to, markdown);
         });
         return true;
       },
@@ -52,7 +63,7 @@ function createEditorExtensions(
         const position =
           view.posAtCoords({ x: event.clientX, y: event.clientY }) ?? view.state.selection.main.from;
         void onPasteImages(files).then((markdown) => {
-          if (markdown) insertAt(view, position, position, markdown);
+          if (markdown) insertMarkdownBlock(view, position, position, markdown);
         });
         return true;
       },
@@ -172,7 +183,7 @@ export const EditorPane = forwardRef<EditorHandle, EditorPaneProps>(function Edi
         const view = editorRef.current?.view;
         if (!view || !text) return;
         const selection = view.state.selection.main;
-        insertAt(view, selection.from, selection.to, text);
+        insertMarkdownBlock(view, selection.from, selection.to, text);
       },
     }),
     [],

@@ -65,7 +65,7 @@ export const en = {
   "library.attachmentCount_one": "{count} file",
   "library.noAttachments": "The attachment library is empty.",
   "library.noAttachmentMatches": "No matching attachments.",
-  "library.attachmentsEmptyHint": "Paste an image in the editor, or import files into the workspace attachments folder.",
+  "library.attachmentsEmptyHint": "Paste an image in the editor, or import files into the workspace .memoir-attachments folder.",
   "library.insertAttachment": "Insert into note",
 
   "menu.insertAttachment": "Insert into note",

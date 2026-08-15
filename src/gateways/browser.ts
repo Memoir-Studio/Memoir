@@ -2,7 +2,7 @@ import type { AppState, LegacyStatePayload } from "../domain/app-state";
 import { APP_STATE_VERSION } from "../domain/app-state";
 import type { AttachmentFile, SaveAttachmentInput } from "../domain/attachments";
 import {
-  ATTACHMENTS_DIR,
+  attachmentRelativePath,
   extensionFromFileName,
   extensionFromMime,
   mimeFromExtension,
@@ -198,11 +198,12 @@ export class BrowserWorkspaceGateway implements WorkspaceGateway {
     const stem = sanitizeAttachmentFileName((input.fileName || "image").replace(/\.[^.]+$/, ""));
     let fileName = `${stem}.${extension}`;
     let index = 1;
-    while (this.attachments.has(`${ATTACHMENTS_DIR}/${fileName}`)) {
+    let relativePath = attachmentRelativePath(fileName);
+    while (this.attachments.has(relativePath)) {
       fileName = `${stem}-${index}.${extension}`;
+      relativePath = attachmentRelativePath(fileName);
       index += 1;
     }
-    const relativePath = `${ATTACHMENTS_DIR}/${fileName}`;
     const attachment: AttachmentFile = {
       relativePath,
       fileName,

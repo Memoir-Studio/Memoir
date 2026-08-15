@@ -11,7 +11,7 @@ import * as runtime from "react/jsx-runtime";
 import { getGateways } from "../../gateways";
 import { Tag } from "../../components/ui";
 import type { NoteMeta } from "../../domain/notes";
-import { noteDirectory, resolveWorkspaceFilePath } from "../../domain/paths";
+import { decodeMediaHref, noteDirectory, resolveWorkspaceFilePath } from "../../domain/paths";
 import { useI18n } from "../../i18n/react";
 import { parseNote } from "../library/note-utils";
 import { rehypeTaskOffsets, toggleTaskAtOffset } from "./task-list";
@@ -93,7 +93,7 @@ function previewComponents(
           if (/^https?:/i.test(href)) {
             void gateway.openExternal(href);
           } else if (root) {
-            void gateway.openPath(resolveWorkspaceFilePath(root, directory, href));
+            void gateway.openPath(resolveWorkspaceFilePath(root, directory, decodeMediaHref(href)));
           }
         }}
       >
@@ -108,7 +108,9 @@ function previewComponents(
         <img
           {...props}
           alt={alt || ""}
-          src={gateway.resolveMediaPath(resolveWorkspaceFilePath(root, directory, src))}
+          src={gateway.resolveMediaPath(
+            resolveWorkspaceFilePath(root, directory, decodeMediaHref(src)),
+          )}
         />
       );
     },

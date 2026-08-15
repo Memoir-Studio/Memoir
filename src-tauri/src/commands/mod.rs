@@ -1,11 +1,21 @@
 use crate::{
     domain::{
-        AppError, AppSettings, AppState, AttachmentFile, FolderAppearance, LegacyStatePayload,
-        MigrationResult, NoteFile,
+        attachment::ATTACHMENTS_DIR, AppError, AppSettings, AppState, AttachmentFile,
+        FolderAppearance, LegacyStatePayload, MigrationResult, NoteFile,
     },
     services::{AppStateService, WorkspaceService},
 };
-use tauri::State;
+use std::path::PathBuf;
+use tauri::{AppHandle, Manager, State};
+
+fn allow_workspace_media(app: &AppHandle, root: &str) {
+    let path = PathBuf::from(root);
+    let path = path.canonicalize().unwrap_or(path);
+    let scope = app.asset_protocol_scope();
+    let _ = scope.allow_directory(&path, true);
+    // Dot-directories are hidden from `**` globs on Unix, so allow the library explicitly.
+    let _ = scope.allow_directory(path.join(ATTACHMENTS_DIR), true);
+}
 
 #[derive(Debug, Clone)]
 pub struct AppServices {
@@ -15,9 +25,11 @@ pub struct AppServices {
 
 #[tauri::command]
 pub fn scan_workspace(
+    app: AppHandle,
     services: State<'_, AppServices>,
     root: String,
 ) -> Result<Vec<NoteFile>, AppError> {
+    allow_workspace_media(&app, &root);
     services.workspace.scan(&root)
 }
 
@@ -81,20 +93,24 @@ pub fn delete_note(
 
 #[tauri::command]
 pub fn scan_attachments(
+    app: AppHandle,
     services: State<'_, AppServices>,
     root: String,
 ) -> Result<Vec<AttachmentFile>, AppError> {
+    allow_workspace_media(&app, &root);
     services.workspace.scan_attachments(&root)
 }
 
 #[tauri::command]
 pub fn save_attachment(
+    app: AppHandle,
     services: State<'_, AppServices>,
     root: String,
     bytes_base64: String,
     file_name: Option<String>,
     mime_type: Option<String>,
 ) -> Result<AttachmentFile, AppError> {
+    allow_workspace_media(&app, &root);
     services.workspace.save_attachment(
         &root,
         &bytes_base64,
@@ -105,10 +121,12 @@ pub fn save_attachment(
 
 #[tauri::command]
 pub fn import_attachment(
+    app: AppHandle,
     services: State<'_, AppServices>,
     root: String,
     source_path: String,
 ) -> Result<AttachmentFile, AppError> {
+    allow_workspace_media(&app, &root);
     services.workspace.import_attachment(&root, &source_path)
 }
 

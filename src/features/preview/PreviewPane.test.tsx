@@ -1,4 +1,4 @@
-import { cleanup, render } from "@testing-library/react";
+import { act, cleanup, render } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
 import type { NoteMeta } from "../../domain/notes";
@@ -154,5 +154,32 @@ describe("PreviewPane images", () => {
     const images = await view.findAllByRole("img", {}, { timeout: 1500 });
     expect(images).toHaveLength(2);
     expect(images[0].closest("p")).toBe(images[1].closest("p"));
+  });
+
+  it("resolves percent-encoded local attachment images in MDX notes", async () => {
+    const view = render(
+      <PreviewPane
+        activePath="two.mdx"
+        content={["$$", String.raw`\sum_{i=1}^{n} i`, "$$", "", "![截图](attachments/截图.png)", ""].join(
+          "\n",
+        )}
+        note={{
+          ...note,
+          relativePath: "two.mdx",
+          fileName: "two.mdx",
+          extension: "mdx",
+          title: "Two Sum",
+        }}
+        onContentChange={() => undefined}
+        root="/notes"
+      />,
+    );
+
+    // MDX compile is debounced 350ms; the compiled tree percent-encodes CJK hrefs.
+    await act(() => new Promise((resolve) => window.setTimeout(resolve, 600)));
+    expect(view.getByRole("img", { name: "截图" })).toHaveAttribute(
+      "src",
+      "/notes/attachments/截图.png",
+    );
   });
 });

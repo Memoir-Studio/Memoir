@@ -293,15 +293,17 @@ describe("app store actions", () => {
     const saved = await store.getState().saveAttachments([
       { bytesBase64: "AAAA", fileName: "paste-1.png", mimeType: "image/png" },
     ]);
-    expect(saved[0]?.relativePath).toBe("attachments/paste-1.png");
+    expect(saved[0]?.relativePath).toMatch(
+      /^\.memoir-attachments\/\d{4}-\d{2}\/paste-1\.png$/,
+    );
     expect(store.getState().attachments.map((item) => item.relativePath)).toEqual([
-      "attachments/paste-1.png",
+      saved[0]?.relativePath,
     ]);
     expect(markdownForAttachments("日记/today.md", saved)).toBe(
-      "![paste-1](../attachments/paste-1.png)",
+      `![paste-1](../${saved[0]?.relativePath})`,
     );
 
-    await store.getState().deleteAttachment("attachments/paste-1.png");
+    await store.getState().deleteAttachment(saved[0]!.relativePath);
     expect(store.getState().attachments).toEqual([]);
   });
 

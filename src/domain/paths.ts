@@ -47,3 +47,12 @@ export function relativePathFrom(fromDirectory: string, targetPath: string): str
 export function relativePathFromNote(noteRelativePath: string, targetPath: string): string {
   return relativePathFrom(noteDirectory(noteRelativePath), targetPath);
 }
+
+/** MDX / markdown encode local image hrefs; undo that before hitting the filesystem. */
+export function decodeMediaHref(href: string): string {
+  try {
+    return decodeURIComponent(href);
+  } catch {
+    return href;
+  }
+}

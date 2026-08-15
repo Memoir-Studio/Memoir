@@ -5,9 +5,10 @@ use std::{
 };
 
 pub const NOTE_EXTENSIONS: [&str; 2] = ["md", "mdx"];
-pub const IGNORED_DIRS: [&str; 8] = [
+pub const IGNORED_DIRS: [&str; 9] = [
     ".git",
     ".memoir-trash",
+    ".memoir-attachments",
     "node_modules",
     "dist",
     "build",
@@ -89,11 +90,7 @@ pub fn resolve_new_note(root: &str, relative_path: &str) -> AppResult<(PathBuf, 
 }
 
 pub fn is_attachment_relative(relative: &Path) -> bool {
-    let mut components = relative.components();
-    matches!(
-        components.next(),
-        Some(Component::Normal(name)) if name == crate::domain::attachment::ATTACHMENTS_DIR
-    ) && components.next().is_some()
+    crate::domain::attachment::is_attachment_relative(relative)
 }
 
 pub fn resolve_existing_attachment(
@@ -105,7 +102,7 @@ pub fn resolve_existing_attachment(
     crate::domain::attachment::validate_attachment_extension(&relative)?;
     if !is_attachment_relative(&relative) {
         return Err(AppError::invalid_path(
-            "Attachments must stay in the attachments folder.",
+            "Attachments must stay in the .memoir-attachments folder.",
         ));
     }
     let joined = root.join(relative);
@@ -125,7 +122,7 @@ pub fn resolve_new_attachment(root: &str, relative_path: &str) -> AppResult<(Pat
     crate::domain::attachment::validate_attachment_extension(&relative)?;
     if !is_attachment_relative(&relative) {
         return Err(AppError::invalid_path(
-            "Attachments must stay in the attachments folder.",
+            "Attachments must stay in the .memoir-attachments folder.",
         ));
     }
     let target = root.join(&relative);

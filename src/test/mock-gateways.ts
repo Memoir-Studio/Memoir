@@ -1,6 +1,6 @@
 import type { AppState } from "../domain/app-state";
 import type { AttachmentFile, SaveAttachmentInput } from "../domain/attachments";
-import { ATTACHMENTS_DIR, mimeFromExtension } from "../domain/attachments";
+import { attachmentRelativePath, mimeFromExtension } from "../domain/attachments";
 import type { FolderAppearance } from "../domain/folders";
 import {
   folderAppearancesForWorkspace,
@@ -79,7 +79,7 @@ export class MockWorkspaceGateway implements WorkspaceGateway {
     if (this.failAttachment) throw new Error("attachment disk full");
     this.savedAttachments.push(input);
     const fileName = input.fileName || "paste.png";
-    const relativePath = `${ATTACHMENTS_DIR}/${fileName}`;
+    const relativePath = attachmentRelativePath(fileName);
     const attachment: AttachmentFile = {
       relativePath,
       fileName,

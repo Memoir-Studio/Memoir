@@ -5,7 +5,6 @@ import {
   FileText,
   ListTree,
   Loader2,
-  Paperclip,
   Plus,
   Search,
   Star,
@@ -87,14 +86,6 @@ export function NoteList({
           >
             <ListTree className="h-3.5 w-3.5" />
             <span>{t("library.outline")}</span>
-          </IconButton>
-          <IconButton
-            active={mode === "attachments"}
-            label={t("library.attachments")}
-            onClick={() => setMode("attachments")}
-          >
-            <Paperclip className="h-3.5 w-3.5" />
-            <span>{t("library.attachments")}</span>
           </IconButton>
         </div>
         {mode === "attachments" ? (

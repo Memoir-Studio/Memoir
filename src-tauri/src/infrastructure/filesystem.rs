@@ -1,8 +1,9 @@
 use crate::{
     domain::{
         attachment::{
-            mime_from_extension, resolve_attachment_extension, sanitize_attachment_file_name,
-            unique_file_name, ATTACHMENTS_DIR,
+            attachment_month_dir, mime_from_extension, resolve_attachment_extension,
+            sanitize_attachment_file_name, unique_file_name, ATTACHMENTS_DIR,
+            LEGACY_ATTACHMENTS_DIR,
         },
         path::{
             create_parent_dirs, is_supported_note, normalize_root, resolve_existing_attachment,
@@ -133,24 +134,10 @@ impl LocalFileSystem {
 
     pub fn scan_attachments(&self, root: &str) -> AppResult<Vec<AttachmentFile>> {
         let root = normalize_root(root)?;
-        let attachments_dir = root.join(ATTACHMENTS_DIR);
-        if !attachments_dir.exists() {
-            return Ok(Vec::new());
-        }
-        let metadata = fs::symlink_metadata(&attachments_dir)
-            .map_err(|error| AppError::io("Inspect attachments directory", &attachments_dir, error))?;
-        if metadata.file_type().is_symlink() {
-            return Err(AppError::invalid_path(
-                "Attachments directory cannot be a symbolic link.",
-            ));
-        }
-        if !metadata.is_dir() {
-            return Err(AppError::invalid_path(
-                "Attachments path is not a directory.",
-            ));
-        }
         let mut attachments = Vec::new();
-        collect_attachments(&root, &attachments_dir, &mut attachments)?;
+        for dir_name in [ATTACHMENTS_DIR, LEGACY_ATTACHMENTS_DIR] {
+            collect_attachment_tree(&root, &root.join(dir_name), &mut attachments)?;
+        }
         attachments.sort_by(|left, right| {
             right
                 .modified_ms
@@ -209,19 +196,46 @@ fn write_attachment_bytes(
         .unwrap_or_else(|| "image".into());
     let preferred = format!("{stem}.{extension}");
     let root_path = normalize_root(root)?;
+    let month = attachment_month_dir();
     let attachments_dir = root_path.join(ATTACHMENTS_DIR);
-    fs::create_dir_all(&attachments_dir)
-        .map_err(|error| AppError::io("Create attachments directory", &attachments_dir, error))?;
+    let month_dir = attachments_dir.join(&month);
+    fs::create_dir_all(&month_dir)
+        .map_err(|error| AppError::io("Create attachments directory", &month_dir, error))?;
     let canonical_dir = attachments_dir
         .canonicalize()
         .map_err(|error| AppError::io("Resolve attachments directory", &attachments_dir, error))?;
     crate::domain::path::ensure_inside(&root_path, &canonical_dir)?;
-    let unique_name = unique_file_name(&preferred, |candidate| canonical_dir.join(candidate).exists());
-    let relative = format!("{ATTACHMENTS_DIR}/{unique_name}");
+    let unique_name = unique_file_name(&preferred, |candidate| {
+        canonical_dir.join(&month).join(candidate).exists()
+    });
+    let relative = format!("{ATTACHMENTS_DIR}/{month}/{unique_name}");
     let (_, target) = resolve_new_attachment(root, &relative)?;
     create_parent_dirs(&root_path, &target)?;
     atomic_write(&target, bytes)?;
     attachment_file_from_path(&root_path, &target)
+}
+
+fn collect_attachment_tree(
+    root: &Path,
+    attachments_dir: &Path,
+    attachments: &mut Vec<AttachmentFile>,
+) -> AppResult<()> {
+    if !attachments_dir.exists() {
+        return Ok(());
+    }
+    let metadata = fs::symlink_metadata(attachments_dir)
+        .map_err(|error| AppError::io("Inspect attachments directory", attachments_dir, error))?;
+    if metadata.file_type().is_symlink() {
+        return Err(AppError::invalid_path(
+            "Attachments directory cannot be a symbolic link.",
+        ));
+    }
+    if !metadata.is_dir() {
+        return Err(AppError::invalid_path(
+            "Attachments path is not a directory.",
+        ));
+    }
+    collect_attachments(root, attachments_dir, attachments)
 }
 
 fn collect_attachments(

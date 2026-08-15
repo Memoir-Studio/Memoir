@@ -417,6 +417,27 @@ fn legacy_migration_writes_state_and_only_reports_persisted_keys() {
     );
 }
 
+#[test]
+fn attachment_month_dir_uses_utc_year_month() {
+    use std::time::{Duration, UNIX_EPOCH};
+    assert_eq!(
+        crate::domain::attachment::attachment_month_dir_at(UNIX_EPOCH),
+        "1970-01"
+    );
+    assert_eq!(
+        crate::domain::attachment::attachment_month_dir_at(
+            UNIX_EPOCH + Duration::from_secs(1_709_164_800)
+        ),
+        "2024-02"
+    );
+    assert_eq!(
+        crate::domain::attachment::attachment_month_dir_at(
+            UNIX_EPOCH + Duration::from_secs(1_786_752_000)
+        ),
+        "2026-08"
+    );
+}
+
 fn sample_png() -> Vec<u8> {
     use base64::{engine::general_purpose::STANDARD, Engine as _};
     STANDARD
@@ -432,21 +453,38 @@ fn saves_lists_and_trashes_attachments_inside_the_library() {
 
     assert!(filesystem.scan_attachments(root).unwrap().is_empty());
 
+    let month = crate::domain::attachment::attachment_month_dir();
     let saved = filesystem
         .save_attachment(root, &sample_png(), Some("../escape/photo.png"), Some("image/png"))
         .unwrap();
-    assert_eq!(saved.relative_path, "attachments/photo.png");
+    assert_eq!(
+        saved.relative_path,
+        format!(".memoir-attachments/{month}/photo.png")
+    );
     assert_eq!(saved.extension, "png");
-    assert!(workspace.path().join("attachments/photo.png").exists());
+    assert!(workspace
+        .path()
+        .join(format!(".memoir-attachments/{month}/photo.png"))
+        .exists());
 
     let duplicate = filesystem
         .save_attachment(root, &sample_png(), Some("photo.png"), None)
         .unwrap();
-    assert_eq!(duplicate.relative_path, "attachments/photo-1.png");
+    assert_eq!(
+        duplicate.relative_path,
+        format!(".memoir-attachments/{month}/photo-1.png")
+    );
+
+    fs::create_dir_all(workspace.path().join("attachments")).unwrap();
+    fs::write(workspace.path().join("attachments/legacy.png"), sample_png()).unwrap();
 
     let listed = filesystem.scan_attachments(root).unwrap();
-    assert_eq!(listed.len(), 2);
-    assert!(listed.iter().all(|item| item.relative_path.starts_with("attachments/")));
+    assert_eq!(listed.len(), 3);
+    assert!(listed.iter().any(|item| item.relative_path == "attachments/legacy.png"));
+    assert!(listed.iter().all(|item| {
+        item.relative_path.starts_with(".memoir-attachments/")
+            || item.relative_path.starts_with("attachments/")
+    }));
 
     let outside = tempdir().unwrap();
     let source = outside.path().join("diagram.webp");
@@ -454,13 +492,19 @@ fn saves_lists_and_trashes_attachments_inside_the_library() {
     let imported = filesystem
         .import_attachment(root, source.to_str().unwrap())
         .unwrap();
-    assert_eq!(imported.relative_path, "attachments/diagram.png");
+    assert_eq!(
+        imported.relative_path,
+        format!(".memoir-attachments/{month}/diagram.png")
+    );
 
     let trashed = filesystem
-        .delete_attachment(root, "attachments/photo.png")
+        .delete_attachment(root, &format!(".memoir-attachments/{month}/photo.png"))
         .unwrap();
     assert!(trashed.starts_with(".memoir-trash/"));
-    assert!(!workspace.path().join("attachments/photo.png").exists());
+    assert!(!workspace
+        .path()
+        .join(format!(".memoir-attachments/{month}/photo.png"))
+        .exists());
 }
 
 #[test]

@@ -1,6 +1,7 @@
 import { relativePathFromNote } from "./paths";
 
-export const ATTACHMENTS_DIR = "attachments";
+export const ATTACHMENTS_DIR = ".memoir-attachments";
+export const LEGACY_ATTACHMENTS_DIR = "attachments";
 export const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
 
 export const ATTACHMENT_EXTENSIONS = [
@@ -106,6 +107,14 @@ export function formatStamp(date: Date): string {
   return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}-${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`;
 }
 
+export function attachmentMonthDir(date = new Date()): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+export function attachmentRelativePath(fileName: string, date = new Date()): string {
+  return `${ATTACHMENTS_DIR}/${attachmentMonthDir(date)}/${fileName}`;
+}
+
 export function suggestedPasteFileName(
   file: { name: string; type: string },
   now = new Date(),
@@ -142,6 +151,18 @@ export function markdownForAttachments(
   return attachments
     .map((attachment) => markdownImageForAttachment(noteRelativePath, attachment))
     .join("\n\n");
+}
+
+export function padMarkdownBlock(text: string, before: string, after: string): string {
+  let prefix = "";
+  if (before && !before.endsWith("\n\n")) {
+    prefix = before.endsWith("\n") ? "\n" : "\n\n";
+  }
+  let suffix = "";
+  if (after && !after.startsWith("\n\n")) {
+    suffix = after.startsWith("\n") ? "\n" : "\n\n";
+  }
+  return `${prefix}${text}${suffix}`;
 }
 
 export function formatBytes(size: number): string {

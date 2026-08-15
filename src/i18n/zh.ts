@@ -62,7 +62,7 @@ export const zh = {
   "library.attachmentCount_one": "{count} 个",
   "library.noAttachments": "附件库还是空的。",
   "library.noAttachmentMatches": "没有匹配的附件。",
-  "library.attachmentsEmptyHint": "在编辑器中粘贴图片，或导入文件到工作区 attachments 目录。",
+  "library.attachmentsEmptyHint": "在编辑器中粘贴图片，或导入文件到工作区 .memoir-attachments 目录。",
   "library.insertAttachment": "插入到笔记",
 
   "menu.insertAttachment": "插入到笔记",
