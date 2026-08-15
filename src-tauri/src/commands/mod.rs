@@ -24,13 +24,19 @@ pub struct AppServices {
 }
 
 #[tauri::command]
-pub fn scan_workspace(
+pub async fn scan_workspace(
     app: AppHandle,
     services: State<'_, AppServices>,
     root: String,
 ) -> Result<Vec<NoteFile>, AppError> {
     allow_workspace_media(&app, &root);
-    services.workspace.scan(&root)
+    let workspace = services.workspace.clone();
+    tauri::async_runtime::spawn_blocking(move || workspace.scan(&root))
+        .await
+        .map_err(|error| {
+            AppError::new(crate::domain::ErrorCode::Io, "Workspace scan interrupted.")
+                .with_details(error.to_string())
+        })?
 }
 
 #[tauri::command]
@@ -92,13 +98,30 @@ pub fn delete_note(
 }
 
 #[tauri::command]
-pub fn scan_attachments(
+pub async fn scan_attachments(
     app: AppHandle,
     services: State<'_, AppServices>,
     root: String,
 ) -> Result<Vec<AttachmentFile>, AppError> {
     allow_workspace_media(&app, &root);
-    services.workspace.scan_attachments(&root)
+    let workspace = services.workspace.clone();
+    tauri::async_runtime::spawn_blocking(move || workspace.scan_attachments(&root))
+        .await
+        .map_err(|error| {
+            AppError::new(crate::domain::ErrorCode::Io, "Attachment scan interrupted.")
+                .with_details(error.to_string())
+        })?
+}
+
+#[tauri::command]
+pub fn drafts_exist(
+    services: State<'_, AppServices>,
+    workspace_root: String,
+    relative_paths: Vec<String>,
+) -> Result<Vec<String>, AppError> {
+    services
+        .app_state
+        .drafts_exist(&workspace_root, &relative_paths)
 }
 
 #[tauri::command]

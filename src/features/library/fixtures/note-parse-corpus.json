@@ -1,0 +1,189 @@
+[
+  {
+    "name": "frontmatter-title-tags-excerpt",
+    "content": "---\ntitle: Project Plan\ntags: [roadmap, team]\n---\n\n# Ignored\n\nUseful summary.",
+    "fallbackFileName": "fallback.md",
+    "title": "Project Plan",
+    "tags": [
+      "roadmap",
+      "team"
+    ],
+    "excerpt": "Ignored Useful summary."
+  },
+  {
+    "name": "frontmatter-cjk-title-wins",
+    "content": "---\ntitle: 今天吃什么\ntags: []\n---\n\n# Two Sum\n\nbody",
+    "fallbackFileName": "memoir.mdx",
+    "title": "今天吃什么",
+    "tags": [],
+    "excerpt": "Two Sum body"
+  },
+  {
+    "name": "whitespace-title-falls-to-heading",
+    "content": "---\ntitle: \"  \"\n---\n\n# Real heading\n",
+    "fallbackFileName": "note.md",
+    "title": "Real heading",
+    "tags": [],
+    "excerpt": "Real heading"
+  },
+  {
+    "name": "first-heading-only",
+    "content": "# First heading\n\n## Second\n",
+    "fallbackFileName": "journal.md",
+    "title": "First heading",
+    "tags": [],
+    "excerpt": "First heading Second"
+  },
+  {
+    "name": "h2-only-filename",
+    "content": "## Not a title\n\nplain text",
+    "fallbackFileName": "notes.md",
+    "title": "notes",
+    "tags": [],
+    "excerpt": "Not a title plain text"
+  },
+  {
+    "name": "no-heading-empty-stem",
+    "content": "no headings here",
+    "fallbackFileName": ".md",
+    "title": "Untitled",
+    "tags": [],
+    "excerpt": "no headings here"
+  },
+  {
+    "name": "html-h1-over-fenced-fake",
+    "content": "<p align=\"center\">\n  <img src=\"docs/assets/logo.svg\" width=\"96\" alt=\"Memoir\" />\n</p>\n\n<h1 align=\"center\">Memoir</h1>\n\n## Features\n\n````md\n---\ntitle: Two Sum\n---\n\n# Two Sum\n````\n",
+    "fallbackFileName": "memoir.mdx",
+    "title": "Memoir",
+    "tags": [],
+    "excerpt": "<p align=\"center\" <img src=\"docs/assets/logo.svg\" width=\"96\" alt=\"Memoir\" / </p <h1 align=\"center\" Memoir</h1 Features"
+  },
+  {
+    "name": "four-backtick-fence-filename",
+    "content": "````md\n# Two Sum\n````\n\n## Features\n",
+    "fallbackFileName": "README.md",
+    "title": "README",
+    "tags": [],
+    "excerpt": "Features"
+  },
+  {
+    "name": "bold-atx-title",
+    "content": "# **Bold Title**\n",
+    "fallbackFileName": "a.md",
+    "title": "Bold Title",
+    "tags": [],
+    "excerpt": "Bold Title"
+  },
+  {
+    "name": "duplicate-tags",
+    "content": "---\ntitle: Dup\ntags: [a, a]\n---\n\n# Dup\n",
+    "fallbackFileName": "dup.md",
+    "title": "Dup",
+    "tags": [
+      "a",
+      "a"
+    ],
+    "excerpt": "Dup"
+  },
+  {
+    "name": "tags-yaml-string",
+    "content": "---\ntitle: S\ntags: a, b\n---\n\n# S\n\nBody here.",
+    "fallbackFileName": "s.md",
+    "title": "S",
+    "tags": [
+      "a",
+      "b"
+    ],
+    "excerpt": "S Body here."
+  },
+  {
+    "name": "tags-missing",
+    "content": "---\ntitle: None\n---\n\n# None\n",
+    "fallbackFileName": "n.md",
+    "title": "None",
+    "tags": [],
+    "excerpt": "None"
+  },
+  {
+    "name": "numeric-title-ignored",
+    "content": "---\ntitle: 2024\n---\n\n# Year\n",
+    "fallbackFileName": "y.md",
+    "title": "Year",
+    "tags": [],
+    "excerpt": "Year"
+  },
+  {
+    "name": "invalid-yaml-fallback",
+    "content": "---\ntitle: [unterminated\n---\n\n# Fallback heading\n\nStill readable.",
+    "fallbackFileName": "bad.md",
+    "title": "Fallback heading",
+    "tags": [],
+    "excerpt": "Fallback heading Still readable."
+  },
+  {
+    "name": "bom-frontmatter",
+    "content": "﻿---\ntitle: Bombed\ntags: [x]\n---\n\n# Ignored\n\nHello.",
+    "fallbackFileName": "bom.md",
+    "title": "Bombed",
+    "tags": [
+      "x"
+    ],
+    "excerpt": "Ignored Hello."
+  },
+  {
+    "name": "crlf-frontmatter",
+    "content": "---\r\ntitle: Windows\r\ntags: [crlf]\r\n---\r\n\r\n# Ignored\r\n\r\nCRLF body.",
+    "fallbackFileName": "win.md",
+    "title": "Windows",
+    "tags": [
+      "crlf"
+    ],
+    "excerpt": "Ignored CRLF body."
+  },
+  {
+    "name": "tilde-fence-excerpt-quirk",
+    "content": "~~~\n# Fake title inside\n~~~\n\nVisible excerpt after tildes.",
+    "fallbackFileName": "tilde.md",
+    "title": "tilde",
+    "tags": [],
+    "excerpt": "Fake title inside Visible excerpt after tildes."
+  },
+  {
+    "name": "excerpt-utf16-150",
+    "content": "---\ntitle: Long\n---\n\nAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    "fallbackFileName": "long.md",
+    "title": "Long",
+    "tags": [],
+    "excerpt": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+  },
+  {
+    "name": "excerpt-emoji-boundary",
+    "content": "---\ntitle: Emoji\n---\n\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx😀more",
+    "fallbackFileName": "emoji.md",
+    "title": "Emoji",
+    "tags": [],
+    "excerpt": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+  },
+  {
+    "name": "tags-number-item",
+    "content": "---\ntitle: Nums\ntags: [rust, 2024]\n---\n\n# Nums\n",
+    "fallbackFileName": "nums.md",
+    "title": "Nums",
+    "tags": [
+      "rust",
+      "2024"
+    ],
+    "excerpt": "Nums"
+  },
+  {
+    "name": "tags-skip-map-item",
+    "content": "---\ntitle: Maps\ntags: [ok, {nested: true}]\n---\n\n# Maps\n",
+    "fallbackFileName": "maps.md",
+    "title": "Maps",
+    "tags": [
+      "ok",
+      "[object Object]"
+    ],
+    "excerpt": "Maps"
+  }
+]

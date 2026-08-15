@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
   addUniqueTags,
@@ -11,6 +14,21 @@ import {
   parseTagTokens,
 } from "./note-utils";
 import type { NoteMeta } from "../../domain/notes";
+
+type CorpusCase = {
+  name: string;
+  content: string;
+  fallbackFileName: string;
+  title: string;
+  tags: string[];
+  excerpt: string;
+};
+
+const corpusPath = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "fixtures/note-parse-corpus.json",
+);
+const corpus = JSON.parse(readFileSync(corpusPath, "utf8")) as CorpusCase[];
 
 const notes: NoteMeta[] = [
   {
@@ -38,6 +56,16 @@ const notes: NoteMeta[] = [
 ];
 
 describe("note utilities", () => {
+  it("matches the shared parse corpus", () => {
+    expect(corpus.length).toBeGreaterThan(0);
+    for (const fixture of corpus) {
+      const parsed = parseNote(fixture.content, fixture.fallbackFileName);
+      expect(parsed.title, fixture.name).toBe(fixture.title);
+      expect(parsed.tags, fixture.name).toEqual(fixture.tags);
+      expect(parsed.excerpt, fixture.name).toBe(fixture.excerpt);
+    }
+  });
+
   it("parses frontmatter title tags and excerpt", () => {
     const parsed = parseNote(
       "---\ntitle: Project Plan\ntags: [roadmap, team]\n---\n\n# Ignored\n\nUseful summary.",

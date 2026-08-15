@@ -35,8 +35,8 @@ window_frame.rs native window size / maximized persistence
 ```
 
 - `domain` — structured errors, note and app-state models, path rules.
-- `services` — workspace CRUD, preferences, favorites, folder appearance, drafts, and legacy migration.
-- `infrastructure` — local filesystem, app-data JSON, drafts, atomic writes.
+- `services` — workspace CRUD, index reconcile / write-through, preferences, favorites, folder appearance, drafts, and legacy migration.
+- `infrastructure` — local filesystem, disposable workspace SQLite index, app-data JSON, drafts, atomic writes.
 - `commands` — accept camelCase DTOs, call a service, return a serialized result.
 - `lib.rs` — resolve the Tauri app-data path, inject services, register plugins and commands, restore the window frame.
 - `window_frame.rs` is not a command. On setup it restores size from `app-state.json`; on resize (debounced) and close it writes back through `AppStateService`.
@@ -63,7 +63,7 @@ The store is five slices: `workspace`, `document`, `library`, `settings`, `ui`. 
 
 Workspace commands:
 
-- `scan_workspace`
+- `scan_workspace` — walks identity (`path` / `mtime` / `size`), reconciles `<workspace>/.memoir/index.sqlite`, and returns cached `title` / `tags` / `excerpt`
 - `read_note`
 - `write_note`
 - `create_note`
@@ -83,6 +83,7 @@ Persistence commands:
 - `read_draft`
 - `write_draft`
 - `delete_draft`
+- `drafts_exist`
 - `migrate_legacy_state`
 
 These are not commands. They go through plugins or Tauri helpers, still behind `WorkspaceGateway`:
@@ -135,9 +136,13 @@ app-data/
 
 Drafts are separate files so typing does not rewrite the whole state file. State and draft writes create a sibling temp file, `sync`, then `rename`.
 
+Each desktop workspace also has a disposable library cache at `<workspace>/.memoir/index.sqlite` (plus WAL sidecars). It stores note identity and derived library fields (`title`, `tags`, `excerpt`) so opening the library does not read every file. Notes on disk remain the only source of truth: delete the directory and Memoir rebuilds it. A missing, corrupt, hostile, or unwritable cache never fails a scan — Memoir rebuilds the file or uses an in-memory index for the session. Drafts, favorites, and settings stay in app-data, not in this file.
+
+Add `.memoir/` to the vault’s root `.gitignore`. If the folder lives in iCloud, Dropbox, or OneDrive, exclude `.memoir/` from sync. Memoir writes an inner `.memoir/.gitignore` containing `*` so a force-added folder still ignores the database.
+
 Pasted and imported images are ordinary files in workspace `.memoir-attachments/YYYY-MM/`. Older files in `attachments/` are still listed. They are not stored in app-data. The browser demo keeps them in memory as data URLs.
 
-The browser build is an in-memory demo. It does not read or write real files, and it does not persist settings.
+The browser build is an in-memory demo. It does not read or write real files, does not open SQLite, and it does not persist settings.
 
 ## Path safety
 
@@ -146,7 +151,7 @@ The browser build is an in-memory demo. It does not read or write real files, an
 - Attachments live in workspace `.memoir-attachments/YYYY-MM/`. Writes accept only image extensions (`png`, `jpg`, `jpeg`, `gif`, `webp`, `bmp`, `avif`, `svg`), stay inside that folder or the legacy `attachments/` directory, and are capped at 20 MB. Deletes go to `.memoir-trash/` like notes.
 - Canonicalize before read, write-of-existing, rename, and delete; the result must still be inside the workspace.
 - Before creating a new file, canonicalize the nearest existing parent so a symlink cannot escape.
-- Scan skips symbolic links, any directory whose name starts with `.`, and `node_modules`, `dist`, `build`, `target`, `.next`, `.turbo`. `.git` and `.memoir-trash` are skipped as hidden names.
+- Scan skips symbolic link **entries**, any directory whose name starts with `.`, and `node_modules`, `dist`, `build`, `target`, `.next`, `.turbo`. `.git`, `.memoir`, `.memoir-trash`, and `.memoir-attachments` are skipped as hidden names (and listed in `IGNORED_DIRS`).
 - Delete is a rename into `<workspace>/.memoir-trash/<unix-seconds>-<filename>`. A symlinked trash directory is rejected.
 
 ## Extending

@@ -16,6 +16,7 @@ import {
   normalizeFolderKey,
 } from "../domain/folders";
 import type { RawNoteFile } from "../domain/notes";
+import { parseNote } from "../features/library/note-utils";
 import { DEFAULT_SETTINGS } from "../domain/settings";
 import { GatewayError } from "../domain/errors";
 import type { AppGateways, CreateNoteInput, PersistenceGateway, WorkspaceGateway } from "./contracts";
@@ -112,13 +113,20 @@ export class BrowserWorkspaceGateway implements WorkspaceGateway {
 
   async scanWorkspace(root: string): Promise<RawNoteFile[]> {
     this.assertRoot(root);
-    return [...this.files.entries()].map(([relativePath, content]) => ({
-      relativePath,
-      fileName: relativePath.split("/").pop() || relativePath,
-      extension: relativePath.endsWith(".mdx") ? "mdx" : "md",
-      modifiedMs: this.modified.get(relativePath) || Date.now(),
-      size: new Blob([content]).size,
-    }));
+    return [...this.files.entries()].map(([relativePath, content]) => {
+      const fileName = relativePath.split("/").pop() || relativePath;
+      const parsed = parseNote(content, fileName);
+      return {
+        relativePath,
+        fileName,
+        extension: relativePath.endsWith(".mdx") ? "mdx" : "md",
+        modifiedMs: this.modified.get(relativePath) || Date.now(),
+        size: new Blob([content]).size,
+        title: parsed.title,
+        tags: parsed.tags,
+        excerpt: parsed.excerpt,
+      };
+    });
   }
 
   async readNote(root: string, relativePath: string) {
@@ -327,6 +335,12 @@ export class BrowserPersistenceGateway implements PersistenceGateway {
 
   async deleteDraft(workspaceRoot: string, relativePath: string) {
     this.drafts.delete(`${workspaceRoot}\0${relativePath}`);
+  }
+
+  async draftsExist(workspaceRoot: string, relativePaths: string[]) {
+    return relativePaths.filter((relativePath) =>
+      this.drafts.has(`${workspaceRoot}\0${relativePath}`),
+    );
   }
 
   async migrateLegacyState(_payload: LegacyStatePayload) {

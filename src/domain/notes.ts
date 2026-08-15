@@ -6,12 +6,12 @@ export type RawNoteFile = {
   extension: NoteExtension;
   modifiedMs: number;
   size: number;
-};
-
-export type NoteMeta = RawNoteFile & {
   title: string;
   tags: string[];
   excerpt: string;
+};
+
+export type NoteMeta = RawNoteFile & {
   favorite: boolean;
   dirty?: boolean;
 };

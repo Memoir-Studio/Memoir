@@ -53,33 +53,34 @@ function favoriteSet(favorites: Record<string, string[]>, root: string) {
   return new Set(favorites[root] || []);
 }
 
-async function hydrateNotes(
+async function assembleNotes(
   gateways: AppGateways,
   root: string,
   files: RawNoteFile[],
   favorites: Set<string>,
-) {
+  draftPaths: string[],
+): Promise<NoteMeta[]> {
+  const draftSet = new Set(draftPaths);
   return Promise.all(
     files.map(async (file): Promise<NoteMeta> => {
+      const favorite = favorites.has(file.relativePath);
+      if (!draftSet.has(file.relativePath)) {
+        return { ...file, favorite, dirty: false };
+      }
       try {
-        const [content, draft] = await Promise.all([
-          gateways.workspace.readNote(root, file.relativePath),
-          gateways.persistence.readDraft(root, file.relativePath),
-        ]);
-        const parsed = parseNote(draft ?? content, file.fileName);
-        return {
-          ...file,
-          ...parsed,
-          favorite: favorites.has(file.relativePath),
-          dirty: draft !== null && draft !== content,
-        };
+        const draft = await gateways.persistence.readDraft(root, file.relativePath);
+        if (draft == null) {
+          return { ...file, favorite, dirty: false };
+        }
+        const parsed = parseNote(draft, file.fileName);
+        return { ...file, ...parsed, favorite, dirty: true };
       } catch {
         return {
           ...file,
           title: file.fileName.replace(/\.(md|mdx)$/i, ""),
           tags: [],
           excerpt: "",
-          favorite: favorites.has(file.relativePath),
+          favorite,
         };
       }
     }),
@@ -287,25 +288,48 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
             gateways.persistence.loadAppState(),
             gateways.workspace.scanAttachments(root),
           ]);
-          const notes = await hydrateNotes(gateways, root, files, favoriteSet(appState.favorites, root));
+          const draftPaths = await gateways.persistence.draftsExist(
+            root,
+            files.map((file) => file.relativePath),
+          );
+          const notes = await assembleNotes(
+            gateways,
+            root,
+            files,
+            favoriteSet(appState.favorites, root),
+            draftPaths,
+          );
+          const current = get();
+          const overlaid = isOpenUnsavedNote(current)
+            ? notes.map((note) =>
+                note.relativePath === current.activePath
+                  ? {
+                      ...note,
+                      ...parseNote(current.content, note.fileName),
+                      dirty: true,
+                    }
+                  : note,
+              )
+            : notes;
           const preferred =
-            preferredPath && notes.some((note) => note.relativePath === preferredPath)
+            preferredPath && overlaid.some((note) => note.relativePath === preferredPath)
               ? preferredPath
               : null;
-          const current = get().activePath;
           const selected =
             preferred ??
-            (current && notes.some((note) => note.relativePath === current) ? current : null) ??
-            notes[0]?.relativePath ??
+            (current.activePath && overlaid.some((note) => note.relativePath === current.activePath)
+              ? current.activePath
+              : null) ??
+            overlaid[0]?.relativePath ??
             null;
-          const alreadyOpen = selected !== null && get().loadedContentPath === selected;
+          const alreadyOpen = selected !== null && current.loadedContentPath === selected;
           set({
-            notes,
+            notes: overlaid,
             attachments,
             folderAppearances: folderAppearancesForWorkspace(appState.folderAppearances, root),
             activePath: selected,
             isLoading: false,
-            status: tc(storeLocale(get().settings), "status.noteCount", notes.length),
+            status: tc(storeLocale(get().settings), "status.noteCount", overlaid.length),
           });
           if (selected && !alreadyOpen) await get().selectNote(selected);
         } catch (error) {

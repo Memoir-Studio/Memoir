@@ -9,7 +9,7 @@ use crate::{
         app_data::AppDataRepository,
         filesystem::{slugify, LocalFileSystem},
     },
-    services::AppStateService,
+    services::{AppStateService, WorkspaceService},
 };
 use std::fs;
 use std::time::Duration;
@@ -90,6 +90,8 @@ fn scans_notes_sorted_and_ignores_hidden_directories() {
     fs::create_dir(workspace.path().join("notes")).unwrap();
     std::thread::sleep(Duration::from_millis(20));
     fs::write(workspace.path().join("notes/b.mdx"), "# B").unwrap();
+    fs::create_dir(workspace.path().join(".memoir")).unwrap();
+    fs::write(workspace.path().join(".memoir/note.md"), "# Cache").unwrap();
 
     let filesystem = LocalFileSystem;
     let notes = filesystem
@@ -101,6 +103,7 @@ fn scans_notes_sorted_and_ignores_hidden_directories() {
         .collect::<Vec<_>>();
     assert_eq!(paths, vec!["notes/b.mdx", "a.md"]);
     assert!(!paths.iter().any(|path| path.contains(".hidden")));
+    assert!(!paths.iter().any(|path| path.contains(".memoir")));
 }
 
 #[test]
@@ -543,4 +546,137 @@ fn rejects_non_image_and_escaping_attachment_paths() {
             .code,
         ErrorCode::Io
     );
+}
+
+#[test]
+fn workspace_scan_returns_cached_metadata_and_skips_unchanged_reads() {
+    let workspace = tempdir().unwrap();
+    let root = workspace.path().to_str().unwrap();
+    fs::write(
+        workspace.path().join("one.md"),
+        "---\ntitle: One\ntags: [a]\n---\n\n# One\n\nHello.",
+    )
+    .unwrap();
+    fs::write(workspace.path().join("two.md"), "# Two\n\nSecond").unwrap();
+
+    let service = WorkspaceService::new(LocalFileSystem);
+    let first = service.scan(root).unwrap();
+    assert_eq!(first.len(), 2);
+    let one = first.iter().find(|note| note.relative_path == "one.md").unwrap();
+    assert_eq!(one.title, "One");
+    assert_eq!(one.tags, vec!["a"]);
+    assert!(one.excerpt.contains("Hello"));
+    let reads_after_first = service.content_reads.load(std::sync::atomic::Ordering::Relaxed);
+    assert!(reads_after_first >= 2);
+
+    let second = service.scan(root).unwrap();
+    assert_eq!(second.len(), 2);
+    assert_eq!(
+        service.content_reads.load(std::sync::atomic::Ordering::Relaxed),
+        reads_after_first
+    );
+    assert!(workspace.path().join(".memoir/index.sqlite").exists());
+}
+
+#[test]
+fn write_then_scan_does_not_reread_and_rename_updates_path() {
+    let workspace = tempdir().unwrap();
+    let root = workspace.path().to_str().unwrap();
+    fs::write(workspace.path().join("old.md"), "# Old").unwrap();
+    let service = WorkspaceService::new(LocalFileSystem);
+    service.scan(root).unwrap();
+    let reads = service.content_reads.load(std::sync::atomic::Ordering::Relaxed);
+
+    service.write(root, "old.md", "# Updated\n\nBody").unwrap();
+    let after_write = service.scan(root).unwrap();
+    assert_eq!(
+        service.content_reads.load(std::sync::atomic::Ordering::Relaxed),
+        reads
+    );
+    assert_eq!(after_write[0].title, "Updated");
+
+    let renamed = service.rename(root, "old.md", "new.md").unwrap();
+    assert_eq!(renamed, "new.md");
+    let after_rename = service.scan(root).unwrap();
+    assert_eq!(after_rename.len(), 1);
+    assert_eq!(after_rename[0].relative_path, "new.md");
+    assert_eq!(after_rename[0].title, "Updated");
+
+    service.delete(root, "new.md").unwrap();
+    assert!(service.scan(root).unwrap().is_empty());
+}
+
+#[test]
+fn garbage_index_and_vanished_new_file_do_not_fail_scan() {
+    let workspace = tempdir().unwrap();
+    let root = workspace.path().to_str().unwrap();
+    fs::write(workspace.path().join("keep.md"), "# Keep").unwrap();
+    fs::create_dir_all(workspace.path().join(".memoir")).unwrap();
+    fs::write(workspace.path().join(".memoir/index.sqlite"), b"garbage").unwrap();
+
+    let service = WorkspaceService::new(LocalFileSystem);
+    let notes = service.scan(root).unwrap();
+    assert_eq!(notes.len(), 1);
+    assert_eq!(notes[0].title, "Keep");
+
+    fs::write(workspace.path().join("ghost.md"), "# Ghost").unwrap();
+    // A vanished new path must not persist: scan after delete is empty of it.
+    fs::remove_file(workspace.path().join("ghost.md")).unwrap();
+    let again = service.scan(root).unwrap();
+    assert_eq!(again.len(), 1);
+    assert_eq!(again[0].relative_path, "keep.md");
+}
+
+#[cfg(unix)]
+#[test]
+fn unreadable_new_file_does_not_insert_a_ghost_row() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let workspace = tempdir().unwrap();
+    let root = workspace.path().to_str().unwrap();
+    fs::write(workspace.path().join("keep.md"), "# Keep").unwrap();
+    let service = WorkspaceService::new(LocalFileSystem);
+    service.scan(root).unwrap();
+
+    fs::write(workspace.path().join("secret.md"), "# Secret").unwrap();
+    fs::set_permissions(
+        workspace.path().join("secret.md"),
+        fs::Permissions::from_mode(0o000),
+    )
+    .unwrap();
+    let notes = service.scan(root).unwrap();
+    let _ = fs::set_permissions(
+        workspace.path().join("secret.md"),
+        fs::Permissions::from_mode(0o644),
+    );
+    assert_eq!(notes.len(), 1);
+    assert_eq!(notes[0].relative_path, "keep.md");
+}
+
+#[test]
+fn drafts_exist_fast_path_and_legacy_listing() {
+    let app_data = tempdir().unwrap();
+    let service = AppStateService::new(AppDataRepository::new(app_data.path().to_path_buf()));
+    let paths = vec!["one.md".into(), "two.md".into()];
+    assert!(service.drafts_exist("/notes", &paths).unwrap().is_empty());
+
+    service.write_draft("/notes", "one.md", "draft").unwrap();
+    assert_eq!(
+        service.drafts_exist("/notes", &paths).unwrap(),
+        vec!["one.md"]
+    );
+
+    service
+        .migrate_legacy_state(LegacyStatePayload {
+            drafts: vec![LegacyDraft {
+                legacy_key: "memoir:draft:/notes:two.md".into(),
+                workspace_root: None,
+                relative_path: None,
+                content: "legacy".into(),
+            }],
+            ..Default::default()
+        })
+        .unwrap();
+    let found = service.drafts_exist("/notes", &paths).unwrap();
+    assert_eq!(found, vec!["one.md", "two.md"]);
 }

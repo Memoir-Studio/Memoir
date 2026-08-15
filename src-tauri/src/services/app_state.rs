@@ -138,6 +138,27 @@ impl AppStateService {
         Ok(state)
     }
 
+    pub fn drafts_exist(
+        &self,
+        workspace_root: &str,
+        relative_paths: &[String],
+    ) -> AppResult<Vec<String>> {
+        let normalized =
+            normalize_workspace_key(workspace_root).unwrap_or_else(|_| workspace_root.to_string());
+        let mut found = self
+            .repository
+            .drafts_exist(&normalized, relative_paths)?;
+        if normalized != workspace_root {
+            found.extend(
+                self.repository
+                    .drafts_exist(workspace_root, relative_paths)?,
+            );
+        }
+        found.sort();
+        found.dedup();
+        Ok(found)
+    }
+
     pub fn read_draft(
         &self,
         workspace_root: &str,

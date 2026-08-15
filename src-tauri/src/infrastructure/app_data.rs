@@ -5,7 +5,11 @@ use crate::{
 use sha2::{Digest, Sha256};
 #[cfg(test)]
 use std::path::Path;
-use std::{fs, path::PathBuf};
+use std::{
+    collections::HashSet,
+    fs,
+    path::PathBuf,
+};
 
 #[derive(Debug, Clone)]
 pub struct AppDataRepository {
@@ -93,6 +97,48 @@ impl AppDataRepository {
                 .map_err(|error| AppError::io("Delete legacy draft", &legacy_path, error))?;
         }
         Ok(())
+    }
+
+    pub fn drafts_exist(
+        &self,
+        workspace_root: &str,
+        relative_paths: &[String],
+    ) -> AppResult<Vec<String>> {
+        let hashed_dir = self
+            .root
+            .join("drafts")
+            .join(stable_hash(workspace_root.as_bytes()));
+        let mut found = Vec::new();
+        if hashed_dir.is_dir() {
+            for path in relative_paths {
+                if hashed_dir
+                    .join(format!("{}.mdraft", stable_hash(path.as_bytes())))
+                    .exists()
+                {
+                    found.push(path.clone());
+                }
+            }
+        }
+
+        let legacy_dir = self.root.join("drafts").join("legacy");
+        if legacy_dir.is_dir() {
+            let names = fs::read_dir(&legacy_dir)
+                .into_iter()
+                .flatten()
+                .flatten()
+                .filter_map(|entry| entry.file_name().into_string().ok())
+                .collect::<HashSet<_>>();
+            for path in relative_paths {
+                let key = format!("memoir:draft:{workspace_root}:{path}");
+                if names.contains(&format!("{}.mdraft", stable_hash(key.as_bytes()))) {
+                    found.push(path.clone());
+                }
+            }
+        }
+
+        found.sort();
+        found.dedup();
+        Ok(found)
     }
 
     pub fn write_legacy_draft(&self, draft: &LegacyDraft) -> AppResult<()> {

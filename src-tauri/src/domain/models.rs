@@ -3,6 +3,15 @@ use std::collections::BTreeMap;
 
 pub const APP_STATE_VERSION: u32 = 1;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NoteIdentity {
+    pub relative_path: String,
+    pub file_name: String,
+    pub extension: String,
+    pub modified_ms: u128,
+    pub size: u64,
+}
+
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct NoteFile {
@@ -11,6 +20,9 @@ pub struct NoteFile {
     pub extension: String,
     pub modified_ms: u128,
     pub size: u64,
+    pub title: String,
+    pub tags: Vec<String>,
+    pub excerpt: String,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]

@@ -92,4 +92,15 @@ describe("Tauri gateways", () => {
       appearance: { emoji: "📔", color: "coral" },
     });
   });
+
+  it("asks draftsExist with camelCase arguments", async () => {
+    const { TauriPersistenceGateway } = await import("./tauri");
+    invoke.mockResolvedValue(["one.md"]);
+    const gateway = new TauriPersistenceGateway();
+    await expect(gateway.draftsExist("/notes", ["one.md", "two.md"])).resolves.toEqual(["one.md"]);
+    expect(invoke).toHaveBeenCalledWith("drafts_exist", {
+      workspaceRoot: "/notes",
+      relativePaths: ["one.md", "two.md"],
+    });
+  });
 });

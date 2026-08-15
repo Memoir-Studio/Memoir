@@ -8,6 +8,7 @@ import {
   normalizeFolderKey,
 } from "../domain/folders";
 import type { RawNoteFile } from "../domain/notes";
+import { parseNote } from "../features/library/note-utils";
 import { DEFAULT_SETTINGS } from "../domain/settings";
 import type {
   AppGateways,
@@ -32,13 +33,20 @@ export class MockWorkspaceGateway implements WorkspaceGateway {
   }
 
   async scanWorkspace(): Promise<RawNoteFile[]> {
-    return [...this.files.entries()].map(([relativePath, content]) => ({
-      relativePath,
-      fileName: relativePath,
-      extension: relativePath.endsWith(".mdx") ? "mdx" : "md",
-      modifiedMs: 1,
-      size: content.length,
-    }));
+    return [...this.files.entries()].map(([relativePath, content]) => {
+      const fileName = relativePath.split("/").pop() || relativePath;
+      const parsed = parseNote(content, fileName);
+      return {
+        relativePath,
+        fileName,
+        extension: relativePath.endsWith(".mdx") ? "mdx" : "md",
+        modifiedMs: 1,
+        size: content.length,
+        title: parsed.title,
+        tags: parsed.tags,
+        excerpt: parsed.excerpt,
+      };
+    });
   }
 
   async readNote(_root: string, relativePath: string) {
@@ -185,6 +193,12 @@ export class MockPersistenceGateway implements PersistenceGateway {
 
   async deleteDraft(workspaceRoot: string, relativePath: string) {
     this.drafts.delete(`${workspaceRoot}:${relativePath}`);
+  }
+
+  async draftsExist(workspaceRoot: string, relativePaths: string[]) {
+    return relativePaths.filter((relativePath) =>
+      this.drafts.has(`${workspaceRoot}:${relativePath}`),
+    );
   }
 
   async migrateLegacyState() {

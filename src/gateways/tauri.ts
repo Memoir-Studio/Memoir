@@ -137,6 +137,10 @@ export class TauriPersistenceGateway implements PersistenceGateway {
     return call<void>("delete_draft", { workspaceRoot, relativePath });
   }
 
+  draftsExist(workspaceRoot: string, relativePaths: string[]) {
+    return call<string[]>("drafts_exist", { workspaceRoot, relativePaths });
+  }
+
   migrateLegacyState(payload: LegacyStatePayload) {
     return call<MigrationResult>("migrate_legacy_state", { payload });
   }

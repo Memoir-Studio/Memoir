@@ -11,7 +11,7 @@ use crate::{
             to_relative_path, validate_nearest_existing_parent, validate_note_extension,
             validate_relative_path,
         },
-        AppError, AppResult, AttachmentFile, NoteFile,
+        AppError, AppResult, AttachmentFile, NoteIdentity,
     },
     infrastructure::atomic::atomic_write,
 };
@@ -25,7 +25,7 @@ use std::{
 pub struct LocalFileSystem;
 
 impl LocalFileSystem {
-    pub fn scan_workspace(&self, root: &str) -> AppResult<Vec<NoteFile>> {
+    pub fn scan_workspace(&self, root: &str) -> AppResult<Vec<NoteIdentity>> {
         let root = normalize_root(root)?;
         let mut notes = Vec::new();
         collect_notes(&root, &root, &mut notes)?;
@@ -346,7 +346,7 @@ fn move_to_workspace_trash(root: &Path, file_path: &Path, fallback_name: &str) -
     to_relative_path(root, &target)
 }
 
-fn collect_notes(root: &Path, current: &Path, notes: &mut Vec<NoteFile>) -> AppResult<()> {
+fn collect_notes(root: &Path, current: &Path, notes: &mut Vec<NoteIdentity>) -> AppResult<()> {
     let entries =
         fs::read_dir(current).map_err(|error| AppError::io("Read directory", current, error))?;
     for entry in entries {
@@ -381,7 +381,7 @@ fn collect_notes(root: &Path, current: &Path, notes: &mut Vec<NoteFile>) -> AppR
                 .and_then(|value| value.to_str())
                 .unwrap_or_default()
                 .to_ascii_lowercase();
-            notes.push(NoteFile {
+            notes.push(NoteIdentity {
                 relative_path,
                 file_name,
                 extension,
@@ -393,7 +393,7 @@ fn collect_notes(root: &Path, current: &Path, notes: &mut Vec<NoteFile>) -> AppR
     Ok(())
 }
 
-fn modified_ms(modified: io::Result<SystemTime>) -> u128 {
+pub(crate) fn modified_ms(modified: io::Result<SystemTime>) -> u128 {
     modified
         .ok()
         .and_then(|value| value.duration_since(SystemTime::UNIX_EPOCH).ok())

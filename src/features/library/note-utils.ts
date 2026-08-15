@@ -61,13 +61,18 @@ export function extractTitle(content: string, fallback: string) {
 }
 
 export function buildExcerpt(content: string) {
-  return content
+  const text = content
     .replace(/^---[\s\S]*?---/, "")
     .replace(/```[\s\S]*?```/g, "")
     .replace(/[#>*_`~[\](){}!-]/g, " ")
     .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 150);
+    .trim();
+  let sliced = text.slice(0, 150);
+  const last = sliced.charCodeAt(sliced.length - 1);
+  if (last >= 0xd800 && last <= 0xdbff) {
+    sliced = sliced.slice(0, -1);
+  }
+  return sliced;
 }
 
 export function parseNote(content: string, fallbackTitle: string) {

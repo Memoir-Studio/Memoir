@@ -230,6 +230,41 @@ describe("app store actions", () => {
     expect(gateways.workspace.writes).toEqual([{ path: "one.md", content: "# Old note" }]);
   });
 
+  it("hydrates the library from scan metadata without reading every note", async () => {
+    const gateways = createMockGateways();
+    gateways.workspace.files.set("two.md", "# Two\n\nOther");
+    gateways.persistence.drafts.set("/workspace:two.md", "# Draft Two");
+    const readNote = vi.spyOn(gateways.workspace, "readNote");
+    const readDraft = vi.spyOn(gateways.persistence, "readDraft");
+    const store = createAppStore(gateways);
+
+    await store.getState().openWorkspace("/workspace");
+
+    expect(store.getState().notes.map((note) => note.relativePath).sort()).toEqual([
+      "one.md",
+      "two.md",
+    ]);
+    expect(store.getState().notes.find((note) => note.relativePath === "one.md")?.title).toBe("One");
+    expect(store.getState().notes.find((note) => note.relativePath === "two.md")?.title).toBe(
+      "Draft Two",
+    );
+    expect(store.getState().notes.find((note) => note.relativePath === "two.md")?.dirty).toBe(true);
+    expect(readNote.mock.calls.map((call) => call[1])).toEqual(["one.md"]);
+    expect(readDraft.mock.calls.map((call) => call[1]).sort()).toEqual(["one.md", "two.md"]);
+  });
+
+  it("keeps live editor metadata when reopening the current workspace", async () => {
+    const gateways = createMockGateways();
+    const store = createAppStore(gateways);
+    await store.getState().openWorkspace("/workspace");
+    store.getState().setContent("# Keep editing live");
+
+    await store.getState().openWorkspace("/workspace");
+    expect(store.getState().content).toBe("# Keep editing live");
+    expect(store.getState().notes[0].title).toBe("Keep editing live");
+    expect(store.getState().notes[0].dirty).toBe(true);
+  });
+
   it("scans the last workspace on startup", async () => {
     const gateways = createMockGateways();
     gateways.persistence.state.lastWorkspace = "/workspace";

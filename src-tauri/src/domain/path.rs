@@ -5,8 +5,9 @@ use std::{
 };
 
 pub const NOTE_EXTENSIONS: [&str; 2] = ["md", "mdx"];
-pub const IGNORED_DIRS: [&str; 9] = [
+pub const IGNORED_DIRS: [&str; 10] = [
     ".git",
+    ".memoir",
     ".memoir-trash",
     ".memoir-attachments",
     "node_modules",

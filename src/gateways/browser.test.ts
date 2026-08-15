@@ -2,6 +2,15 @@ import { describe, expect, it } from "vitest";
 import { BrowserWorkspaceGateway } from "./browser";
 
 describe("BrowserWorkspaceGateway", () => {
+  it("returns title tags and excerpt from the in-memory scan", async () => {
+    const gateway = new BrowserWorkspaceGateway();
+    const notes = await gateway.scanWorkspace("demo://memoir");
+    const welcome = notes.find((note) => note.relativePath === "welcome.mdx");
+    expect(welcome?.title).toBe("Welcome to Memoir");
+    expect(welcome?.tags).toEqual(["memoir", "mdx"]);
+    expect(welcome?.excerpt.length).toBeGreaterThan(0);
+  });
+
   it("writes multiple tags into the new note frontmatter", async () => {
     const gateway = new BrowserWorkspaceGateway();
     const path = await gateway.createNote({

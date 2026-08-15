@@ -45,6 +45,7 @@ export interface PersistenceGateway {
   readDraft(workspaceRoot: string, relativePath: string): Promise<string | null>;
   writeDraft(workspaceRoot: string, relativePath: string, content: string): Promise<void>;
   deleteDraft(workspaceRoot: string, relativePath: string): Promise<void>;
+  draftsExist(workspaceRoot: string, relativePaths: string[]): Promise<string[]>;
   migrateLegacyState(payload: LegacyStatePayload): Promise<MigrationResult>;
 }
 
