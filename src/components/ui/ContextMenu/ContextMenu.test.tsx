@@ -17,6 +17,7 @@ describe("ContextMenu", () => {
     );
 
     expect(view.getByRole("menu", { name: "笔记菜单" })).toBeInTheDocument();
+    expect(view.getByRole("menuitem", { name: "收藏" })).toHaveFocus();
     await user.click(view.getByRole("menuitem", { name: "收藏" }));
     expect(onSelect).toHaveBeenCalledOnce();
     expect(onClose).toHaveBeenCalledOnce();

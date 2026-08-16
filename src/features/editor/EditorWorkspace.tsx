@@ -30,6 +30,8 @@ import { handleWindowDragMouseDown } from "../window/window-drag";
 import { markdownForAttachments } from "../../domain/attachments";
 import { mapGatewayError } from "../../domain/errors";
 import { revealWorkspaceItem } from "../workspace/workspace-utils";
+import { readClipboardImageFiles, readClipboardText } from "./clipboard";
+import { EditorContextMenu, type EditorMenuTarget } from "./EditorContextMenu";
 import type { EditorHandle } from "./EditorPane";
 import {
   bodySourceLineOffset,
@@ -97,6 +99,7 @@ export const EditorWorkspace = forwardRef<EditorHandle, {
   const { t } = useI18n();
   const [isExporting, setIsExporting] = useState(false);
   const [nativeDropActive, setNativeDropActive] = useState(false);
+  const [editorMenu, setEditorMenu] = useState<EditorMenuTarget | null>(null);
   const untitled = t("editor.untitledFallback");
   const activeNote = notes.find((note) => note.relativePath === activePath) || null;
   const hasDocument = Boolean(activeNote && loadedContentPath === activePath);
@@ -248,9 +251,31 @@ export const EditorWorkspace = forwardRef<EditorHandle, {
         editorRef.current?.insertSnippet(before, after, placeholder),
       insertText: (text) => editorRef.current?.insertText(text),
       insertTextAtCoords: (x, y, text) => editorRef.current?.insertTextAtCoords(x, y, text),
+      insertRaw: (text) => editorRef.current?.insertRaw(text),
+      undo: () => editorRef.current?.undo(),
+      redo: () => editorRef.current?.redo(),
+      selectAll: () => editorRef.current?.selectAll(),
+      getSelectedText: () => editorRef.current?.getSelectedText() ?? "",
+      cut: () => editorRef.current?.cut() ?? Promise.resolve(),
+      copy: () => editorRef.current?.copy() ?? Promise.resolve(),
     }),
     [],
   );
+
+  const openEditorMenu = useCallback((target: EditorMenuTarget) => {
+    setEditorMenu(target);
+  }, []);
+
+  const pasteIntoEditor = useCallback(async () => {
+    const files = await readClipboardImageFiles();
+    if (files.length) {
+      const markdown = await savePastedImages(files);
+      if (markdown) editorRef.current?.insertText(markdown);
+      return;
+    }
+    const text = await readClipboardText();
+    if (text) editorRef.current?.insertRaw(text);
+  }, [savePastedImages]);
 
   const insertSnippet = useCallback(
     (before: string, after = "", placeholder = "") => {
@@ -413,6 +438,7 @@ export const EditorWorkspace = forwardRef<EditorHandle, {
                 isDark={isDark}
                 onChange={setContent}
                 highlightDrop={nativeDropActive}
+                onContextMenu={openEditorMenu}
                 onPasteImages={savePastedImages}
                 onScroll={() => syncScroll("editor")}
                 ref={editorRef}
@@ -436,6 +462,19 @@ export const EditorWorkspace = forwardRef<EditorHandle, {
           )}
         </div>
       )}
+      <EditorContextMenu
+        onClose={() => setEditorMenu(null)}
+        onCopy={() => void editorRef.current?.copy()}
+        onCut={() => void editorRef.current?.cut()}
+        onPaste={() => void pasteIntoEditor()}
+        onRedo={() => editorRef.current?.redo()}
+        onSelectAll={() => {
+          editorRef.current?.selectAll();
+          window.requestAnimationFrame(() => editorRef.current?.selectAll());
+        }}
+        onUndo={() => editorRef.current?.undo()}
+        target={editorMenu}
+      />
     </section>
   );
 });

@@ -1,7 +1,8 @@
 import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
+import { createRef } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_SETTINGS } from "../../domain/settings";
-import { EditorPane } from "./EditorPane";
+import { EditorPane, type EditorHandle } from "./EditorPane";
 
 afterEach(cleanup);
 
@@ -19,6 +20,55 @@ function clipboardData(file: File) {
     dropEffect: "none",
   };
 }
+
+describe("EditorPane context menu", () => {
+  it("opens a context menu target from the editor surface", () => {
+    const onContextMenu = vi.fn();
+    const view = render(
+      <EditorPane
+        content="# Hello"
+        fileName="hello.md"
+        isDark={false}
+        onChange={() => undefined}
+        onContextMenu={onContextMenu}
+        settings={DEFAULT_SETTINGS}
+      />,
+    );
+    const content = view.container.querySelector(".cm-content");
+    fireEvent.contextMenu(content as Element, { clientX: 48, clientY: 64 });
+    expect(onContextMenu).toHaveBeenCalledWith(
+      expect.objectContaining({
+        x: 48,
+        y: 64,
+        hasSelection: false,
+      }),
+    );
+  });
+
+  it("selects the whole document from the editor handle", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+    const ref = createRef<EditorHandle>();
+    const view = render(
+      <EditorPane
+        content="# Hello"
+        fileName="hello.md"
+        isDark={false}
+        onChange={() => undefined}
+        ref={ref}
+        settings={DEFAULT_SETTINGS}
+      />,
+    );
+
+    ref.current?.selectAll();
+    expect(ref.current?.getSelectedText()).toBe("# Hello");
+    await ref.current?.copy();
+    expect(writeText).toHaveBeenCalledWith("# Hello");
+    fireEvent.mouseDown(view.container.querySelector(".cm-content") as Element);
+    expect(ref.current?.getSelectedText()).toBe("# Hello");
+    expect(view.container.querySelector(".cm-content")?.textContent).toContain("Hello");
+  });
+});
 
 describe("EditorPane image insert", () => {
   it("saves pasted clipboard images and inserts markdown", async () => {

@@ -1,12 +1,23 @@
 import CodeMirror, { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { markdown } from "@codemirror/lang-markdown";
-import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
+import {
+  defaultKeymap,
+  history,
+  historyKeymap,
+  indentWithTab,
+  redo,
+  redoDepth,
+  undo,
+  undoDepth,
+} from "@codemirror/commands";
 import { searchKeymap } from "@codemirror/search";
 import { EditorSelection } from "@codemirror/state";
 import { EditorView, keymap, lineNumbers } from "@codemirror/view";
-import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState, type MutableRefObject } from "react";
 import { clamp } from "./scroll-sync";
 import { collectClipboardImages, padMarkdownBlock } from "../../domain/attachments";
+import { writeClipboardText } from "./clipboard";
+import type { EditorMenuTarget } from "./EditorContextMenu";
 import type { AppSettings } from "../../domain/settings";
 import { useI18n } from "../../i18n/react";
 import { noteStats, parseNote } from "../library/note-utils";
@@ -69,10 +80,51 @@ function scrollViewToLine(view: EditorView, line: number, offset: number) {
   view.scrollDOM.scrollTop += targetY - currentY;
 }
 
+function editorMenuTarget(view: EditorView, x: number, y: number): EditorMenuTarget {
+  const selection = view.state.selection.main;
+  return {
+    x,
+    y,
+    hasSelection: !selection.empty,
+    canUndo: undoDepth(view.state) > 0,
+    canRedo: redoDepth(view.state) > 0,
+  };
+}
+
+function selectEntireDocument(view: EditorView) {
+  view.focus();
+  view.dispatch({
+    selection: EditorSelection.create([EditorSelection.range(0, view.state.doc.length)]),
+    userEvent: "select",
+  });
+  const root = view.contentDOM;
+  const selection = root.ownerDocument.getSelection();
+  if (!selection) return;
+  try {
+    const range = root.ownerDocument.createRange();
+    range.selectNodeContents(root);
+    selection.removeAllRanges();
+    selection.addRange(range);
+  } catch {
+    // Some webviews reject range updates while a menu is closing.
+  }
+}
+
+function ignoreEditorPointer(event: Event, until: MutableRefObject<number>) {
+  if (performance.now() < until.current) {
+    event.preventDefault();
+    event.stopPropagation();
+    return true;
+  }
+  return false;
+}
+
 function createEditorExtensions(
   isDark: boolean,
   settings: AppSettings["editor"],
   onPasteImages?: (files: File[]) => Promise<string>,
+  onContextMenu?: (target: EditorMenuTarget) => void,
+  ignorePointerUntil?: MutableRefObject<number>,
 ) {
   return [
     history(),
@@ -81,6 +133,15 @@ function createEditorExtensions(
     ...(settings.lineNumbers ? [lineNumbers()] : []),
     keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap, indentWithTab]),
     EditorView.domEventHandlers({
+      mousedown(event) {
+        return ignorePointerUntil ? ignoreEditorPointer(event, ignorePointerUntil) : false;
+      },
+      pointerdown(event) {
+        return ignorePointerUntil ? ignoreEditorPointer(event, ignorePointerUntil) : false;
+      },
+      click(event) {
+        return ignorePointerUntil ? ignoreEditorPointer(event, ignorePointerUntil) : false;
+      },
       paste(event, view) {
         if (!onPasteImages) return false;
         const files = collectClipboardImages(event.clipboardData);
@@ -114,6 +175,18 @@ function createEditorExtensions(
       dragenter(event) {
         if (!event.dataTransfer?.types.includes("Files")) return false;
         event.preventDefault();
+        return true;
+      },
+      contextmenu(event, view) {
+        event.preventDefault();
+        const selection = view.state.selection.main;
+        if (selection.empty) {
+          const pos = positionFromCoords(view, event.clientX, event.clientY);
+          if (pos !== selection.from) {
+            view.dispatch({ selection: EditorSelection.cursor(pos) });
+          }
+        }
+        onContextMenu?.(editorMenuTarget(view, event.clientX, event.clientY));
         return true;
       },
     }),
@@ -162,8 +235,14 @@ function createEditorExtensions(
         },
         ".cm-focused": { outline: "none" },
         ".cm-cursor": { borderLeftColor: "var(--memoir-text)" },
-        ".cm-selectionBackground, .cm-content ::selection": {
-          backgroundColor: "var(--memoir-accent-soft) !important",
+        ".cm-content ::selection": {
+          backgroundColor: "color-mix(in srgb, var(--memoir-accent) 32%, transparent) !important",
+        },
+        ".cm-selectionBackground": {
+          backgroundColor: "color-mix(in srgb, var(--memoir-accent) 32%, transparent) !important",
+        },
+        "&.cm-focused .cm-selectionBackground": {
+          backgroundColor: "color-mix(in srgb, var(--memoir-accent) 32%, transparent) !important",
         },
       },
       { dark: isDark },
@@ -178,6 +257,13 @@ export interface EditorHandle {
   insertSnippet: (before: string, after?: string, placeholder?: string) => void;
   insertText: (text: string) => void;
   insertTextAtCoords: (x: number, y: number, text: string) => void;
+  insertRaw: (text: string) => void;
+  undo: () => void;
+  redo: () => void;
+  selectAll: () => void;
+  getSelectedText: () => string;
+  cut: () => Promise<void>;
+  copy: () => Promise<void>;
 }
 
 interface EditorPaneProps {
@@ -189,6 +275,7 @@ interface EditorPaneProps {
   onScroll?: () => void;
   onPasteImages?: (files: File[]) => Promise<string>;
   highlightDrop?: boolean;
+  onContextMenu?: (target: EditorMenuTarget) => void;
 }
 
 export const EditorPane = forwardRef<EditorHandle, EditorPaneProps>(function EditorPane(
@@ -201,6 +288,7 @@ export const EditorPane = forwardRef<EditorHandle, EditorPaneProps>(function Edi
     onScroll,
     onPasteImages,
     highlightDrop = false,
+    onContextMenu,
   },
   forwardedRef,
 ) {
@@ -208,12 +296,20 @@ export const EditorPane = forwardRef<EditorHandle, EditorPaneProps>(function Edi
   const editorRef = useRef<ReactCodeMirrorRef>(null);
   const [htmlDropActive, setHtmlDropActive] = useState(false);
   const dropDepthRef = useRef(0);
+  const ignorePointerUntil = useRef(0);
   const onScrollRef = useRef(onScroll);
   const detachScrollRef = useRef<(() => void) | null>(null);
   onScrollRef.current = onScroll;
   const extensions = useMemo(
-    () => createEditorExtensions(isDark, settings.editor, onPasteImages),
-    [isDark, onPasteImages, settings.editor],
+    () =>
+      createEditorExtensions(
+        isDark,
+        settings.editor,
+        onPasteImages,
+        onContextMenu,
+        ignorePointerUntil,
+      ),
+    [isDark, onContextMenu, onPasteImages, settings.editor],
   );
   const parsed = useMemo(() => parseNote(content, fileName), [content, fileName]);
   const stats = useMemo(() => noteStats(content), [content]);
@@ -256,6 +352,47 @@ export const EditorPane = forwardRef<EditorHandle, EditorPaneProps>(function Edi
         if (!view || !text) return;
         const position = positionFromCoords(view, x, y);
         insertMarkdownBlock(view, position, position, text);
+      },
+      insertRaw: (text) => {
+        const view = editorRef.current?.view;
+        if (!view || !text) return;
+        const selection = view.state.selection.main;
+        insertAt(view, selection.from, selection.to, text);
+      },
+      undo: () => {
+        const view = editorRef.current?.view;
+        if (view) undo(view);
+      },
+      redo: () => {
+        const view = editorRef.current?.view;
+        if (view) redo(view);
+      },
+      selectAll: () => {
+        const view = editorRef.current?.view;
+        if (!view) return;
+        ignorePointerUntil.current = performance.now() + 500;
+        selectEntireDocument(view);
+      },
+      getSelectedText: () => {
+        const view = editorRef.current?.view;
+        if (!view) return "";
+        const selection = view.state.selection.main;
+        return view.state.sliceDoc(selection.from, selection.to);
+      },
+      cut: async () => {
+        const view = editorRef.current?.view;
+        if (!view) return;
+        const selection = view.state.selection.main;
+        if (selection.empty) return;
+        await writeClipboardText(view.state.sliceDoc(selection.from, selection.to));
+        insertAt(view, selection.from, selection.to, "");
+      },
+      copy: async () => {
+        const view = editorRef.current?.view;
+        if (!view) return;
+        const selection = view.state.selection.main;
+        if (selection.empty) return;
+        await writeClipboardText(view.state.sliceDoc(selection.from, selection.to));
       },
     }),
     [],

@@ -22,6 +22,7 @@ export function ContextMenu({
   y,
   onClose,
   label,
+  autoFocus = true,
   children,
 }: {
   open: boolean;
@@ -29,6 +30,7 @@ export function ContextMenu({
   y: number;
   onClose: () => void;
   label?: string;
+  autoFocus?: boolean;
   children: ReactNode;
 }) {
   const { t } = useI18n();
@@ -57,7 +59,7 @@ export function ContextMenu({
     if (!present) return;
     const menu = menuRef.current;
     const items = menuItems(menu);
-    items[0]?.focus();
+    if (autoFocus) items[0]?.focus();
 
     const onPointerDown = (event: PointerEvent) => {
       if (menu && !menu.contains(event.target as Node)) onClose();
@@ -66,6 +68,12 @@ export function ContextMenu({
       if (event.key === "Escape") {
         event.preventDefault();
         onClose();
+        return;
+      }
+      if (!autoFocus && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
+        event.preventDefault();
+        const next = menuItems(menu);
+        (event.key === "ArrowUp" ? next[next.length - 1] : next[0])?.focus();
       }
     };
     const onViewportChange = () => onClose();
@@ -79,7 +87,7 @@ export function ContextMenu({
       window.removeEventListener("resize", onViewportChange);
       window.removeEventListener("scroll", onViewportChange, true);
     };
-  }, [onClose, present]);
+  }, [autoFocus, onClose, present]);
 
   if (!present || typeof document === "undefined") return null;
 
@@ -144,12 +152,16 @@ export function ContextMenuItem({
     <button
       className={cn("memoir-context-menu-item", danger && "is-danger")}
       disabled={disabled}
-      onClick={() => {
-        if (disabled) return;
+      onClick={(event) => {
+        event.preventDefault();
+      }}
+      onPointerDown={(event) => {
+        if (disabled || event.button !== 0) return;
+        event.preventDefault();
+        event.stopPropagation();
         onSelect();
         onClose?.();
       }}
-      onMouseEnter={(event) => event.currentTarget.focus()}
       role="menuitem"
       type="button"
     >
