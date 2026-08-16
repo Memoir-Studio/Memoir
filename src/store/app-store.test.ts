@@ -282,15 +282,35 @@ describe("app store actions", () => {
     expect(store.getState().notes[0].dirty).toBe(true);
   });
 
-  it("scans the last workspace on startup", async () => {
+  it("injects persisted favorites into the first reconcile and reports stats", async () => {
     const gateways = createMockGateways();
     gateways.persistence.state.lastWorkspace = "/workspace";
-    const scan = vi.spyOn(gateways.workspace, "scanWorkspace");
+    gateways.persistence.state.favorites = { "/workspace": ["one.md"] };
+    const reconcile = vi.spyOn(gateways.workspace, "reconcileWorkspace");
     const store = createAppStore(gateways);
 
     await store.getState().initialize();
 
-    expect(scan).toHaveBeenCalledWith("/workspace");
+    expect(reconcile).toHaveBeenCalledWith(
+      "/workspace",
+      expect.objectContaining({ favoritePaths: ["one.md"] }),
+    );
+    expect(store.getState().libraryStats.favorites).toBe(1);
+    expect(store.getState().notes.find((note) => note.relativePath === "one.md")?.favorite).toBe(
+      true,
+    );
+  });
+
+  it("scans the last workspace on startup", async () => {
+    const gateways = createMockGateways();
+    gateways.persistence.state.lastWorkspace = "/workspace";
+    const reconcile = vi.spyOn(gateways.workspace, "reconcileWorkspace");
+    const store = createAppStore(gateways);
+
+    await store.getState().initialize();
+
+    expect(reconcile).toHaveBeenCalledTimes(1);
+    expect(reconcile).toHaveBeenCalledWith("/workspace", expect.any(Object));
     expect(store.getState().workspaceRoot).toBe("/workspace");
     expect(store.getState().notes.map((note) => note.relativePath)).toEqual(["one.md"]);
     expect(store.getState().activePath).toBe("one.md");
@@ -371,5 +391,73 @@ describe("app store actions", () => {
     expect(markdown).toBe("");
     expect(store.getState().error.length).toBeGreaterThan(0);
     expect(gateways.workspace.savedAttachments).toEqual([]);
+  });
+
+  it("does not reconcile or scan attachments on create rename delete or save", async () => {
+    const gateways = createMockGateways();
+    const store = createAppStore(gateways);
+    await store.getState().openWorkspace("/workspace");
+    const reconcilesAfterOpen = gateways.workspace.reconcileCount;
+    const attachmentsAfterOpen = gateways.workspace.scanAttachmentCount;
+    const queryAfterOpen = gateways.workspace.queryLibraryCount;
+
+    await store.getState().createNote({ title: "Second", extension: "md" });
+    expect(store.getState().notes.some((note) => note.relativePath === "second.md")).toBe(true);
+    expect(store.getState().notes.find((note) => note.relativePath === "second.md")?.title).toBe(
+      "Second",
+    );
+
+    await store.getState().renameNote("second.md", "kept.md");
+    expect(store.getState().notes.some((note) => note.relativePath === "kept.md")).toBe(true);
+
+    await store.getState().deleteNote("kept.md");
+    expect(store.getState().notes.some((note) => note.relativePath === "kept.md")).toBe(false);
+
+    store.getState().setContent("# Saved locally");
+    await store.getState().saveActiveNote();
+
+    expect(gateways.workspace.reconcileCount).toBe(reconcilesAfterOpen);
+    expect(gateways.workspace.scanAttachmentCount).toBe(attachmentsAfterOpen);
+    expect(gateways.workspace.queryLibraryCount).toBeGreaterThan(queryAfterOpen);
+    expect(store.getState().notes.find((note) => note.relativePath === "one.md")?.title).toBe(
+      "Saved locally",
+    );
+  });
+
+  it("rebuilds the index from the returned page without a follow-up reconcile", async () => {
+    const gateways = createMockGateways();
+    const store = createAppStore(gateways);
+    await store.getState().openWorkspace("/workspace");
+    const reconcilesAfterOpen = gateways.workspace.reconcileCount;
+
+    await store.getState().rebuildIndex();
+    expect(gateways.workspace.rebuildCount).toBe(1);
+    expect(gateways.workspace.reconcileCount).toBe(reconcilesAfterOpen);
+    expect(store.getState().notes.map((note) => note.relativePath)).toEqual(["one.md"]);
+  });
+
+  it("queries the library after filter changes without reconciling", async () => {
+    const gateways = createMockGateways();
+    const store = createAppStore(gateways);
+    await store.getState().openWorkspace("/workspace");
+    const reconcilesAfterOpen = gateways.workspace.reconcileCount;
+    const queriesAfterOpen = gateways.workspace.queryLibraryCount;
+
+    store.getState().setNavFilter("uncategorized");
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(gateways.workspace.reconcileCount).toBe(reconcilesAfterOpen);
+    expect(gateways.workspace.queryLibraryCount).toBeGreaterThan(queriesAfterOpen);
+  });
+
+  it("lists drafts once for the current page instead of probing every path", async () => {
+    const gateways = createMockGateways();
+    gateways.workspace.files.set("two.md", "# Two");
+    const draftsExist = vi.spyOn(gateways.persistence, "draftsExist");
+    const store = createAppStore(gateways);
+    await store.getState().openWorkspace("/workspace");
+    expect(draftsExist).toHaveBeenCalledTimes(1);
+    expect(draftsExist.mock.calls[0]?.[1]).toEqual(expect.arrayContaining(["one.md", "two.md"]));
   });
 });

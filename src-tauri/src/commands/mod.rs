@@ -1,7 +1,8 @@
 use crate::{
     domain::{
         attachment::ATTACHMENTS_DIR, AppError, AppSettings, AppState, AttachmentFile,
-        FolderAppearance, LegacyStatePayload, MigrationResult, NoteFile, WorkspaceIndexInfo,
+        FolderAppearance, LegacyStatePayload, LibraryPage, LibraryQuery, MigrationResult, NoteFile,
+        RenamedNote, WorkspaceIndexInfo,
     },
     services::{AppStateService, WorkspaceService},
 };
@@ -24,17 +25,34 @@ pub struct AppServices {
 }
 
 #[tauri::command]
-pub async fn scan_workspace(
+pub async fn reconcile_workspace(
     app: AppHandle,
     services: State<'_, AppServices>,
     root: String,
-) -> Result<Vec<NoteFile>, AppError> {
+    query: Option<LibraryQuery>,
+) -> Result<LibraryPage, AppError> {
     allow_workspace_media(&app, &root);
     let workspace = services.workspace.clone();
-    tauri::async_runtime::spawn_blocking(move || workspace.scan(&root))
+    let query = query.unwrap_or_default();
+    tauri::async_runtime::spawn_blocking(move || workspace.reconcile(&root, &query))
         .await
         .map_err(|error| {
-            AppError::new(crate::domain::ErrorCode::Io, "Workspace scan interrupted.")
+            AppError::new(crate::domain::ErrorCode::Io, "Workspace reconcile interrupted.")
+                .with_details(error.to_string())
+        })?
+}
+
+#[tauri::command]
+pub async fn query_library(
+    services: State<'_, AppServices>,
+    root: String,
+    query: LibraryQuery,
+) -> Result<LibraryPage, AppError> {
+    let workspace = services.workspace.clone();
+    tauri::async_runtime::spawn_blocking(move || workspace.query_library(&root, &query))
+        .await
+        .map_err(|error| {
+            AppError::new(crate::domain::ErrorCode::Io, "Library query interrupted.")
                 .with_details(error.to_string())
         })?
 }
@@ -54,7 +72,7 @@ pub fn write_note(
     root: String,
     relative_path: String,
     content: String,
-) -> Result<(), AppError> {
+) -> Result<NoteFile, AppError> {
     services.workspace.write(&root, &relative_path, &content)
 }
 
@@ -66,7 +84,7 @@ pub fn create_note(
     extension: String,
     folder: Option<String>,
     tags: Option<Vec<String>>,
-) -> Result<String, AppError> {
+) -> Result<NoteFile, AppError> {
     services.workspace.create(
         &root,
         &title,
@@ -82,7 +100,7 @@ pub fn rename_note(
     root: String,
     old_relative_path: String,
     new_relative_path: String,
-) -> Result<String, AppError> {
+) -> Result<RenamedNote, AppError> {
     services
         .workspace
         .rename(&root, &old_relative_path, &new_relative_path)
@@ -115,9 +133,11 @@ pub async fn get_index_info(
 pub async fn rebuild_index(
     services: State<'_, AppServices>,
     root: String,
-) -> Result<WorkspaceIndexInfo, AppError> {
+    query: Option<LibraryQuery>,
+) -> Result<LibraryPage, AppError> {
     let workspace = services.workspace.clone();
-    tauri::async_runtime::spawn_blocking(move || workspace.rebuild_index(&root))
+    let query = query.unwrap_or_default();
+    tauri::async_runtime::spawn_blocking(move || workspace.rebuild_index(&root, &query))
         .await
         .map_err(|error| {
             AppError::new(crate::domain::ErrorCode::Io, "Index rebuild interrupted.")

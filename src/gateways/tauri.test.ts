@@ -54,7 +54,7 @@ describe("Tauri gateways", () => {
       fileSize: 12,
       walSize: 0,
       shmSize: 0,
-      schemaVersion: 1,
+      schemaVersion: 2,
       schemaName: "memoir-index",
       parseAlgoVersion: 1,
       indexReadCap: 1024,
@@ -65,12 +65,48 @@ describe("Tauri gateways", () => {
       tagLinkCount: 1,
       truncatedCount: 0,
     };
-    invoke.mockResolvedValue(info);
+    const page = {
+      notes: [],
+      stats: {
+        total: 0,
+        recent: 0,
+        favorites: 0,
+        uncategorized: 0,
+        folders: [],
+        tags: [],
+        truncated: false,
+      },
+    };
+    invoke.mockResolvedValueOnce(info);
     const gateway = new TauriWorkspaceGateway();
     await expect(gateway.getIndexInfo("/notes")).resolves.toEqual(info);
     expect(invoke).toHaveBeenCalledWith("get_index_info", { root: "/notes" });
-    await expect(gateway.rebuildIndex("/notes")).resolves.toEqual(info);
-    expect(invoke).toHaveBeenCalledWith("rebuild_index", { root: "/notes" });
+    invoke.mockResolvedValueOnce(page);
+    await expect(gateway.rebuildIndex("/notes")).resolves.toEqual(page);
+    expect(invoke).toHaveBeenCalledWith("rebuild_index", { root: "/notes", query: undefined });
+  });
+
+  it("sends library query DTOs for reconcile and query", async () => {
+    const { TauriWorkspaceGateway } = await import("./tauri");
+    const page = {
+      notes: [],
+      stats: {
+        total: 0,
+        recent: 0,
+        favorites: 0,
+        uncategorized: 0,
+        folders: [],
+        tags: [],
+        truncated: false,
+      },
+    };
+    invoke.mockResolvedValue(page);
+    const gateway = new TauriWorkspaceGateway();
+    const query = { q: "hi", nav: "all" as const, folder: null, tag: null, favoritePaths: [] };
+    await expect(gateway.reconcileWorkspace("/notes", query)).resolves.toEqual(page);
+    expect(invoke).toHaveBeenCalledWith("reconcile_workspace", { root: "/notes", query });
+    await expect(gateway.queryLibrary("/notes", query)).resolves.toEqual(page);
+    expect(invoke).toHaveBeenCalledWith("query_library", { root: "/notes", query });
   });
 
   it("saves attachments with camelCase DTOs", async () => {

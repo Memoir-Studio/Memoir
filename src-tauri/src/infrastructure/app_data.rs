@@ -110,11 +110,14 @@ impl AppDataRepository {
             .join(stable_hash(workspace_root.as_bytes()));
         let mut found = Vec::new();
         if hashed_dir.is_dir() {
+            let names = fs::read_dir(&hashed_dir)
+                .into_iter()
+                .flatten()
+                .flatten()
+                .filter_map(|entry| entry.file_name().into_string().ok())
+                .collect::<HashSet<_>>();
             for path in relative_paths {
-                if hashed_dir
-                    .join(format!("{}.mdraft", stable_hash(path.as_bytes())))
-                    .exists()
-                {
+                if names.contains(&format!("{}.mdraft", stable_hash(path.as_bytes()))) {
                     found.push(path.clone());
                 }
             }

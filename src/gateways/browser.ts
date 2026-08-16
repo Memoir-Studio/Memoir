@@ -16,8 +16,8 @@ import {
   normalizeFolderKey,
 } from "../domain/folders";
 import { indexInfoFromNotes, type WorkspaceIndexInfo } from "../domain/index-info";
-import type { RawNoteFile } from "../domain/notes";
-import { parseNote } from "../features/library/note-utils";
+import type { LibraryPage, LibraryQuery, RawNoteFile, RenamedNote } from "../domain/notes";
+import { parseNote, queryNotesInMemory } from "../features/library/note-utils";
 import { DEFAULT_SETTINGS } from "../domain/settings";
 import { GatewayError } from "../domain/errors";
 import type { AppGateways, CreateNoteInput, PersistenceGateway, WorkspaceGateway } from "./contracts";
@@ -112,8 +112,7 @@ export class BrowserWorkspaceGateway implements WorkspaceGateway {
     return DEMO_ROOT;
   }
 
-  async scanWorkspace(root: string): Promise<RawNoteFile[]> {
-    this.assertRoot(root);
+  private listNotes(): RawNoteFile[] {
     return [...this.files.entries()].map(([relativePath, content]) => {
       const fileName = relativePath.split("/").pop() || relativePath;
       const parsed = parseNote(content, fileName);
@@ -130,16 +129,26 @@ export class BrowserWorkspaceGateway implements WorkspaceGateway {
     });
   }
 
+  async queryLibrary(root: string, query: LibraryQuery): Promise<LibraryPage> {
+    this.assertRoot(root);
+    return queryNotesInMemory(this.listNotes(), query);
+  }
+
+  async reconcileWorkspace(root: string, query?: LibraryQuery): Promise<LibraryPage> {
+    return this.queryLibrary(root, query ?? { q: "", nav: "all", folder: null, tag: null });
+  }
+
   async getIndexInfo(root: string): Promise<WorkspaceIndexInfo> {
-    const notes = await this.scanWorkspace(root);
+    const notes = this.listNotes();
+    this.assertRoot(root);
     return indexInfoFromNotes(notes, {
       createdMs: Math.min(...notes.map((note) => note.modifiedMs)),
       lastReconcileMs: Date.now(),
     });
   }
 
-  async rebuildIndex(root: string) {
-    return this.getIndexInfo(root);
+  async rebuildIndex(root: string, query?: LibraryQuery) {
+    return this.reconcileWorkspace(root, query);
   }
 
   async readNote(root: string, relativePath: string) {
@@ -158,6 +167,7 @@ export class BrowserWorkspaceGateway implements WorkspaceGateway {
     }
     this.files.set(relativePath, content);
     this.modified.set(relativePath, Date.now());
+    return this.noteAt(relativePath);
   }
 
   async createNote({ root, title, extension, folder, tags }: CreateNoteInput) {
@@ -179,10 +189,10 @@ export class BrowserWorkspaceGateway implements WorkspaceGateway {
       `---\ntitle: ${yamlQuote(title)}\ntags: ${yamlTags(tags)}\n---\n\n# ${title}\n`,
     );
     this.modified.set(relativePath, Date.now());
-    return relativePath;
+    return this.noteAt(relativePath);
   }
 
-  async renameNote(root: string, oldRelativePath: string, newRelativePath: string) {
+  async renameNote(root: string, oldRelativePath: string, newRelativePath: string): Promise<RenamedNote> {
     this.assertRoot(root);
     const content = this.files.get(oldRelativePath);
     if (content === undefined) {
@@ -194,7 +204,7 @@ export class BrowserWorkspaceGateway implements WorkspaceGateway {
     this.files.delete(oldRelativePath);
     this.files.set(newRelativePath, content);
     this.modified.set(newRelativePath, Date.now());
-    return newRelativePath;
+    return { oldPath: oldRelativePath, note: this.noteAt(newRelativePath) };
   }
 
   async deleteNote(root: string, relativePath: string) {
@@ -299,6 +309,22 @@ export class BrowserWorkspaceGateway implements WorkspaceGateway {
     anchor.click();
     anchor.remove();
     URL.revokeObjectURL(url);
+  }
+
+  private noteAt(relativePath: string): RawNoteFile {
+    const content = this.files.get(relativePath) ?? "";
+    const fileName = relativePath.split("/").pop() || relativePath;
+    const parsed = parseNote(content, fileName);
+    return {
+      relativePath,
+      fileName,
+      extension: relativePath.endsWith(".mdx") ? "mdx" : "md",
+      modifiedMs: this.modified.get(relativePath) || Date.now(),
+      size: new Blob([content]).size,
+      title: parsed.title,
+      tags: parsed.tags,
+      excerpt: parsed.excerpt,
+    };
   }
 
   private assertRoot(root: string) {

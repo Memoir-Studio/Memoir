@@ -2,7 +2,13 @@ import type { AppState, LegacyStatePayload, MigrationResult } from "../domain/ap
 import type { AttachmentFile, SaveAttachmentInput } from "../domain/attachments";
 import type { FolderAppearance } from "../domain/folders";
 import type { WorkspaceIndexInfo } from "../domain/index-info";
-import type { NoteExtension, RawNoteFile } from "../domain/notes";
+import type {
+  LibraryPage,
+  LibraryQuery,
+  NoteExtension,
+  RawNoteFile,
+  RenamedNote,
+} from "../domain/notes";
 import type { AppSettings } from "../domain/settings";
 
 export type CreateNoteInput = {
@@ -15,13 +21,14 @@ export type CreateNoteInput = {
 
 export interface WorkspaceGateway {
   chooseWorkspace(title?: string): Promise<string | null>;
-  scanWorkspace(root: string): Promise<RawNoteFile[]>;
+  reconcileWorkspace(root: string, query?: LibraryQuery): Promise<LibraryPage>;
+  queryLibrary(root: string, query: LibraryQuery): Promise<LibraryPage>;
   getIndexInfo(root: string): Promise<WorkspaceIndexInfo>;
-  rebuildIndex(root: string): Promise<WorkspaceIndexInfo>;
+  rebuildIndex(root: string, query?: LibraryQuery): Promise<LibraryPage>;
   readNote(root: string, relativePath: string): Promise<string>;
-  writeNote(root: string, relativePath: string, content: string): Promise<void>;
-  createNote(input: CreateNoteInput): Promise<string>;
-  renameNote(root: string, oldRelativePath: string, newRelativePath: string): Promise<string>;
+  writeNote(root: string, relativePath: string, content: string): Promise<RawNoteFile>;
+  createNote(input: CreateNoteInput): Promise<RawNoteFile>;
+  renameNote(root: string, oldRelativePath: string, newRelativePath: string): Promise<RenamedNote>;
   deleteNote(root: string, relativePath: string): Promise<string>;
   scanAttachments(root: string): Promise<AttachmentFile[]>;
   saveAttachment(root: string, input: SaveAttachmentInput): Promise<AttachmentFile>;

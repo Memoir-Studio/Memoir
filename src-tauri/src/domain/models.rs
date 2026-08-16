@@ -25,6 +25,81 @@ pub struct NoteFile {
     pub excerpt: String,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "camelCase")]
+pub enum LibraryNav {
+    #[default]
+    All,
+    Recent,
+    Favorites,
+    Uncategorized,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryQuery {
+    #[serde(default)]
+    pub q: String,
+    #[serde(default)]
+    pub nav: LibraryNav,
+    #[serde(default)]
+    pub folder: Option<String>,
+    #[serde(default)]
+    pub tag: Option<String>,
+    #[serde(default)]
+    pub favorite_paths: Option<Vec<String>>,
+    #[serde(default)]
+    pub now_ms: i64,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct FolderStat {
+    pub folder: String,
+    pub count: u64,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct TagStat {
+    pub tag: String,
+    pub tag_norm: String,
+    pub count: u64,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryStats {
+    pub total: u64,
+    pub recent: u64,
+    pub favorites: u64,
+    pub uncategorized: u64,
+    pub folders: Vec<FolderStat>,
+    pub tags: Vec<TagStat>,
+    pub truncated: bool,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryPage {
+    pub notes: Vec<NoteFile>,
+    pub stats: LibraryStats,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct RenamedNote {
+    pub old_path: String,
+    pub note: NoteFile,
+}
+
+pub fn folder_of(relative_path: &str) -> String {
+    match relative_path.rfind('/') {
+        Some(index) => relative_path[..index].to_string(),
+        None => String::new(),
+    }
+}
+
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct AttachmentFile {

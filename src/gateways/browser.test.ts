@@ -4,7 +4,13 @@ import { BrowserWorkspaceGateway } from "./browser";
 describe("BrowserWorkspaceGateway", () => {
   it("returns title tags and excerpt from the in-memory scan", async () => {
     const gateway = new BrowserWorkspaceGateway();
-    const notes = await gateway.scanWorkspace("demo://memoir");
+    const page = await gateway.queryLibrary("demo://memoir", {
+      q: "",
+      nav: "all",
+      folder: null,
+      tag: null,
+    });
+    const notes = page.notes;
     const welcome = notes.find((note) => note.relativePath === "welcome.mdx");
     expect(welcome?.title).toBe("Welcome to Memoir");
     expect(welcome?.tags).toEqual(["memoir", "mdx"]);
@@ -21,8 +27,8 @@ describe("BrowserWorkspaceGateway", () => {
       tags: ["leetcode", "rust"],
     });
 
-    expect(path).toBe("LeetCode/new-practice.md");
-    expect(await gateway.readNote("demo://memoir", path)).toContain(
+    expect(path.relativePath).toBe("LeetCode/new-practice.md");
+    expect(await gateway.readNote("demo://memoir", path.relativePath)).toContain(
       'tags: ["leetcode", "rust"]',
     );
   });
@@ -40,6 +46,33 @@ describe("BrowserWorkspaceGateway", () => {
     vi.unstubAllGlobals();
   });
 
+  it("filters the in-memory library with the same query contract", async () => {
+    const gateway = new BrowserWorkspaceGateway();
+    const all = await gateway.queryLibrary("demo://memoir", {
+      q: "",
+      nav: "all",
+      folder: null,
+      tag: null,
+    });
+    const tagged = await gateway.queryLibrary("demo://memoir", {
+      q: "",
+      nav: "all",
+      folder: null,
+      tag: "diary",
+    });
+    const folder = await gateway.queryLibrary("demo://memoir", {
+      q: "",
+      nav: "all",
+      folder: "日记",
+      tag: null,
+    });
+    expect(all.stats.total).toBeGreaterThan(0);
+    expect(tagged.notes.every((note) => note.tags.map((tag) => tag.toLowerCase()).includes("diary"))).toBe(
+      true,
+    );
+    expect(folder.notes.every((note) => note.relativePath.startsWith("日记/"))).toBe(true);
+  });
+
   it("reports an in-memory index for the demo workspace", async () => {
     const gateway = new BrowserWorkspaceGateway();
     const info = await gateway.getIndexInfo("demo://memoir");
@@ -48,8 +81,7 @@ describe("BrowserWorkspaceGateway", () => {
     expect(info.noteCount).toBeGreaterThan(0);
     expect(info.tagCount).toBeGreaterThan(0);
     await expect(gateway.rebuildIndex("demo://memoir")).resolves.toMatchObject({
-      persistent: false,
-      noteCount: info.noteCount,
+      stats: { total: info.noteCount },
     });
   });
 

@@ -18,6 +18,25 @@ Object.assign(globalThis, {
   getComputedStyle: dom.window.getComputedStyle.bind(dom.window),
 });
 
+class ResizeObserverMock {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+
+Object.defineProperty(window, "ResizeObserver", {
+  writable: true,
+  value: ResizeObserverMock,
+});
+
+if (typeof window.requestAnimationFrame !== "function") {
+  window.requestAnimationFrame = (callback: FrameRequestCallback) =>
+    window.setTimeout(() => callback(Date.now()), 16) as unknown as number;
+}
+if (typeof window.cancelAnimationFrame !== "function") {
+  window.cancelAnimationFrame = (id: number) => window.clearTimeout(id);
+}
+
 Object.defineProperty(window, "matchMedia", {
   writable: true,
   value: (query: string) => ({

@@ -1,3 +1,11 @@
+// Library refresh rules — do not put a full reconcile back on mutate paths:
+// - initialize / openWorkspace / user refresh → reconcileWorkspace (the only walk).
+// - createNote / renameNote / deleteNote / saveNote → never refreshWorkspace;
+//   patch notes[] or queryLibrary (no walk).
+// - rebuildIndex → consume the returned LibraryPage; do not reconcile again.
+// - setQuery / setNavFilter / setScopedFilter → debounce queryLibrary, never reconcile.
+// - notes[] is the current query page; libraryStats feeds the sidebar.
+// - selectNote / unsaved overlay read by activePath, even if that path is absent from notes[].
 import { create } from "zustand";
 import type { AppGateways } from "../gateways/contracts";
 import { getGateways } from "../gateways";
@@ -16,7 +24,14 @@ import {
   normalizeFolderKey,
 } from "../domain/folders";
 import { mapGatewayError } from "../domain/errors";
-import type { NoteMeta, RawNoteFile } from "../domain/notes";
+import {
+  emptyLibraryStats,
+  libraryQueryFromFilters,
+  type LibraryPage,
+  type LibraryQuery,
+  type NoteMeta,
+  type RawNoteFile,
+} from "../domain/notes";
 import { parseNote } from "../features/library/note-utils";
 import { resolveLocale } from "../i18n/locale";
 import { t, tc, type MessageKey, type MessageParams } from "../i18n/translate";
@@ -32,6 +47,7 @@ function storeT(settings: AppSettings, key: MessageKey, params?: MessageParams) 
 
 const PREFERENCES_DEBOUNCE_MS = 300;
 const DRAFT_DEBOUNCE_MS = 450;
+const QUERY_DEBOUNCE_MS = 150;
 export const AUTOSAVE_INTERVAL_MS = 3000;
 
 function isOpenUnsavedNote(state: {
@@ -104,6 +120,8 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
   let draftTimer: number | null = null;
   let draftIdentity: string | null = null;
   let autosaveTimer: number | null = null;
+  let queryTimer: number | null = null;
+  let querySeq = 0;
 
   const store = create<AppStore>((set, get) => {
     const persistPreferences = () => {
@@ -155,10 +173,98 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
       }, DRAFT_DEBOUNCE_MS);
     };
 
+    const currentQuery = (state = get()): LibraryQuery =>
+      libraryQueryFromFilters(
+        state.query,
+        state.navFilter,
+        state.scopedFilter,
+        state.favoritePaths,
+      );
+
+    const applyLibraryPage = async (
+      root: string,
+      page: LibraryPage,
+      preferredPath?: string | null,
+      options?: { selectIfNeeded?: boolean; scanAttachments?: boolean },
+    ) => {
+      const appState = await gateways.persistence.loadAppState();
+      const favorites = favoriteSet(appState.favorites, root);
+      const favoritePaths = [...favorites];
+      const draftPaths = await gateways.persistence.draftsExist(
+        root,
+        page.notes.map((file) => file.relativePath),
+      );
+      const notes = await assembleNotes(gateways, root, page.notes, favorites, draftPaths);
+      const current = get();
+      const overlaid = isOpenUnsavedNote(current)
+        ? notes.map((note) =>
+            note.relativePath === current.activePath
+              ? {
+                  ...note,
+                  ...parseNote(current.content, note.fileName),
+                  dirty: true,
+                }
+              : note,
+          )
+        : notes;
+      const selectIfNeeded = options?.selectIfNeeded !== false;
+      const preferred = preferredPath || null;
+      const selected = selectIfNeeded
+        ? (preferred ??
+          (current.activePath &&
+          (overlaid.some((note) => note.relativePath === current.activePath) ||
+            current.loadedContentPath === current.activePath)
+            ? current.activePath
+            : null) ??
+          overlaid[0]?.relativePath ??
+          null)
+        : current.activePath;
+      const alreadyOpen = selected !== null && current.loadedContentPath === selected;
+      set({
+        notes: overlaid,
+        libraryStats: page.stats,
+        favoritePaths,
+        folderAppearances: folderAppearancesForWorkspace(appState.folderAppearances, root),
+        isLoading: false,
+        status: tc(storeLocale(get().settings), "status.noteCount", page.stats.total),
+        ...(selectIfNeeded ? { activePath: selected } : {}),
+      });
+      if (selectIfNeeded && selected && !alreadyOpen) await get().selectNote(selected);
+    };
+
+    const runLibraryQuery = async () => {
+      const seq = ++querySeq;
+      const state = get();
+      const root = state.workspaceRoot;
+      if (!root) return;
+      try {
+        const page = await gateways.workspace.queryLibrary(root, currentQuery(state));
+        if (seq !== querySeq || get().workspaceRoot !== root) return;
+        await applyLibraryPage(root, page, null, { selectIfNeeded: false });
+      } catch (error) {
+        if (seq !== querySeq) return;
+        set({
+          error: storeT(get().settings, "errors.refreshWorkspace", {
+            message: toMessage(error),
+          }),
+        });
+      }
+    };
+
+    const scheduleLibraryQuery = () => {
+      if (queryTimer !== null) window.clearTimeout(queryTimer);
+      queryTimer = window.setTimeout(() => {
+        queryTimer = null;
+        void runLibraryQuery();
+      }, QUERY_DEBOUNCE_MS);
+    };
+
     return {
       workspaceRoot: null,
       recentWorkspaces: [],
       notes: [],
+      libraryStats: emptyLibraryStats(),
+      favoritePaths: [],
       attachments: [],
       isLoading: false,
       folderAppearances: {},
@@ -192,6 +298,9 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
             workspaceRoot,
             recentWorkspaces: appState.recentWorkspaces,
             isSidebarCollapsed: appState.sidebarCollapsed,
+            favoritePaths: workspaceRoot
+              ? [...favoriteSet(appState.favorites, workspaceRoot)]
+              : [],
             folderAppearances: workspaceRoot
               ? folderAppearancesForWorkspace(appState.folderAppearances, workspaceRoot)
               : {},
@@ -255,6 +364,7 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
           set({
             workspaceRoot,
             recentWorkspaces,
+            favoritePaths: [...favoriteSet(persistedState.favorites, workspaceRoot)],
             folderAppearances: folderAppearancesForWorkspace(
               persistedState.folderAppearances,
               workspaceRoot,
@@ -278,60 +388,19 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
         }
       },
 
+      // Reconcile is the only walk: initialize, openWorkspace, and explicit refresh.
+      // Mutate paths (create/rename/delete/save) and filter changes must not call this.
       async refreshWorkspace(preferredPath) {
         const root = get().workspaceRoot;
         if (!root) return;
         set({ isLoading: true, error: "" });
         try {
-          const [files, appState, attachments] = await Promise.all([
-            gateways.workspace.scanWorkspace(root),
-            gateways.persistence.loadAppState(),
+          const [page, attachments] = await Promise.all([
+            gateways.workspace.reconcileWorkspace(root, currentQuery()),
             gateways.workspace.scanAttachments(root),
           ]);
-          const draftPaths = await gateways.persistence.draftsExist(
-            root,
-            files.map((file) => file.relativePath),
-          );
-          const notes = await assembleNotes(
-            gateways,
-            root,
-            files,
-            favoriteSet(appState.favorites, root),
-            draftPaths,
-          );
-          const current = get();
-          const overlaid = isOpenUnsavedNote(current)
-            ? notes.map((note) =>
-                note.relativePath === current.activePath
-                  ? {
-                      ...note,
-                      ...parseNote(current.content, note.fileName),
-                      dirty: true,
-                    }
-                  : note,
-              )
-            : notes;
-          const preferred =
-            preferredPath && overlaid.some((note) => note.relativePath === preferredPath)
-              ? preferredPath
-              : null;
-          const selected =
-            preferred ??
-            (current.activePath && overlaid.some((note) => note.relativePath === current.activePath)
-              ? current.activePath
-              : null) ??
-            overlaid[0]?.relativePath ??
-            null;
-          const alreadyOpen = selected !== null && current.loadedContentPath === selected;
-          set({
-            notes: overlaid,
-            attachments,
-            folderAppearances: folderAppearancesForWorkspace(appState.folderAppearances, root),
-            activePath: selected,
-            isLoading: false,
-            status: tc(storeLocale(get().settings), "status.noteCount", overlaid.length),
-          });
-          if (selected && !alreadyOpen) await get().selectNote(selected);
+          set({ attachments });
+          await applyLibraryPage(root, page, preferredPath);
         } catch (error) {
           set({
             isLoading: false,
@@ -443,8 +512,9 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
         if (!root) return;
         set({ isLoading: true, error: "" });
         try {
-          const relativePath = await gateways.workspace.createNote({ root, ...input });
-          await get().refreshWorkspace(relativePath);
+          const created = await gateways.workspace.createNote({ root, ...input });
+          const page = await gateways.workspace.queryLibrary(root, currentQuery());
+          await applyLibraryPage(root, page, created.relativePath);
         } catch (error) {
           set({
             isLoading: false,
@@ -470,17 +540,36 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
             relativePath === activePath && content !== savedContent ? content : draft;
           await gateways.persistence.deleteDraft(workspaceRoot, relativePath);
           if (nextDraft !== null) {
-            await gateways.persistence.writeDraft(workspaceRoot, renamed, nextDraft);
+            await gateways.persistence.writeDraft(workspaceRoot, renamed.note.relativePath, nextDraft);
           }
-          if (note?.favorite) {
+          const favoritePaths = get().favoritePaths.includes(relativePath)
+            || Boolean(note?.favorite)
+            ? [
+                ...get().favoritePaths.filter((path) => path !== relativePath),
+                renamed.note.relativePath,
+              ]
+            : get().favoritePaths;
+          if (note?.favorite || get().favoritePaths.includes(relativePath)) {
             await gateways.persistence.setFavorite(workspaceRoot, relativePath, false);
-            await gateways.persistence.setFavorite(workspaceRoot, renamed, true);
+            await gateways.persistence.setFavorite(workspaceRoot, renamed.note.relativePath, true);
           }
           const wasActive = relativePath === activePath;
           if (wasActive) {
-            set({ activePath: renamed, loadedContentPath: renamed });
+            set({
+              activePath: renamed.note.relativePath,
+              loadedContentPath: renamed.note.relativePath,
+              favoritePaths,
+            });
+          } else {
+            set({ favoritePaths });
           }
-          await get().refreshWorkspace(wasActive ? renamed : undefined);
+          const page = await gateways.workspace.queryLibrary(workspaceRoot, currentQuery());
+          await applyLibraryPage(
+            workspaceRoot,
+            page,
+            wasActive ? renamed.note.relativePath : undefined,
+            { selectIfNeeded: wasActive },
+          );
         } catch (error) {
           set({
             isLoading: false,
@@ -506,10 +595,20 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
           if (note?.favorite) {
             await gateways.persistence.setFavorite(workspaceRoot, relativePath, false);
           }
+          const nextFavorites = get().favoritePaths.filter((path) => path !== relativePath);
           if (relativePath === activePath) {
-            set({ activePath: null, loadedContentPath: null, content: "", savedContent: "" });
+            set({
+              activePath: null,
+              loadedContentPath: null,
+              content: "",
+              savedContent: "",
+              favoritePaths: nextFavorites,
+            });
+          } else {
+            set({ favoritePaths: nextFavorites });
           }
-          await get().refreshWorkspace();
+          const page = await gateways.workspace.queryLibrary(workspaceRoot, currentQuery());
+          await applyLibraryPage(workspaceRoot, page, null, { selectIfNeeded: relativePath === activePath });
         } catch (error) {
           set({
             isLoading: false,
@@ -553,22 +652,31 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
       },
 
       async toggleFavorite(relativePath) {
-        const { workspaceRoot, activePath, notes } = get();
+        const { workspaceRoot, activePath, notes, favoritePaths, libraryStats, navFilter } = get();
         const path = relativePath ?? activePath;
         if (!workspaceRoot || !path) return;
-        const note = notes.find((item) => item.relativePath === path);
-        if (!note) return;
-        const favorite = !note.favorite;
+        const favorite = !favoritePaths.includes(path);
+        const nextFavorites = favorite
+          ? [...favoritePaths, path]
+          : favoritePaths.filter((item) => item !== path);
         set({
+          favoritePaths: nextFavorites,
           notes: notes.map((item) =>
             item.relativePath === path ? { ...item, favorite } : item,
           ),
+          libraryStats: {
+            ...libraryStats,
+            favorites: Math.max(0, libraryStats.favorites + (favorite ? 1 : -1)),
+          },
         });
         try {
           await gateways.persistence.setFavorite(workspaceRoot, path, favorite);
+          if (navFilter === "favorites") await runLibraryQuery();
         } catch (error) {
           set({
             notes,
+            favoritePaths,
+            libraryStats,
             error: storeT(get().settings, "errors.saveFavorite", { message: toMessage(error) }),
           });
         }
@@ -677,8 +785,8 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
         if (!root) return;
         set({ isLoading: true, error: "" });
         try {
-          await gateways.workspace.rebuildIndex(root);
-          await get().refreshWorkspace();
+          const page = await gateways.workspace.rebuildIndex(root, currentQuery());
+          await applyLibraryPage(root, page);
           set({ status: storeT(get().settings, "status.indexRebuilt") });
         } catch (error) {
           set({
@@ -690,12 +798,15 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
 
       setQuery(query) {
         set({ query });
+        scheduleLibraryQuery();
       },
       setNavFilter(navFilter) {
         set({ navFilter, scopedFilter: null, mobilePanel: "library", libraryPanelMode: "notes" });
+        void runLibraryQuery();
       },
       setScopedFilter(scopedFilter) {
         set({ scopedFilter, navFilter: "all", mobilePanel: "library", libraryPanelMode: "notes" });
+        void runLibraryQuery();
       },
       setLibraryPanelMode(libraryPanelMode) {
         set({ libraryPanelMode, mobilePanel: "library" });

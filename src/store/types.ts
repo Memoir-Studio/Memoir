@@ -1,6 +1,12 @@
 import type { AttachmentFile, SaveAttachmentInput } from "../domain/attachments";
 import type { FolderAppearance } from "../domain/folders";
-import type { NoteExtension, NoteMeta, NavFilter, ScopedFilter } from "../domain/notes";
+import type {
+  LibraryStats,
+  NoteExtension,
+  NoteMeta,
+  NavFilter,
+  ScopedFilter,
+} from "../domain/notes";
 import type { AppSettings, ViewMode } from "../domain/settings";
 import type { SettingsSection } from "../features/settings/types";
 
@@ -8,6 +14,8 @@ export type WorkspaceSlice = {
   workspaceRoot: string | null;
   recentWorkspaces: string[];
   notes: NoteMeta[];
+  libraryStats: LibraryStats;
+  favoritePaths: string[];
   attachments: AttachmentFile[];
   isLoading: boolean;
   folderAppearances: Record<string, FolderAppearance>;

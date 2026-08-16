@@ -8,9 +8,10 @@ mod window_frame;
 
 use commands::{
     create_note, delete_attachment, delete_draft, delete_note, drafts_exist, get_index_info,
-    import_attachment, load_app_state, migrate_legacy_state, read_draft, read_note, rebuild_index,
-    rename_note, save_attachment, save_preferences, scan_attachments, scan_workspace, set_favorite,
-    set_folder_appearance, write_draft, write_export_file, write_note, AppServices,
+    import_attachment, load_app_state, migrate_legacy_state, query_library, read_draft, read_note,
+    rebuild_index, reconcile_workspace, rename_note, save_attachment, save_preferences,
+    scan_attachments, set_favorite, set_folder_appearance, write_draft, write_export_file,
+    write_note, AppServices,
 };
 use infrastructure::{app_data::AppDataRepository, filesystem::LocalFileSystem};
 use services::{AppStateService, WorkspaceService};
@@ -34,13 +35,14 @@ pub fn run() {
                 window_frame::reveal(&window, frame.maximized);
             }
             app.manage(AppServices {
-                workspace: WorkspaceService::new(LocalFileSystem),
+                workspace: WorkspaceService::new(LocalFileSystem::new()),
                 app_state,
             });
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            scan_workspace,
+            reconcile_workspace,
+            query_library,
             get_index_info,
             rebuild_index,
             read_note,

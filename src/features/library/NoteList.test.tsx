@@ -17,6 +17,15 @@ afterEach(() => {
   useAppStore.setState({
     workspaceRoot: null,
     notes: [],
+    libraryStats: {
+      total: 0,
+      recent: 0,
+      favorites: 0,
+      uncategorized: 0,
+      folders: [],
+      tags: [],
+      truncated: false,
+    },
     activePath: null,
     loadedContentPath: null,
     content: "",
@@ -30,20 +39,9 @@ afterEach(() => {
 });
 
 describe("NoteList", () => {
-  it("filters rendered notes from search input", async () => {
+  it("renders the current query page without client-side refiltering", async () => {
     useAppStore.setState({
       notes: [
-        {
-          relativePath: "alpha.md",
-          fileName: "alpha.md",
-          extension: "md",
-          modifiedMs: 1,
-          size: 10,
-          title: "Alpha Guide",
-          tags: ["docs"],
-          excerpt: "Searchable content",
-          favorite: false,
-        },
         {
           relativePath: "beta.mdx",
           fileName: "beta.mdx",
@@ -56,12 +54,12 @@ describe("NoteList", () => {
           favorite: false,
         },
       ],
-      activePath: "alpha.md",
-      loadedContentPath: "alpha.md",
-      content: "# Alpha Guide",
-      savedContent: "# Alpha Guide",
+      query: "beta",
+      activePath: "beta.mdx",
+      loadedContentPath: "beta.mdx",
+      content: "# Beta Notes",
+      savedContent: "# Beta Notes",
     });
-    const user = userEvent.setup();
     const view = render(
       <NoteList
         onCreate={() => undefined}
@@ -70,14 +68,38 @@ describe("NoteList", () => {
       />,
     );
 
-    expect(view.getByText("Alpha Guide")).toBeInTheDocument();
-    expect(view.getByText("Beta Notes")).toBeInTheDocument();
-
-    await user.type(view.getByRole("searchbox", { name: "筛选笔记" }), "beta");
-
     expect(view.queryByText("Alpha Guide")).not.toBeInTheDocument();
     expect(view.getByText("Beta Notes")).toBeInTheDocument();
     expect(view.getByText("1 篇")).toBeInTheDocument();
+    expect(view.getByRole("searchbox", { name: "筛选笔记" })).toHaveValue("beta");
+  });
+
+  it("mounts only the virtual window when the page is long", () => {
+    useAppStore.setState({
+      notes: Array.from({ length: 120 }, (_, index) => ({
+        relativePath: `n${index}.md`,
+        fileName: `n${index}.md`,
+        extension: "md" as const,
+        modifiedMs: index,
+        size: 10,
+        title: `Note ${index}`,
+        tags: [],
+        excerpt: "",
+        favorite: false,
+      })),
+    });
+    const view = render(
+      <NoteList
+        onCreate={() => undefined}
+        onDelete={() => undefined}
+        onRename={() => undefined}
+      />,
+    );
+    const cards = view.container.querySelectorAll("[data-note-card]");
+    expect(cards.length).toBeGreaterThan(0);
+    expect(cards.length).toBeLessThan(120);
+    expect(view.queryByText("Note 0")).toBeInTheDocument();
+    expect(view.queryByText("Note 119")).not.toBeInTheDocument();
   });
 
   it("shows the current note outline when switching panels", async () => {

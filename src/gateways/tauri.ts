@@ -6,7 +6,7 @@ import type { AttachmentFile, SaveAttachmentInput } from "../domain/attachments"
 import { ATTACHMENT_EXTENSIONS } from "../domain/attachments";
 import type { FolderAppearance } from "../domain/folders";
 import type { WorkspaceIndexInfo } from "../domain/index-info";
-import type { RawNoteFile } from "../domain/notes";
+import type { LibraryPage, LibraryQuery, RawNoteFile, RenamedNote } from "../domain/notes";
 import type { AppSettings } from "../domain/settings";
 import { mapGatewayError } from "../domain/errors";
 import type { AppGateways, CreateNoteInput, PersistenceGateway, WorkspaceGateway } from "./contracts";
@@ -29,16 +29,20 @@ export class TauriWorkspaceGateway implements WorkspaceGateway {
     return typeof selected === "string" ? selected : null;
   }
 
-  scanWorkspace(root: string) {
-    return call<RawNoteFile[]>("scan_workspace", { root });
+  reconcileWorkspace(root: string, query?: LibraryQuery) {
+    return call<LibraryPage>("reconcile_workspace", { root, query });
+  }
+
+  queryLibrary(root: string, query: LibraryQuery) {
+    return call<LibraryPage>("query_library", { root, query });
   }
 
   getIndexInfo(root: string) {
     return call<WorkspaceIndexInfo>("get_index_info", { root });
   }
 
-  rebuildIndex(root: string) {
-    return call<WorkspaceIndexInfo>("rebuild_index", { root });
+  rebuildIndex(root: string, query?: LibraryQuery) {
+    return call<LibraryPage>("rebuild_index", { root, query });
   }
 
   readNote(root: string, relativePath: string) {
@@ -46,15 +50,15 @@ export class TauriWorkspaceGateway implements WorkspaceGateway {
   }
 
   writeNote(root: string, relativePath: string, content: string) {
-    return call<void>("write_note", { root, relativePath, content });
+    return call<RawNoteFile>("write_note", { root, relativePath, content });
   }
 
   createNote({ root, title, extension, folder, tags }: CreateNoteInput) {
-    return call<string>("create_note", { root, title, extension, folder, tags });
+    return call<RawNoteFile>("create_note", { root, title, extension, folder, tags });
   }
 
   renameNote(root: string, oldRelativePath: string, newRelativePath: string) {
-    return call<string>("rename_note", { root, oldRelativePath, newRelativePath });
+    return call<RenamedNote>("rename_note", { root, oldRelativePath, newRelativePath });
   }
 
   deleteNote(root: string, relativePath: string) {

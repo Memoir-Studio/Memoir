@@ -29,6 +29,75 @@ export type ScopedFilter =
   | { type: "tag"; value: string }
   | null;
 
+export type LibraryQuery = {
+  q: string;
+  nav: NavFilter;
+  folder: string | null;
+  tag: string | null;
+  favoritePaths?: string[] | null;
+  nowMs?: number;
+};
+
+export type FolderStat = {
+  folder: string;
+  count: number;
+};
+
+export type TagStat = {
+  tag: string;
+  tagNorm: string;
+  count: number;
+};
+
+export type LibraryStats = {
+  total: number;
+  recent: number;
+  favorites: number;
+  uncategorized: number;
+  folders: FolderStat[];
+  tags: TagStat[];
+  truncated: boolean;
+};
+
+export type LibraryPage = {
+  notes: RawNoteFile[];
+  stats: LibraryStats;
+};
+
+export type RenamedNote = {
+  oldPath: string;
+  note: RawNoteFile;
+};
+
+export function emptyLibraryStats(): LibraryStats {
+  return {
+    total: 0,
+    recent: 0,
+    favorites: 0,
+    uncategorized: 0,
+    folders: [],
+    tags: [],
+    truncated: false,
+  };
+}
+
+export function libraryQueryFromFilters(
+  query: string,
+  navFilter: NavFilter,
+  scopedFilter: ScopedFilter,
+  favoritePaths: string[] = [],
+  nowMs = Date.now(),
+): LibraryQuery {
+  return {
+    q: query,
+    nav: navFilter,
+    folder: scopedFilter?.type === "folder" ? scopedFilter.value : null,
+    tag: scopedFilter?.type === "tag" ? scopedFilter.value : null,
+    favoritePaths,
+    nowMs,
+  };
+}
+
 export function normalizeTag(tag: string) {
   return tag.trim().toLowerCase();
 }

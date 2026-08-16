@@ -3,8 +3,12 @@ import matter from "gray-matter";
 import {
   normalizeTag,
   type HeadingItem,
+  type LibraryPage,
+  type LibraryQuery,
+  type LibraryStats,
   type NoteMeta,
   type NavFilter,
+  type RawNoteFile,
   type ScopedFilter,
 } from "../../domain/notes";
 
@@ -178,5 +182,68 @@ export function noteStats(content: string) {
     words,
     chars: content.length,
     minutes: Math.max(1, Math.ceil(words / 260)),
+  };
+}
+
+export function libraryStatsFromNotes(
+  notes: Array<Pick<NoteMeta, "relativePath" | "tags" | "modifiedMs"> & { favorite?: boolean }>,
+  favoritePaths: string[] | null | undefined,
+  now = Date.now(),
+): LibraryStats {
+  const favorites = new Set(
+    favoritePaths ?? notes.filter((note) => note.favorite).map((note) => note.relativePath),
+  );
+  const folders = new Map<string, number>();
+  const tags = new Map<string, { tag: string; count: number }>();
+  let recent = 0;
+  let uncategorized = 0;
+  const notePaths = new Set(notes.map((note) => note.relativePath));
+  for (const note of notes) {
+    const folder = folderName(note.relativePath);
+    folders.set(folder, (folders.get(folder) ?? 0) + 1);
+    if (now - note.modifiedMs <= 7 * 86_400_000) recent += 1;
+    if (note.tags.length === 0) uncategorized += 1;
+    for (const tag of note.tags) {
+      const tagNorm = normalizeTag(tag);
+      if (!tagNorm) continue;
+      const prev = tags.get(tagNorm);
+      if (prev) prev.count += 1;
+      else tags.set(tagNorm, { tag, count: 1 });
+    }
+  }
+  return {
+    total: notes.length,
+    recent,
+    favorites: [...favorites].filter((path) => notePaths.has(path)).length,
+    uncategorized,
+    folders: [...folders.entries()].map(([folder, count]) => ({ folder, count })),
+    tags: [...tags.entries()].map(([tagNorm, value]) => ({
+      tag: value.tag,
+      tagNorm,
+      count: value.count,
+    })),
+    truncated: false,
+  };
+}
+
+export function queryNotesInMemory(
+  files: RawNoteFile[],
+  query: LibraryQuery,
+): LibraryPage {
+  const favoritePaths = query.favoritePaths ?? [];
+  const favoriteSet = new Set(favoritePaths);
+  const metas: NoteMeta[] = files.map((file) => ({
+    ...file,
+    favorite: favoriteSet.has(file.relativePath),
+  }));
+  const scoped: ScopedFilter = query.folder != null
+    ? { type: "folder", value: query.folder }
+    : query.tag != null
+      ? { type: "tag", value: query.tag }
+      : null;
+  const filtered = filterNotes(metas, query.q, query.nav, scoped, query.nowMs ?? Date.now());
+  return {
+    notes: filtered.map(({ favorite: _favorite, dirty: _dirty, ...raw }) => raw),
+    stats: libraryStatsFromNotes(metas, favoritePaths, query.nowMs ?? Date.now()),
   };
 }

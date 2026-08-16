@@ -1,35 +1,40 @@
 use crate::{
     domain::{
-        note_parse::{decode_utf8_prefix, parse_note, file_name_title, INDEX_READ_CAP, PARSE_ALGO_VERSION},
+        note_parse::{decode_utf8_prefix, parse_note, INDEX_READ_CAP, PARSE_ALGO_VERSION},
         path::normalize_root,
-        AppError, AppResult, AttachmentFile, ErrorCode, NoteFile, NoteIdentity, WorkspaceIndexInfo,
+        AppError, AppResult, AttachmentFile, ErrorCode, LibraryPage, LibraryQuery, NoteFile,
+        NoteIdentity, RenamedNote, WorkspaceIndexInfo,
     },
     infrastructure::{
         filesystem::{modified_ms, LocalFileSystem},
-        sqlite::{self, NoteRow},
+        index::{
+            self, cas_delete, cas_update, delete_note, insert_ignore, load_dir_cache, note_row,
+            replace_dir_cache, select_identities, set_meta, upsert_note, DirCacheRow,
+            NoteIdentityRow, NoteRow,
+        },
     },
 };
-use sha2::{Digest, Sha256};
 use std::{
     collections::{HashMap, HashSet},
     fs::File,
     io::Read,
     path::{Path, PathBuf},
     sync::{
-        atomic::{AtomicU64, Ordering},
+        atomic::{AtomicU64, AtomicUsize, Ordering},
         Arc, Mutex, PoisonError,
     },
 };
-#[cfg(test)]
-use std::sync::atomic::AtomicUsize;
+
+const PARSE_THREADS: usize = 8;
 
 #[derive(Debug, Clone)]
 pub struct WorkspaceService {
     filesystem: LocalFileSystem,
     index: Arc<Mutex<Option<OpenWorkspaceIndex>>>,
     next_generation: Arc<AtomicU64>,
-    #[cfg(test)]
     pub content_reads: Arc<AtomicUsize>,
+    #[cfg(test)]
+    pub walk_dirs: Arc<AtomicUsize>,
 }
 
 #[derive(Debug)]
@@ -52,37 +57,65 @@ struct ParsedDirty {
     opened_mtime: u128,
     opened_size: u64,
     row: NoteRow,
-    tags: Vec<String>,
 }
 
 impl Default for WorkspaceService {
     fn default() -> Self {
-        Self::new(LocalFileSystem)
+        Self::new(LocalFileSystem::new())
     }
 }
 
 impl WorkspaceService {
     pub fn new(filesystem: LocalFileSystem) -> Self {
         Self {
+            #[cfg(test)]
+            walk_dirs: filesystem.walk_dirs.clone(),
             filesystem,
             index: Arc::new(Mutex::new(None)),
             next_generation: Arc::new(AtomicU64::new(1)),
-            #[cfg(test)]
             content_reads: Arc::new(AtomicUsize::new(0)),
         }
     }
 
+    pub fn reconcile(&self, root: &str, query: &LibraryQuery) -> AppResult<LibraryPage> {
+        self.reconcile_disk(root)?;
+        self.query_library(root, query)
+    }
+
+    #[cfg(test)]
     pub fn scan(&self, root: &str) -> AppResult<Vec<NoteFile>> {
+        Ok(self.reconcile(root, &LibraryQuery::default())?.notes)
+    }
+
+    pub fn query_library(&self, root: &str, query: &LibraryQuery) -> AppResult<LibraryPage> {
         let root_path = normalize_root(root)?;
-        let discovered = self.filesystem.scan_workspace(root)?;
-        let (generation, snapshot, parse_algo) = {
+        let mut guard = self.lock_index();
+        self.ensure_open(&mut guard, &root_path);
+        let open = guard.as_ref().expect("index handle");
+        index::query_library(&open.conn, query).map_err(|error| {
+            AppError::new(ErrorCode::Io, "Couldn't query the library index.")
+                .with_details(error.to_string())
+        })
+    }
+
+    fn reconcile_disk(&self, root: &str) -> AppResult<()> {
+        let root_path = normalize_root(root)?;
+        let (generation, snapshot, parse_algo, cache) = {
             let mut guard = self.lock_index();
-            self.ensure_open_for_scan(&mut guard, &root_path);
+            self.ensure_open(&mut guard, &root_path);
             let open = guard.as_ref().expect("scan handle");
-            let snapshot = sqlite::select_all_notes(&open.conn).unwrap_or_default();
-            let parse_algo = sqlite::parse_algo_version(&open.conn).unwrap_or(PARSE_ALGO_VERSION);
-            (open.generation, snapshot, parse_algo)
+            let snapshot = select_identities(&open.conn).unwrap_or_default();
+            let parse_algo = index::parse_algo_version(&open.conn).unwrap_or(PARSE_ALGO_VERSION);
+            let cache = load_dir_cache(&open.conn).unwrap_or_default();
+            (open.generation, snapshot, parse_algo, cache)
         };
+
+        let known: Vec<NoteIdentity> = snapshot.iter().map(identity_from_row).collect();
+        let walk = self.filesystem.walk_workspace(root, &cache, &known)?;
+        // Cache-hit dirs skip read_dir but still stat known files, so identities
+        // here are current. Do not overlay snapshot rows — that would hide
+        // in-place edits and resurrect deleted notes.
+        let discovered = walk.notes;
 
         let snapshot_by_path = snapshot
             .iter()
@@ -117,115 +150,35 @@ impl WorkspaceService {
             }
         }
 
-        let mut parsed = Vec::new();
-        let mut opened_ok = HashSet::new();
-        let mut failed_open = HashSet::new();
-        for (identity, expected_cas) in dirty {
-            match self.read_prefix(&root_path, &identity) {
-                None => {
-                    failed_open.insert(identity.relative_path);
-                }
-                Some(opened) => {
-                    opened_ok.insert(identity.relative_path.clone());
-                    if opened.mtime != identity.modified_ms || opened.size != identity.size {
-                        continue;
-                    }
-                    let parsed_note = if opened.decoded.is_empty() {
-                        parse_note("", &identity.file_name)
-                    } else {
-                        parse_note(&opened.decoded, &identity.file_name)
-                    };
-                    let bytes_decoded = opened.decoded.len() as u64;
-                    let row = sqlite::note_row(
-                        identity.relative_path.clone(),
-                        identity.file_name.clone(),
-                        identity.extension.clone(),
-                        opened.mtime,
-                        opened.size,
-                        hex_sha256(opened.decoded.as_bytes()),
-                        opened.size > bytes_decoded,
-                        parsed_note.title,
-                        parsed_note.excerpt,
-                        &parsed_note.tags,
-                    );
-                    parsed.push(ParsedDirty {
-                        expected_cas,
-                        walk: identity,
-                        opened_mtime: opened.mtime,
-                        opened_size: opened.size,
-                        row,
-                        tags: parsed_note.tags,
-                    });
-                }
-            }
-        }
-
-        let merge = || {
-            merge_payload(
-                &discovered,
-                &snapshot,
-                &parsed,
-                &failed_open,
-                &opened_ok,
-                &pending_delete,
-            )
-        };
+        let parsed = self.parse_dirty_parallel(&root_path, dirty);
 
         let mut guard = self.lock_index();
-        let handle_ok = guard.as_ref().is_some_and(|open| {
-            open.root == root_path && open.generation == generation
-        });
+        let handle_ok = guard
+            .as_ref()
+            .is_some_and(|open| open.root == root_path && open.generation == generation);
         if !handle_ok {
-            return Ok(merge());
+            return Ok(());
         }
         let open = guard.as_mut().expect("scan handle");
-        let committed = commit_reconcile(&mut open.conn, &pending_delete, &parsed);
-        if committed {
-            if let Ok(rows) = sqlite::select_all_notes(&open.conn) {
-                return Ok(rows.into_iter().map(|row| row.to_note_file()).collect());
-            }
+        if commit_reconcile(
+            &mut open.conn,
+            &pending_delete,
+            &parsed,
+            &walk.walked_dirs,
+            &walk.reused_dirs,
+        ) {
+            index::optimize(&open.conn);
         }
-        Ok(merge())
+        Ok(())
     }
 
     pub fn read(&self, root: &str, relative_path: &str) -> AppResult<String> {
         self.filesystem.read_note(root, relative_path)
     }
 
-    pub fn write(&self, root: &str, relative_path: &str, content: &str) -> AppResult<()> {
+    pub fn write(&self, root: &str, relative_path: &str, content: &str) -> AppResult<NoteFile> {
         self.filesystem.write_note(root, relative_path, content)?;
-        if let Ok(root_path) = normalize_root(root) {
-            let file_name = Path::new(relative_path)
-                .file_name()
-                .and_then(|value| value.to_str())
-                .unwrap_or(relative_path)
-                .to_string();
-            let extension = Path::new(relative_path)
-                .extension()
-                .and_then(|value| value.to_str())
-                .unwrap_or("")
-                .to_ascii_lowercase();
-            let metadata = fs_metadata(&root_path.join(relative_path));
-            self.try_write_through(&root_path, |conn| {
-                let parsed = parse_note(content, &file_name);
-                let row = sqlite::note_row(
-                    relative_path.replace('\\', "/"),
-                    file_name,
-                    extension,
-                    metadata.0,
-                    metadata.1,
-                    hex_sha256(content.as_bytes()),
-                    false,
-                    parsed.title,
-                    parsed.excerpt,
-                    &parsed.tags,
-                );
-                sqlite::upsert_note(conn, &row)?;
-                sqlite::replace_tags(conn, &row.relative_path, &parsed.tags)?;
-                Ok(())
-            });
-        }
-        Ok(())
+        self.index_written_note(root, relative_path, Some(content))
     }
 
     pub fn create(
@@ -235,43 +188,11 @@ impl WorkspaceService {
         extension: &str,
         folder: Option<&str>,
         tags: Option<&[String]>,
-    ) -> AppResult<String> {
+    ) -> AppResult<NoteFile> {
         let relative = self
             .filesystem
             .create_note(root, title, extension, folder, tags)?;
-        if let (Ok(root_path), Ok(content)) = (normalize_root(root), self.filesystem.read_note(root, &relative))
-        {
-            let file_name = Path::new(&relative)
-                .file_name()
-                .and_then(|value| value.to_str())
-                .unwrap_or(&relative)
-                .to_string();
-            let ext = Path::new(&relative)
-                .extension()
-                .and_then(|value| value.to_str())
-                .unwrap_or("")
-                .to_ascii_lowercase();
-            let metadata = fs_metadata(&root_path.join(&relative));
-            self.try_write_through(&root_path, |conn| {
-                let parsed = parse_note(&content, &file_name);
-                let row = sqlite::note_row(
-                    relative.clone(),
-                    file_name,
-                    ext,
-                    metadata.0,
-                    metadata.1,
-                    hex_sha256(content.as_bytes()),
-                    false,
-                    parsed.title,
-                    parsed.excerpt,
-                    &parsed.tags,
-                );
-                sqlite::upsert_note(conn, &row)?;
-                sqlite::replace_tags(conn, &row.relative_path, &parsed.tags)?;
-                Ok(())
-            });
-        }
-        Ok(relative)
+        self.index_written_note(root, &relative, None)
     }
 
     pub fn rename(
@@ -279,52 +200,24 @@ impl WorkspaceService {
         root: &str,
         old_relative_path: &str,
         new_relative_path: &str,
-    ) -> AppResult<String> {
+    ) -> AppResult<RenamedNote> {
         let renamed = self
             .filesystem
             .rename_note(root, old_relative_path, new_relative_path)?;
         if let Ok(root_path) = normalize_root(root) {
-            let content = self.filesystem.read_note(root, &renamed).ok();
-            let file_name = Path::new(&renamed)
-                .file_name()
-                .and_then(|value| value.to_str())
-                .unwrap_or(&renamed)
-                .to_string();
-            let extension = Path::new(&renamed)
-                .extension()
-                .and_then(|value| value.to_str())
-                .unwrap_or("")
-                .to_ascii_lowercase();
-            let metadata = fs_metadata(&root_path.join(&renamed));
-            self.try_write_through(&root_path, |conn| {
-                sqlite::delete_note(conn, old_relative_path)?;
-                if let Some(content) = content.as_deref() {
-                    let parsed = parse_note(content, &file_name);
-                    let row = sqlite::note_row(
-                        renamed.clone(),
-                        file_name,
-                        extension,
-                        metadata.0,
-                        metadata.1,
-                        hex_sha256(content.as_bytes()),
-                        false,
-                        parsed.title,
-                        parsed.excerpt,
-                        &parsed.tags,
-                    );
-                    sqlite::upsert_note(conn, &row)?;
-                    sqlite::replace_tags(conn, &row.relative_path, &parsed.tags)?;
-                }
-                Ok(())
-            });
+            self.write_through(&root_path, |conn| delete_note(conn, old_relative_path));
         }
-        Ok(renamed)
+        let note = self.index_written_note(root, &renamed, None)?;
+        Ok(RenamedNote {
+            old_path: old_relative_path.replace('\\', "/"),
+            note,
+        })
     }
 
     pub fn delete(&self, root: &str, relative_path: &str) -> AppResult<String> {
         let trashed = self.filesystem.delete_note(root, relative_path)?;
         if let Ok(root_path) = normalize_root(root) {
-            self.try_write_through(&root_path, |conn| sqlite::delete_note(conn, relative_path));
+            self.write_through(&root_path, |conn| delete_note(conn, relative_path));
         }
         Ok(trashed)
     }
@@ -332,35 +225,34 @@ impl WorkspaceService {
     pub fn index_info(&self, root: &str) -> AppResult<WorkspaceIndexInfo> {
         let root_path = normalize_root(root)?;
         let mut guard = self.lock_index();
-        self.ensure_open_for_scan(&mut guard, &root_path);
+        self.ensure_open(&mut guard, &root_path);
         let open = guard.as_ref().expect("index handle");
-        Ok(sqlite::collect_index_info(
+        Ok(index::collect_index_info(
             &open.conn,
             &root_path,
             open.persistent,
         ))
     }
 
-    pub fn rebuild_index(&self, root: &str) -> AppResult<WorkspaceIndexInfo> {
+    pub fn rebuild_index(&self, root: &str, query: &LibraryQuery) -> AppResult<LibraryPage> {
         let root_path = normalize_root(root)?;
         {
             let mut guard = self.lock_index();
             if let Some(open) = guard.take() {
-                sqlite::checkpoint(&open.conn);
+                index::checkpoint(&open.conn);
                 drop(open);
             }
-            let db_path = sqlite::index_dir(&root_path).join(sqlite::INDEX_FILE);
-            if !sqlite::try_delete_triple(&db_path) {
-                self.ensure_open_for_scan(&mut guard, &root_path);
+            let db_path = index::index_dir(&root_path).join(index::INDEX_FILE);
+            if !index::try_delete_triple(&db_path) {
+                self.ensure_open(&mut guard, &root_path);
                 return Err(AppError::new(
                     ErrorCode::Io,
                     "Couldn't delete the index files.",
                 ));
             }
-            self.ensure_open_for_scan(&mut guard, &root_path);
+            self.ensure_open(&mut guard, &root_path);
         }
-        self.scan(root)?;
-        self.index_info(root)
+        self.reconcile(root, query)
     }
 
     pub fn scan_attachments(&self, root: &str) -> AppResult<Vec<AttachmentFile>> {
@@ -392,64 +284,156 @@ impl WorkspaceService {
         self.filesystem.write_export_file(path, &bytes)
     }
 
-    fn lock_index(&self) -> std::sync::MutexGuard<'_, Option<OpenWorkspaceIndex>> {
-        self.index
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
+    fn index_written_note(
+        &self,
+        root: &str,
+        relative_path: &str,
+        known_content: Option<&str>,
+    ) -> AppResult<NoteFile> {
+        let root_path = normalize_root(root)?;
+        let owned;
+        let content = if let Some(content) = known_content {
+            content
+        } else {
+            owned = self.filesystem.read_note(root, relative_path)?;
+            &owned
+        };
+        let relative = relative_path.replace('\\', "/");
+        let file_name = Path::new(&relative)
+            .file_name()
+            .and_then(|value| value.to_str())
+            .unwrap_or(&relative)
+            .to_string();
+        let extension = Path::new(&relative)
+            .extension()
+            .and_then(|value| value.to_str())
+            .unwrap_or("")
+            .to_ascii_lowercase();
+        let metadata = fs_metadata(&root_path.join(&relative));
+        let parsed = parse_note(content, &file_name);
+        let row = note_row(
+            relative,
+            file_name,
+            extension,
+            metadata.0,
+            metadata.1,
+            false,
+            parsed.title,
+            parsed.excerpt,
+            &parsed.tags,
+        );
+        self.write_through(&root_path, |conn| {
+            upsert_note(conn, &row)?;
+            Ok(())
+        });
+        Ok(row.to_note_file())
     }
 
-    fn ensure_open_for_scan(
-        &self,
-        guard: &mut Option<OpenWorkspaceIndex>,
-        root: &Path,
-    ) {
+    fn lock_index(&self) -> std::sync::MutexGuard<'_, Option<OpenWorkspaceIndex>> {
+        self.index.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn ensure_open(&self, guard: &mut Option<OpenWorkspaceIndex>, root: &Path) {
         if guard.as_ref().is_some_and(|open| open.root == root) {
             return;
         }
         if let Some(open) = guard.as_ref() {
-            sqlite::checkpoint(&open.conn);
+            index::checkpoint(&open.conn);
         }
         let generation = self.next_generation.fetch_add(1, Ordering::Relaxed);
-        let index = sqlite::open_or_rebuild(root);
+        let opened = index::open_or_rebuild(root);
         *guard = Some(OpenWorkspaceIndex {
             root: root.to_path_buf(),
-            conn: index.conn,
-            persistent: index.persistent,
+            conn: opened.conn,
+            persistent: opened.persistent,
             generation,
         });
     }
 
-    fn try_write_through(
+    fn write_through(
         &self,
         write_root: &Path,
         op: impl FnOnce(&rusqlite::Connection) -> rusqlite::Result<()>,
     ) {
-        match self.index.try_lock() {
-            Ok(mut guard) => {
-                let Some(open) = guard.as_mut() else {
-                    return;
-                };
-                if open.root != write_root {
-                    return;
-                }
-                let _ = op(&open.conn);
-            }
-            Err(std::sync::TryLockError::WouldBlock) => {}
-            Err(std::sync::TryLockError::Poisoned(poisoned)) => {
-                let mut guard = poisoned.into_inner();
-                let Some(open) = guard.as_mut() else {
-                    return;
-                };
-                if open.root != write_root {
-                    return;
-                }
-                let _ = op(&open.conn);
-            }
+        let mut guard = self.lock_index();
+        let Some(open) = guard.as_mut() else {
+            return;
+        };
+        if open.root != write_root {
+            return;
         }
+        let _ = op(&open.conn);
+    }
+
+    fn parse_dirty_parallel(
+        &self,
+        root: &Path,
+        dirty: Vec<(NoteIdentity, Option<(i64, i64)>)>,
+    ) -> Vec<ParsedDirty> {
+        if dirty.is_empty() {
+            return Vec::new();
+        }
+        let workers = dirty.len().min(PARSE_THREADS).max(1);
+        std::thread::scope(|scope| {
+            let mut handles = Vec::with_capacity(workers);
+            for worker_id in 0..workers {
+                let items = &dirty;
+                handles.push(scope.spawn(move || {
+                    let mut out = Vec::new();
+                    for (index, (identity, expected_cas)) in items.iter().enumerate() {
+                        if index % workers != worker_id {
+                            continue;
+                        }
+                        if let Some(parsed) = self.parse_one(root, identity, *expected_cas) {
+                            out.push(parsed);
+                        }
+                    }
+                    out
+                }));
+            }
+            handles
+                .into_iter()
+                .flat_map(|handle| handle.join().unwrap_or_default())
+                .collect()
+        })
+    }
+
+    fn parse_one(
+        &self,
+        root: &Path,
+        identity: &NoteIdentity,
+        expected_cas: Option<(i64, i64)>,
+    ) -> Option<ParsedDirty> {
+        let opened = self.read_prefix(root, identity)?;
+        if opened.mtime != identity.modified_ms || opened.size != identity.size {
+            return None;
+        }
+        let parsed_note = if opened.decoded.is_empty() {
+            parse_note("", &identity.file_name)
+        } else {
+            parse_note(&opened.decoded, &identity.file_name)
+        };
+        let bytes_decoded = opened.decoded.len() as u64;
+        Some(ParsedDirty {
+            expected_cas,
+            walk: identity.clone(),
+            opened_mtime: opened.mtime,
+            opened_size: opened.size,
+            row: note_row(
+                identity.relative_path.clone(),
+                identity.file_name.clone(),
+                identity.extension.clone(),
+                opened.mtime,
+                opened.size,
+                opened.size > bytes_decoded,
+                parsed_note.title,
+                parsed_note.excerpt,
+                &parsed_note.tags,
+            ),
+        })
     }
 
     fn read_prefix(&self, root: &Path, identity: &NoteIdentity) -> Option<OpenedPrefix> {
-        #[cfg(test)]
         self.content_reads.fetch_add(1, Ordering::Relaxed);
         let path = root.join(&identity.relative_path);
         let mut file = File::open(&path).ok()?;
@@ -472,12 +456,14 @@ fn commit_reconcile(
     conn: &mut rusqlite::Connection,
     pending_delete: &[(String, i64, i64)],
     parsed: &[ParsedDirty],
+    walked_dirs: &[DirCacheRow],
+    reused_dirs: &[String],
 ) -> bool {
     let Ok(txn) = conn.transaction() else {
         return false;
     };
     for (path, mtime, size) in pending_delete {
-        if sqlite::cas_delete(&txn, path, *mtime, *size).is_err() {
+        if cas_delete(&txn, path, *mtime, *size).is_err() {
             return false;
         }
     }
@@ -486,104 +472,51 @@ fn commit_reconcile(
             continue;
         }
         let affected = match item.expected_cas {
-            Some((mtime, size)) => sqlite::cas_update(&txn, &item.row, mtime, size),
-            None => sqlite::insert_ignore(&txn, &item.row),
+            Some((mtime, size)) => cas_update(&txn, &item.row, mtime, size),
+            None => insert_ignore(&txn, &item.row),
         };
-        let Ok(affected) = affected else {
-            return false;
-        };
-        if affected == 1 && sqlite::replace_tags(&txn, &item.walk.relative_path, &item.tags).is_err()
-        {
+        if affected.is_err() {
             return false;
         }
     }
-    if sqlite::set_meta(
-        &txn,
-        "last_reconcile_ms",
-        &sqlite::now_ms().to_string(),
-    )
-    .is_err()
-        || sqlite::set_meta(&txn, "index_read_cap", &INDEX_READ_CAP.to_string()).is_err()
+    if replace_dir_cache(&txn, walked_dirs, reused_dirs).is_err()
+        || set_meta(&txn, "last_reconcile_ms", &index::now_ms().to_string()).is_err()
+        || set_meta(&txn, "index_read_cap", &INDEX_READ_CAP.to_string()).is_err()
+        || set_meta(
+            &txn,
+            "parse_algo_version",
+            &PARSE_ALGO_VERSION.to_string(),
+        )
+        .is_err()
     {
         return false;
     }
     txn.commit().is_ok()
 }
 
-fn merge_payload(
-    discovered: &[NoteIdentity],
-    snapshot: &[NoteRow],
-    parsed: &[ParsedDirty],
-    failed_open: &HashSet<String>,
-    opened_ok: &HashSet<String>,
-    pending_delete: &[(String, i64, i64)],
-) -> Vec<NoteFile> {
-    let deleted = pending_delete
-        .iter()
-        .map(|(path, _, _)| path.as_str())
-        .collect::<HashSet<_>>();
-    let mut by_path = HashMap::new();
-    for row in snapshot {
-        if deleted.contains(row.relative_path.as_str()) {
-            continue;
-        }
-        by_path.insert(row.relative_path.clone(), row.to_note_file());
+fn identity_from_row(row: &NoteIdentityRow) -> NoteIdentity {
+    let file_name = row
+        .relative_path
+        .rsplit('/')
+        .next()
+        .unwrap_or(&row.relative_path)
+        .to_string();
+    let extension = Path::new(&file_name)
+        .extension()
+        .and_then(|value| value.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    NoteIdentity {
+        relative_path: row.relative_path.clone(),
+        file_name,
+        extension,
+        modified_ms: row.modified_ms.max(0) as u128,
+        size: row.size.max(0) as u64,
     }
-    for item in parsed {
-        if item.opened_mtime == item.walk.modified_ms && item.opened_size == item.walk.size {
-            by_path.insert(item.walk.relative_path.clone(), item.row.to_note_file());
-        }
-    }
-    for item in discovered {
-        if failed_open.contains(&item.relative_path) {
-            if !by_path.contains_key(&item.relative_path) {
-                continue;
-            }
-            continue;
-        }
-        if by_path.contains_key(&item.relative_path) {
-            continue;
-        }
-        if opened_ok.contains(&item.relative_path) {
-            let title = file_name_title(&item.file_name);
-            by_path.insert(
-                item.relative_path.clone(),
-                NoteFile {
-                    relative_path: item.relative_path.clone(),
-                    file_name: item.file_name.clone(),
-                    extension: item.extension.clone(),
-                    modified_ms: item.modified_ms,
-                    size: item.size,
-                    title: if title.is_empty() {
-                        "Untitled".into()
-                    } else {
-                        title
-                    },
-                    tags: Vec::new(),
-                    excerpt: String::new(),
-                },
-            );
-        }
-    }
-    let mut notes = by_path.into_values().collect::<Vec<_>>();
-    notes.sort_by(|left, right| {
-        right
-            .modified_ms
-            .cmp(&left.modified_ms)
-            .then_with(|| left.relative_path.cmp(&right.relative_path))
-    });
-    notes
-}
-
-fn hex_sha256(bytes: &[u8]) -> String {
-    Sha256::digest(bytes)
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect()
 }
 
 fn fs_metadata(path: &Path) -> (u128, u64) {
-    fs::metadata(path)
+    std::fs::metadata(path)
         .map(|metadata| (modified_ms(metadata.modified()), metadata.len()))
         .unwrap_or((0, 0))
 }
@@ -600,4 +533,3 @@ fn decode_base64(bytes_base64: &str, message: &str) -> AppResult<Vec<u8>> {
     })
 }
 
-use std::fs;

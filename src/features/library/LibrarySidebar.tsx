@@ -26,7 +26,7 @@ import { dateLocale } from "../../i18n";
 import { WorkspaceSwitcher } from "../workspace/WorkspaceSwitcher";
 import { FolderAppearanceDialog } from "./FolderAppearanceDialog";
 import { FolderContextMenu, type FolderMenuTarget } from "./FolderContextMenu";
-import { folderName, isRootFolder, normalizeTag, uniqueSorted } from "./note-utils";
+import { isRootFolder, normalizeTag } from "./note-utils";
 
 function NavButton({
   label,
@@ -172,7 +172,7 @@ export function LibrarySidebar({
   onCreateTag: () => void;
   className?: string;
 }) {
-  const notes = useAppStore((state) => state.notes);
+  const libraryStats = useAppStore((state) => state.libraryStats);
   const attachments = useAppStore((state) => state.attachments);
   const navFilter = useAppStore((state) => state.navFilter);
   const scopedFilter = useAppStore((state) => state.scopedFilter);
@@ -189,11 +189,12 @@ export function LibrarySidebar({
   const openSettings = useAppStore((state) => state.openSettings);
   const { t, locale } = useI18n();
   const compareLocale = dateLocale(locale);
-  const folders = uniqueSorted(
-    notes.map((note) => folderName(note.relativePath)),
-    compareLocale,
+  const folders = [...libraryStats.folders]
+    .map((item) => item.folder)
+    .sort((left, right) => left.localeCompare(right, compareLocale));
+  const tags = [...libraryStats.tags].sort((left, right) =>
+    left.tag.localeCompare(right.tag, compareLocale),
   );
-  const tags = uniqueSorted(notes.flatMap((note) => note.tags), compareLocale);
   const [menuTarget, setMenuTarget] = useState<FolderMenuTarget | null>(null);
   const [appearanceFolder, setAppearanceFolder] = useState<string | null>(null);
 
@@ -255,7 +256,7 @@ export function LibrarySidebar({
           <NavButton
             active={notesNavActive && navFilter === "all" && !scopedFilter}
             collapsed={collapsed}
-            count={notes.length}
+            count={libraryStats.total}
             icon={<FileText strokeWidth={1.8} />}
             label={t("nav.allNotes")}
             onClick={() => setNavFilter("all")}
@@ -263,7 +264,7 @@ export function LibrarySidebar({
           <NavButton
             active={notesNavActive && navFilter === "recent"}
             collapsed={collapsed}
-            count={notes.filter((note) => Date.now() - note.modifiedMs <= 7 * 86_400_000).length}
+            count={libraryStats.recent}
             icon={<Clock3 strokeWidth={1.8} />}
             label={t("nav.recent")}
             onClick={() => setNavFilter("recent")}
@@ -271,7 +272,7 @@ export function LibrarySidebar({
           <NavButton
             active={notesNavActive && navFilter === "favorites"}
             collapsed={collapsed}
-            count={notes.filter((note) => note.favorite).length}
+            count={libraryStats.favorites}
             icon={<Star strokeWidth={1.8} />}
             label={t("nav.favorites")}
             onClick={() => setNavFilter("favorites")}
@@ -279,7 +280,7 @@ export function LibrarySidebar({
           <NavButton
             active={notesNavActive && navFilter === "uncategorized"}
             collapsed={collapsed}
-            count={notes.filter((note) => note.tags.length === 0).length}
+            count={libraryStats.uncategorized}
             icon={<Inbox strokeWidth={1.8} />}
             label={t("nav.uncategorized")}
             onClick={() => setNavFilter("uncategorized")}
@@ -319,7 +320,7 @@ export function LibrarySidebar({
               }
               appearance={folderAppearances[folder]}
               collapsed={collapsed}
-              count={notes.filter((note) => folderName(note.relativePath) === folder).length}
+              count={libraryStats.folders.find((item) => item.folder === folder)?.count ?? 0}
               folder={folder}
               key={folder || "__root__"}
               label={folderLabel(folder)}
@@ -352,18 +353,14 @@ export function LibrarySidebar({
               active={
                 notesNavActive &&
                 scopedFilter?.type === "tag" &&
-                normalizeTag(scopedFilter.value) === normalizeTag(tag)
+                normalizeTag(scopedFilter.value) === tag.tagNorm
               }
               collapsed={collapsed}
-              count={
-                notes.filter((note) =>
-                  note.tags.some((noteTag) => normalizeTag(noteTag) === normalizeTag(tag)),
-                ).length
-              }
+              count={tag.count}
               icon={<TagIcon strokeWidth={1.8} />}
-              key={tag}
-              label={tag}
-              onClick={() => setScopedFilter({ type: "tag", value: tag })}
+              key={tag.tagNorm}
+              label={tag.tag}
+              onClick={() => setScopedFilter({ type: "tag", value: tag.tag })}
             />
           ))}
         </section>
@@ -375,7 +372,7 @@ export function LibrarySidebar({
           collapsed && "min-[761px]:flex-col min-[761px]:gap-1 min-[761px]:py-2",
         )}
       >
-        <WorkspaceSwitcher collapsed={collapsed} noteCount={notes.length} />
+        <WorkspaceSwitcher collapsed={collapsed} noteCount={libraryStats.total} />
         <div
           className={cn(
             "flex shrink-0 gap-0.5",

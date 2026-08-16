@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
+import { emptyLibraryStats } from "../../domain/notes";
 import { useAppStore } from "../../store/app-store";
 import { LibrarySidebar } from "./LibrarySidebar";
 
@@ -9,6 +10,15 @@ afterEach(() => {
   useAppStore.setState({
     workspaceRoot: null,
     notes: [],
+    libraryStats: {
+      total: 0,
+      recent: 0,
+      favorites: 0,
+      uncategorized: 0,
+      folders: [],
+      tags: [],
+      truncated: false,
+    },
     folderAppearances: {},
     navFilter: "all",
     scopedFilter: null,
@@ -35,6 +45,11 @@ describe("LibrarySidebar folders", () => {
           favorite: false,
         },
       ],
+      libraryStats: {
+        ...emptyLibraryStats(),
+        total: 1,
+        folders: [{ folder: "日记", count: 1 }],
+      },
       folderAppearances: {
         日记: { emoji: "📔", color: "coral" },
       },
@@ -68,6 +83,11 @@ describe("LibrarySidebar folders", () => {
           favorite: false,
         },
       ],
+      libraryStats: {
+        ...emptyLibraryStats(),
+        total: 1,
+        folders: [{ folder: "思考", count: 1 }],
+      },
       folderAppearances: {},
     });
     const view = render(
@@ -96,6 +116,7 @@ describe("LibrarySidebar folders", () => {
         },
       ],
       libraryPanelMode: "notes",
+      libraryStats: { ...emptyLibraryStats(), total: 1 },
     });
     const user = userEvent.setup();
     const view = render(
@@ -105,5 +126,28 @@ describe("LibrarySidebar folders", () => {
     await user.click(view.getByRole("button", { name: "索引库" }));
     expect(useAppStore.getState().libraryPanelMode).toBe("index");
     expect(view.getByRole("button", { name: "索引库" })).toHaveAttribute("aria-current", "page");
+  });
+
+  it("renders folder and tag counts from libraryStats, not a full notes dump", () => {
+    useAppStore.setState({
+      workspaceRoot: "/notes",
+      notes: [],
+      libraryStats: {
+        ...emptyLibraryStats(),
+        total: 4,
+        recent: 2,
+        favorites: 1,
+        uncategorized: 1,
+        folders: [{ folder: "日记", count: 3 }],
+        tags: [{ tag: "diary", tagNorm: "diary", count: 2 }],
+      },
+    });
+    const view = render(
+      <LibrarySidebar isDark={false} onCreateFolder={() => undefined} onCreateTag={() => undefined} />,
+    );
+    expect(view.getByRole("button", { name: "日记" })).toBeInTheDocument();
+    expect(view.getByRole("button", { name: "diary 2" })).toBeInTheDocument();
+    expect(view.getByText("3")).toBeInTheDocument();
+    expect(view.getByRole("button", { name: "最近编辑 2" })).toBeInTheDocument();
   });
 });

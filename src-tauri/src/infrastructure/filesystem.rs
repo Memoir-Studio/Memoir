@@ -5,6 +5,7 @@ use crate::{
             sanitize_attachment_file_name, unique_file_name, ATTACHMENTS_DIR,
             LEGACY_ATTACHMENTS_DIR,
         },
+        folder_of,
         path::{
             create_parent_dirs, is_supported_note, normalize_root, resolve_existing_attachment,
             resolve_existing_note, resolve_new_attachment, resolve_new_note, should_skip_dir,
@@ -13,29 +14,61 @@ use crate::{
         },
         AppError, AppResult, AttachmentFile, NoteIdentity,
     },
-    infrastructure::atomic::atomic_write,
+    infrastructure::{
+        atomic::atomic_write,
+        index::DirCacheRow,
+    },
 };
 use std::{
+    collections::HashMap,
     fs, io,
     path::{Component, Path, PathBuf},
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
     time::SystemTime,
 };
 
-#[derive(Debug, Default, Clone)]
-pub struct LocalFileSystem;
+#[derive(Debug, Clone)]
+pub struct LocalFileSystem {
+    pub walk_dirs: Arc<AtomicUsize>,
+}
+
+impl Default for LocalFileSystem {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl LocalFileSystem {
+    pub fn new() -> Self {
+        Self {
+            walk_dirs: Arc::new(AtomicUsize::new(0)),
+        }
+    }
+
+    #[cfg(test)]
     pub fn scan_workspace(&self, root: &str) -> AppResult<Vec<NoteIdentity>> {
+        Ok(self.walk_workspace(root, &HashMap::new(), &[])?.notes)
+    }
+
+    pub fn walk_workspace(
+        &self,
+        root: &str,
+        cache: &HashMap<String, DirCacheRow>,
+        known_notes: &[NoteIdentity],
+    ) -> AppResult<WorkspaceWalk> {
         let root = normalize_root(root)?;
-        let mut notes = Vec::new();
-        collect_notes(&root, &root, &mut notes)?;
-        notes.sort_by(|left, right| {
+        let mut walk = WorkspaceWalk::default();
+        collect_notes(&root, &root, cache, known_notes, &mut walk, &self.walk_dirs)?;
+        walk.notes.sort_by(|left, right| {
             right
                 .modified_ms
                 .cmp(&left.modified_ms)
                 .then_with(|| left.relative_path.cmp(&right.relative_path))
         });
-        Ok(notes)
+        Ok(walk)
     }
 
     pub fn read_note(&self, root: &str, relative_path: &str) -> AppResult<String> {
@@ -351,9 +384,66 @@ fn move_to_workspace_trash(root: &Path, file_path: &Path, fallback_name: &str) -
     to_relative_path(root, &target)
 }
 
-fn collect_notes(root: &Path, current: &Path, notes: &mut Vec<NoteIdentity>) -> AppResult<()> {
+#[derive(Debug, Default, Clone)]
+pub struct WorkspaceWalk {
+    pub notes: Vec<NoteIdentity>,
+    pub walked_dirs: Vec<DirCacheRow>,
+    pub reused_dirs: Vec<String>,
+}
+
+fn relative_dir(root: &Path, current: &Path) -> String {
+    if current == root {
+        return String::new();
+    }
+    to_relative_path(root, current).unwrap_or_default()
+}
+
+fn is_direct_child_dir(parent: &str, child: &str) -> bool {
+    if parent == child || child.is_empty() {
+        return false;
+    }
+    if parent.is_empty() {
+        return !child.contains('/');
+    }
+    child
+        .strip_prefix(parent)
+        .and_then(|rest| rest.strip_prefix('/'))
+        .is_some_and(|rest| !rest.is_empty() && !rest.contains('/'))
+}
+
+fn collect_notes(
+    root: &Path,
+    current: &Path,
+    cache: &HashMap<String, DirCacheRow>,
+    known_notes: &[NoteIdentity],
+    walk: &mut WorkspaceWalk,
+    walk_dirs: &AtomicUsize,
+) -> AppResult<()> {
+    let dir_key = relative_dir(root, current);
+    let dir_meta = match fs::symlink_metadata(current) {
+        Ok(metadata) => metadata,
+        Err(_) => return Ok(()),
+    };
+    if dir_meta.file_type().is_symlink() || !dir_meta.is_dir() {
+        return Ok(());
+    }
+    let dir_mtime = i64::try_from(modified_ms(dir_meta.modified())).unwrap_or(i64::MAX);
+    let dir_size = i64::try_from(dir_meta.len()).unwrap_or(i64::MAX);
+    if let Some(cached) = cache.get(&dir_key) {
+        if cached.modified_ms == dir_mtime && cached.size == dir_size {
+            // Skip read_dir of this directory only. Still stat known files and
+            // visit each cached child dir — ancestor mtime is not proof a child is unchanged.
+            walk.reused_dirs.push(dir_key.clone());
+            stat_known_notes(root, &dir_key, known_notes, walk);
+            visit_cached_children(root, &dir_key, cache, known_notes, walk, walk_dirs)?;
+            return Ok(());
+        }
+    }
+
+    walk_dirs.fetch_add(1, Ordering::Relaxed);
     let entries =
         fs::read_dir(current).map_err(|error| AppError::io("Read directory", current, error))?;
+    let mut entry_count = 0_i64;
     for entry in entries {
         let entry = entry.map_err(|error| {
             AppError::new(
@@ -362,6 +452,7 @@ fn collect_notes(root: &Path, current: &Path, notes: &mut Vec<NoteIdentity>) -> 
             )
             .with_details(error.to_string())
         })?;
+        entry_count += 1;
         let path = entry.path();
         let metadata = fs::symlink_metadata(&path)
             .map_err(|error| AppError::io("Inspect workspace entry", &path, error))?;
@@ -370,32 +461,90 @@ fn collect_notes(root: &Path, current: &Path, notes: &mut Vec<NoteIdentity>) -> 
         }
         if metadata.is_dir() {
             if !should_skip_dir(&path) {
-                collect_notes(root, &path, notes)?;
+                collect_notes(root, &path, cache, known_notes, walk, walk_dirs)?;
             }
             continue;
         }
         if metadata.is_file() && is_supported_note(&path) {
-            let relative_path = to_relative_path(root, &path)?;
-            let file_name = path
-                .file_name()
-                .and_then(|value| value.to_str())
-                .unwrap_or_default()
-                .to_string();
-            let extension = path
-                .extension()
-                .and_then(|value| value.to_str())
-                .unwrap_or_default()
-                .to_ascii_lowercase();
-            notes.push(NoteIdentity {
-                relative_path,
-                file_name,
-                extension,
-                modified_ms: modified_ms(metadata.modified()),
-                size: metadata.len(),
-            });
+            if let Some(identity) = note_identity_from_metadata(root, &path, &metadata) {
+                walk.notes.push(identity);
+            }
         }
     }
+    walk.walked_dirs.push(DirCacheRow {
+        relative_dir: dir_key,
+        modified_ms: dir_mtime,
+        size: dir_size,
+        entry_count,
+    });
     Ok(())
+}
+
+fn stat_known_notes(
+    root: &Path,
+    dir_key: &str,
+    known_notes: &[NoteIdentity],
+    walk: &mut WorkspaceWalk,
+) {
+    for note in known_notes {
+        if folder_of(&note.relative_path) != dir_key {
+            continue;
+        }
+        let path = root.join(&note.relative_path);
+        let Ok(metadata) = fs::symlink_metadata(&path) else {
+            continue;
+        };
+        if metadata.file_type().is_symlink() || !metadata.is_file() || !is_supported_note(&path) {
+            continue;
+        }
+        if let Some(identity) = note_identity_from_metadata(root, &path, &metadata) {
+            walk.notes.push(identity);
+        }
+    }
+}
+
+fn visit_cached_children(
+    root: &Path,
+    dir_key: &str,
+    cache: &HashMap<String, DirCacheRow>,
+    known_notes: &[NoteIdentity],
+    walk: &mut WorkspaceWalk,
+    walk_dirs: &AtomicUsize,
+) -> AppResult<()> {
+    let children = cache
+        .keys()
+        .filter(|child| is_direct_child_dir(dir_key, child))
+        .cloned()
+        .collect::<Vec<_>>();
+    for child in children {
+        let path = root.join(&child);
+        if should_skip_dir(&path) {
+            continue;
+        }
+        collect_notes(root, &path, cache, known_notes, walk, walk_dirs)?;
+    }
+    Ok(())
+}
+
+fn note_identity_from_metadata(
+    root: &Path,
+    path: &Path,
+    metadata: &fs::Metadata,
+) -> Option<NoteIdentity> {
+    let relative_path = to_relative_path(root, path).ok()?;
+    let file_name = path.file_name()?.to_str()?.to_string();
+    let extension = path
+        .extension()
+        .and_then(|value| value.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    Some(NoteIdentity {
+        relative_path,
+        file_name,
+        extension,
+        modified_ms: modified_ms(metadata.modified()),
+        size: metadata.len(),
+    })
 }
 
 pub(crate) fn modified_ms(modified: io::Result<SystemTime>) -> u128 {

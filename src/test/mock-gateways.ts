@@ -8,8 +8,8 @@ import {
   normalizeFolderKey,
 } from "../domain/folders";
 import { indexInfoFromNotes, type WorkspaceIndexInfo } from "../domain/index-info";
-import type { RawNoteFile } from "../domain/notes";
-import { parseNote } from "../features/library/note-utils";
+import type { LibraryPage, LibraryQuery, RawNoteFile, RenamedNote } from "../domain/notes";
+import { parseNote, queryNotesInMemory } from "../features/library/note-utils";
 import { DEFAULT_SETTINGS } from "../domain/settings";
 import type {
   AppGateways,
@@ -30,13 +30,16 @@ export class MockWorkspaceGateway implements WorkspaceGateway {
   nextImported: AttachmentFile[] = [];
   failIndex = false;
   rebuildCount = 0;
+  reconcileCount = 0;
+  queryLibraryCount = 0;
+  scanAttachmentCount = 0;
   indexInfoOverrides: Partial<WorkspaceIndexInfo> = {};
 
   async chooseWorkspace(_title?: string) {
     return "/workspace";
   }
 
-  async scanWorkspace(): Promise<RawNoteFile[]> {
+  private listNotes(): RawNoteFile[] {
     return [...this.files.entries()].map(([relativePath, content]) => {
       const fileName = relativePath.split("/").pop() || relativePath;
       const parsed = parseNote(content, fileName);
@@ -53,9 +56,19 @@ export class MockWorkspaceGateway implements WorkspaceGateway {
     });
   }
 
+  async queryLibrary(_root: string, query: LibraryQuery): Promise<LibraryPage> {
+    this.queryLibraryCount += 1;
+    return queryNotesInMemory(this.listNotes(), query);
+  }
+
+  async reconcileWorkspace(root: string, query?: LibraryQuery): Promise<LibraryPage> {
+    this.reconcileCount += 1;
+    return this.queryLibrary(root, query ?? { q: "", nav: "all", folder: null, tag: null });
+  }
+
   async getIndexInfo(): Promise<WorkspaceIndexInfo> {
     if (this.failIndex) throw new Error("index locked");
-    const notes = await this.scanWorkspace();
+    const notes = this.listNotes();
     return indexInfoFromNotes(notes, {
       persistent: true,
       fileSize: 4096,
@@ -65,9 +78,10 @@ export class MockWorkspaceGateway implements WorkspaceGateway {
     });
   }
 
-  async rebuildIndex() {
+  async rebuildIndex(root: string, query?: LibraryQuery) {
     this.rebuildCount += 1;
-    return this.getIndexInfo();
+    if (this.failIndex) throw new Error("index locked");
+    return this.queryLibrary(root, query ?? { q: "", nav: "all", folder: null, tag: null });
   }
 
   async readNote(_root: string, relativePath: string) {
@@ -80,19 +94,20 @@ export class MockWorkspaceGateway implements WorkspaceGateway {
     if (this.failWrite) throw new Error("disk full");
     this.files.set(relativePath, content);
     this.writes.push({ path: relativePath, content });
+    return this.noteAt(relativePath);
   }
 
   async createNote(input: CreateNoteInput) {
     const relativePath = `${input.title.toLowerCase().replace(/\s+/g, "-")}.${input.extension}`;
     this.files.set(relativePath, `# ${input.title}`);
-    return relativePath;
+    return this.noteAt(relativePath);
   }
 
-  async renameNote(_root: string, oldRelativePath: string, newRelativePath: string) {
+  async renameNote(_root: string, oldRelativePath: string, newRelativePath: string): Promise<RenamedNote> {
     const content = this.files.get(oldRelativePath) || "";
     this.files.delete(oldRelativePath);
     this.files.set(newRelativePath, content);
-    return newRelativePath;
+    return { oldPath: oldRelativePath, note: this.noteAt(newRelativePath) };
   }
 
   async deleteNote(_root: string, relativePath: string) {
@@ -101,6 +116,7 @@ export class MockWorkspaceGateway implements WorkspaceGateway {
   }
 
   async scanAttachments(): Promise<AttachmentFile[]> {
+    this.scanAttachmentCount += 1;
     return [...this.attachments.values()];
   }
 
@@ -151,6 +167,22 @@ export class MockWorkspaceGateway implements WorkspaceGateway {
 
   async writeExportFile(path: string, bytesBase64: string) {
     this.savedExports.push({ path, bytesBase64 });
+  }
+
+  private noteAt(relativePath: string): RawNoteFile {
+    const content = this.files.get(relativePath) ?? "";
+    const fileName = relativePath.split("/").pop() || relativePath;
+    const parsed = parseNote(content, fileName);
+    return {
+      relativePath,
+      fileName,
+      extension: relativePath.endsWith(".mdx") ? "mdx" : "md",
+      modifiedMs: 1,
+      size: content.length,
+      title: parsed.title,
+      tags: parsed.tags,
+      excerpt: parsed.excerpt,
+    };
   }
 }
 

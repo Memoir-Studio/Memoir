@@ -59,7 +59,7 @@ fn rejects_symlink_escape_for_existing_and_new_notes() {
 
     fs::write(workspace.path().join("note.md"), "# Note").unwrap();
     assert_eq!(
-        LocalFileSystem
+        LocalFileSystem::new()
             .rename_note(
                 workspace.path().to_str().unwrap(),
                 "note.md",
@@ -73,7 +73,7 @@ fn rejects_symlink_escape_for_existing_and_new_notes() {
 
     symlink(outside.path(), workspace.path().join(".memoir-trash")).unwrap();
     assert_eq!(
-        LocalFileSystem
+        LocalFileSystem::new()
             .delete_note(workspace.path().to_str().unwrap(), "note.md")
             .unwrap_err()
             .code,
@@ -93,7 +93,7 @@ fn scans_notes_sorted_and_ignores_hidden_directories() {
     fs::create_dir(workspace.path().join(".memoir")).unwrap();
     fs::write(workspace.path().join(".memoir/note.md"), "# Cache").unwrap();
 
-    let filesystem = LocalFileSystem;
+    let filesystem = LocalFileSystem::new();
     let notes = filesystem
         .scan_workspace(workspace.path().to_str().unwrap())
         .unwrap();
@@ -110,7 +110,7 @@ fn scans_notes_sorted_and_ignores_hidden_directories() {
 fn creates_unique_slug_reads_atomically_renames_and_trashes() {
     let workspace = tempdir().unwrap();
     let root = workspace.path().to_str().unwrap();
-    let filesystem = LocalFileSystem;
+    let filesystem = LocalFileSystem::new();
 
     assert_eq!(slugify("  Hello, World  "), "hello-world");
     let first = filesystem
@@ -452,7 +452,7 @@ fn sample_png() -> Vec<u8> {
 fn saves_lists_and_trashes_attachments_inside_the_library() {
     let workspace = tempdir().unwrap();
     let root = workspace.path().to_str().unwrap();
-    let filesystem = LocalFileSystem;
+    let filesystem = LocalFileSystem::new();
 
     assert!(filesystem.scan_attachments(root).unwrap().is_empty());
 
@@ -514,7 +514,7 @@ fn saves_lists_and_trashes_attachments_inside_the_library() {
 fn rejects_non_image_and_escaping_attachment_paths() {
     let workspace = tempdir().unwrap();
     let root = workspace.path().to_str().unwrap();
-    let filesystem = LocalFileSystem;
+    let filesystem = LocalFileSystem::new();
 
     assert_eq!(
         filesystem
@@ -552,7 +552,7 @@ fn rejects_non_image_and_escaping_attachment_paths() {
 fn writes_absolute_pdf_export_files_and_rejects_invalid_paths() {
     let dir = tempdir().unwrap();
     let dest = dir.path().join("note.pdf");
-    let filesystem = LocalFileSystem;
+    let filesystem = LocalFileSystem::new();
     filesystem
         .write_export_file(dest.to_str().unwrap(), b"%PDF-1.4 test")
         .unwrap();
@@ -585,7 +585,7 @@ fn workspace_scan_returns_cached_metadata_and_skips_unchanged_reads() {
     .unwrap();
     fs::write(workspace.path().join("two.md"), "# Two\n\nSecond").unwrap();
 
-    let service = WorkspaceService::new(LocalFileSystem);
+    let service = WorkspaceService::new(LocalFileSystem::new());
     let first = service.scan(root).unwrap();
     assert_eq!(first.len(), 2);
     let one = first.iter().find(|note| note.relative_path == "one.md").unwrap();
@@ -620,17 +620,22 @@ fn rebuild_index_drops_cache_and_reparses() {
         "---\ntitle: One\ntags: [a]\n---\n\n# One\n\nHello.",
     )
     .unwrap();
-    let service = WorkspaceService::new(LocalFileSystem);
+    let service = WorkspaceService::new(LocalFileSystem::new());
     service.scan(root).unwrap();
     let reads = service
         .content_reads
         .load(std::sync::atomic::Ordering::Relaxed);
     let first_created = service.index_info(root).unwrap().created_ms;
 
-    let rebuilt = service.rebuild_index(root).unwrap();
-    assert_eq!(rebuilt.note_count, 1);
-    assert_eq!(rebuilt.tag_count, 1);
-    assert!(rebuilt.created_ms >= first_created);
+    let rebuilt = service
+        .rebuild_index(root, &crate::domain::LibraryQuery::default())
+        .unwrap();
+    assert_eq!(rebuilt.stats.total, 1);
+    assert_eq!(rebuilt.notes.len(), 1);
+    let info = service.index_info(root).unwrap();
+    assert_eq!(info.note_count, 1);
+    assert_eq!(info.tag_count, 1);
+    assert!(info.created_ms >= first_created);
     assert!(
         service
             .content_reads
@@ -641,11 +646,68 @@ fn rebuild_index_drops_cache_and_reparses() {
 }
 
 #[test]
+fn second_reconcile_sees_inplace_edit_and_new_subdir() {
+    let workspace = tempdir().unwrap();
+    let root = workspace.path();
+    let root_str = root.to_str().unwrap();
+    fs::write(root.join("a.md"), "# Old\n\nbody").unwrap();
+    let service = WorkspaceService::new(LocalFileSystem::new());
+    let first = service
+        .reconcile(root_str, &crate::domain::LibraryQuery::default())
+        .unwrap();
+    assert_eq!(first.notes.len(), 1);
+    assert_eq!(first.notes[0].title, "Old");
+
+    fs::write(root.join("a.md"), "# New Title\n\nchanged").unwrap();
+    fs::create_dir_all(root.join("sub")).unwrap();
+    fs::write(root.join("sub/b.md"), "# Nested\n").unwrap();
+
+    let second = service
+        .reconcile(root_str, &crate::domain::LibraryQuery::default())
+        .unwrap();
+    let rewritten = second
+        .notes
+        .iter()
+        .find(|note| note.relative_path == "a.md")
+        .expect("rewritten note");
+    assert_eq!(rewritten.title, "New Title");
+    let nested = second
+        .notes
+        .iter()
+        .find(|note| note.relative_path == "sub/b.md")
+        .expect("new subdirectory note");
+    assert_eq!(nested.title, "Nested");
+}
+
+#[test]
+fn second_reconcile_sees_inplace_edit_when_parent_dir_stat_is_unchanged() {
+    let workspace = tempdir().unwrap();
+    let root = workspace.path();
+    let root_str = root.to_str().unwrap();
+    fs::write(root.join("a.md"), "# Old\n\nbody").unwrap();
+    let service = WorkspaceService::new(LocalFileSystem::new());
+    service
+        .reconcile(root_str, &crate::domain::LibraryQuery::default())
+        .unwrap();
+
+    fs::write(root.join("a.md"), "# Edited In Place\n\nxx").unwrap();
+    let page = service
+        .reconcile(root_str, &crate::domain::LibraryQuery::default())
+        .unwrap();
+    let note = page
+        .notes
+        .iter()
+        .find(|item| item.relative_path == "a.md")
+        .expect("note");
+    assert_eq!(note.title, "Edited In Place");
+}
+
+#[test]
 fn write_then_scan_does_not_reread_and_rename_updates_path() {
     let workspace = tempdir().unwrap();
     let root = workspace.path().to_str().unwrap();
     fs::write(workspace.path().join("old.md"), "# Old").unwrap();
-    let service = WorkspaceService::new(LocalFileSystem);
+    let service = WorkspaceService::new(LocalFileSystem::new());
     service.scan(root).unwrap();
     let reads = service.content_reads.load(std::sync::atomic::Ordering::Relaxed);
 
@@ -658,7 +720,7 @@ fn write_then_scan_does_not_reread_and_rename_updates_path() {
     assert_eq!(after_write[0].title, "Updated");
 
     let renamed = service.rename(root, "old.md", "new.md").unwrap();
-    assert_eq!(renamed, "new.md");
+    assert_eq!(renamed.note.relative_path, "new.md");
     let after_rename = service.scan(root).unwrap();
     assert_eq!(after_rename.len(), 1);
     assert_eq!(after_rename[0].relative_path, "new.md");
@@ -676,7 +738,7 @@ fn garbage_index_and_vanished_new_file_do_not_fail_scan() {
     fs::create_dir_all(workspace.path().join(".memoir")).unwrap();
     fs::write(workspace.path().join(".memoir/index.sqlite"), b"garbage").unwrap();
 
-    let service = WorkspaceService::new(LocalFileSystem);
+    let service = WorkspaceService::new(LocalFileSystem::new());
     let notes = service.scan(root).unwrap();
     assert_eq!(notes.len(), 1);
     assert_eq!(notes[0].title, "Keep");
@@ -697,7 +759,7 @@ fn unreadable_new_file_does_not_insert_a_ghost_row() {
     let workspace = tempdir().unwrap();
     let root = workspace.path().to_str().unwrap();
     fs::write(workspace.path().join("keep.md"), "# Keep").unwrap();
-    let service = WorkspaceService::new(LocalFileSystem);
+    let service = WorkspaceService::new(LocalFileSystem::new());
     service.scan(root).unwrap();
 
     fs::write(workspace.path().join("secret.md"), "# Secret").unwrap();
@@ -741,4 +803,180 @@ fn drafts_exist_fast_path_and_legacy_listing() {
         .unwrap();
     let found = service.drafts_exist("/notes", &paths).unwrap();
     assert_eq!(found, vec!["one.md", "two.md"]);
+}
+
+#[test]
+fn create_then_query_without_second_walk() {
+    let workspace = tempdir().unwrap();
+    let root = workspace.path().to_str().unwrap();
+    fs::write(workspace.path().join("keep.md"), "# Keep").unwrap();
+    let service = WorkspaceService::new(LocalFileSystem::new());
+    let first = service
+        .reconcile(root, &crate::domain::LibraryQuery::default())
+        .unwrap();
+    assert_eq!(first.notes.len(), 1);
+    let walks = service.walk_dirs.load(std::sync::atomic::Ordering::Relaxed);
+    assert!(walks >= 1);
+
+    let created = service
+        .create(root, "Fresh Note", "md", None, Some(&["lab".into()]))
+        .unwrap();
+    assert_eq!(created.title, "Fresh Note");
+    assert_eq!(created.tags, vec!["lab"]);
+    let after_create_walks = service.walk_dirs.load(std::sync::atomic::Ordering::Relaxed);
+    assert_eq!(after_create_walks, walks, "create must not walk the workspace");
+
+    let page = service
+        .query_library(root, &crate::domain::LibraryQuery::default())
+        .unwrap();
+    assert!(
+        page.notes
+            .iter()
+            .any(|note| note.relative_path == created.relative_path && note.title == "Fresh Note")
+    );
+    assert_eq!(
+        service.walk_dirs.load(std::sync::atomic::Ordering::Relaxed),
+        walks,
+        "query_library must not walk"
+    );
+    println!(
+        "launch-query create_then_query_without_second_walk walks_before={} walks_after={} path={} title={}",
+        walks,
+        after_create_walks,
+        created.relative_path,
+        created.title
+    );
+}
+
+#[test]
+fn create_then_query_without_second_walk_repeats() {
+    create_then_query_without_second_walk();
+}
+
+#[test]
+fn v1_index_file_is_rebuilt_as_v2_and_notes_return() {
+    let workspace = tempdir().unwrap();
+    let root = workspace.path().to_str().unwrap();
+    fs::write(
+        workspace.path().join("keep.md"),
+        "---\ntitle: Keep\ntags: [a]\n---\n\n# Keep\n",
+    )
+    .unwrap();
+    let dir = workspace.path().join(".memoir");
+    fs::create_dir_all(&dir).unwrap();
+    let db = dir.join("index.sqlite");
+    let conn = rusqlite::Connection::open(&db).unwrap();
+    conn.execute_batch(
+        "
+        CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+        CREATE TABLE notes (
+            relative_path TEXT PRIMARY KEY,
+            file_name TEXT NOT NULL,
+            extension TEXT NOT NULL,
+            modified_ms INTEGER NOT NULL,
+            size INTEGER NOT NULL,
+            content_hash TEXT NOT NULL,
+            parse_truncated INTEGER NOT NULL DEFAULT 0,
+            title TEXT NOT NULL,
+            excerpt TEXT NOT NULL,
+            tags_json TEXT NOT NULL,
+            indexed_at_ms INTEGER NOT NULL
+        );
+        ",
+    )
+    .unwrap();
+    conn.pragma_update(None, "user_version", 1).unwrap();
+    drop(conn);
+
+    let service = WorkspaceService::new(LocalFileSystem::new());
+    let page = service
+        .reconcile(root, &crate::domain::LibraryQuery::default())
+        .unwrap();
+    assert_eq!(page.notes.len(), 1);
+    assert_eq!(page.notes[0].title, "Keep");
+    let info = service.index_info(root).unwrap();
+    assert_eq!(info.schema_version, 2);
+}
+
+#[test]
+fn rebuild_walks_once_and_hot_reconcile_skips_bodies() {
+    let workspace = tempdir().unwrap();
+    let root = workspace.path().to_str().unwrap();
+    fs::write(workspace.path().join("one.md"), "# One\n\nHello").unwrap();
+    let service = WorkspaceService::new(LocalFileSystem::new());
+    service
+        .reconcile(root, &crate::domain::LibraryQuery::default())
+        .unwrap();
+    let walks_after_open = service.walk_dirs.load(std::sync::atomic::Ordering::Relaxed);
+    let reads_after_open = service.content_reads.load(std::sync::atomic::Ordering::Relaxed);
+
+    service
+        .reconcile(root, &crate::domain::LibraryQuery::default())
+        .unwrap();
+    assert_eq!(
+        service.content_reads.load(std::sync::atomic::Ordering::Relaxed),
+        reads_after_open
+    );
+
+    let walks_before_rebuild = service.walk_dirs.load(std::sync::atomic::Ordering::Relaxed);
+    service
+        .rebuild_index(root, &crate::domain::LibraryQuery::default())
+        .unwrap();
+    let walks_after_rebuild = service.walk_dirs.load(std::sync::atomic::Ordering::Relaxed);
+    assert!(
+        walks_after_rebuild > walks_before_rebuild,
+        "rebuild must walk once"
+    );
+    service
+        .query_library(root, &crate::domain::LibraryQuery::default())
+        .unwrap();
+    assert_eq!(
+        service.walk_dirs.load(std::sync::atomic::Ordering::Relaxed),
+        walks_after_rebuild,
+        "query after rebuild must not walk again"
+    );
+    assert!(walks_after_open >= 1);
+}
+
+#[ignore]
+#[test]
+fn bench_open_vs_create_walk_counts() {
+    let workspace = tempdir().unwrap();
+    let root = workspace.path();
+    for index in 0..1_200 {
+        let folder = if index % 20 == 0 {
+            format!("pack{index}")
+        } else {
+            format!("pack{}", index / 20)
+        };
+        let dir = root.join(&folder);
+        let _ = fs::create_dir_all(&dir);
+        fs::write(dir.join(format!("n{index}.md")), format!("# Note {index}\n\nbody")).unwrap();
+    }
+    fs::create_dir_all(root.join("node_modules/pkg")).unwrap();
+    fs::write(root.join("node_modules/pkg/ignore.md"), "# ignored").unwrap();
+
+    let service = WorkspaceService::new(LocalFileSystem::new());
+    let start = std::time::Instant::now();
+    let page = service
+        .reconcile(root.to_str().unwrap(), &crate::domain::LibraryQuery::default())
+        .unwrap();
+    let open_ms = start.elapsed().as_millis();
+    let open_walks = service.walk_dirs.load(std::sync::atomic::Ordering::Relaxed);
+    assert!(page.notes.len() >= 1_200);
+
+    let start = std::time::Instant::now();
+    service
+        .create(root.to_str().unwrap(), "Extra", "md", None, None)
+        .unwrap();
+    let q = service
+        .query_library(root.to_str().unwrap(), &crate::domain::LibraryQuery::default())
+        .unwrap();
+    let create_ms = start.elapsed().as_millis();
+    let create_walks = service.walk_dirs.load(std::sync::atomic::Ordering::Relaxed) - open_walks;
+    println!(
+        "bench open_ms={open_ms} open_walks={open_walks} create_ms={create_ms} create_walks={create_walks} notes={}",
+        q.notes.len()
+    );
+    assert_eq!(create_walks, 0);
 }

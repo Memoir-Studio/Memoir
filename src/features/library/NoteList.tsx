@@ -10,18 +10,25 @@ import {
   Star,
   Upload,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { IconButton, Input, Surface, Tag, cn } from "../../components/ui";
 import { isTauriRuntime } from "../../platform/runtime";
 import { useAppStore } from "../../store/app-store";
 import { handleWindowDragMouseDown } from "../window/window-drag";
 import { formatRelativeTime } from "../../i18n";
+import type { AppLocale } from "../../i18n/locale";
 import { useI18n } from "../../i18n/react";
 import { AttachmentLibrary } from "../attachments/AttachmentLibrary";
 import { IndexInspector } from "./IndexInspector";
 import { NoteContextMenu, type NoteMenuTarget } from "./NoteContextMenu";
 import { NoteOutline } from "./NoteOutline";
-import { extractHeadings, filterNotes, parseNote } from "./note-utils";
+import { extractHeadings, parseNote } from "./note-utils";
+import type { NoteMeta } from "../../domain/notes";
+
+export const NOTE_LIST_VIRTUAL_THRESHOLD = 80;
+const VIRTUAL_OVERSCAN = 6;
+const VIRTUAL_ROW_COMFORTABLE = 104;
+const VIRTUAL_ROW_COMPACT = 88;
 
 export function NoteList({
   onCreate,
@@ -40,8 +47,6 @@ export function NoteList({
   const activePath = useAppStore((state) => state.activePath);
   const content = useAppStore((state) => state.content);
   const query = useAppStore((state) => state.query);
-  const navFilter = useAppStore((state) => state.navFilter);
-  const scopedFilter = useAppStore((state) => state.scopedFilter);
   const mode = useAppStore((state) => state.libraryPanelMode);
   const isLoading = useAppStore((state) => state.isLoading);
   const density = useAppStore((state) => state.settings.appearance.density);
@@ -51,7 +56,7 @@ export function NoteList({
   const importAttachments = useAppStore((state) => state.importAttachments);
   const { t, tc, locale } = useI18n();
   const [menuTarget, setMenuTarget] = useState<NoteMenuTarget | null>(null);
-  const filteredNotes = filterNotes(notes, query, navFilter, scopedFilter);
+  const filteredNotes = notes;
   const activeNote = notes.find((note) => note.relativePath === activePath);
   const untitled = t("editor.untitledFallback");
   const headings = useMemo(
@@ -133,77 +138,18 @@ export function NoteList({
               <ArrowDownWideNarrow className="h-3.5 w-3.5" />
             )}
           </div>
-          <div className="note-list-scroll grid flex-1 content-start gap-1.5 overflow-auto px-2.5 pb-3">
-            {filteredNotes.map((note) => (
-              <Surface
-                aria-expanded={menuTarget?.path === note.relativePath}
-                aria-haspopup="menu"
-                aria-label={note.title}
-                className={cn(
-                  "note-card group cursor-pointer rounded-lg border-transparent bg-transparent shadow-none",
-                  density === "compact" ? "px-3 py-2.5" : "px-3 py-3",
-                  note.relativePath === activePath && "is-active",
-                  note.dirty && "is-dirty",
-                  menuTarget?.path === note.relativePath && "is-menu-target",
-                )}
-                key={note.relativePath}
-                onClick={() => void selectNote(note.relativePath)}
-                onContextMenu={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  setMenuTarget({
-                    x: event.clientX,
-                    y: event.clientY,
-                    path: note.relativePath,
-                  });
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    void selectNote(note.relativePath);
-                    return;
-                  }
-                  if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) {
-                    event.preventDefault();
-                    const rect = event.currentTarget.getBoundingClientRect();
-                    setMenuTarget({
-                      x: rect.left + 12,
-                      y: rect.bottom - 4,
-                      path: note.relativePath,
-                    });
-                  }
-                }}
-                role="button"
-                tabIndex={0}
-              >
-                <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2">
-                  {note.extension === "mdx" ? (
-                    <Code2 className="h-3.5 w-3.5 text-accent" />
-                  ) : (
-                    <FileText className="h-3.5 w-3.5 text-accent" />
-                  )}
-                  <h3 className="truncate text-[13px] font-semibold text-text">{note.title}</h3>
-                  {note.favorite && <Star className="h-3.5 w-3.5 fill-accent text-accent" />}
-                </div>
-                <p className="mt-1.5 line-clamp-2 text-[11px] leading-[1.65] text-muted">
-                  {note.excerpt || note.relativePath}
-                </p>
-                <div className="mt-1.5 flex min-w-0 items-center gap-1.5">
-                  <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
-                    {note.tags.slice(0, 3).map((tag) => (
-                      <Tag key={tag}>#{tag}</Tag>
-                    ))}
-                  </div>
-                  <span className="shrink-0 text-[9px] text-muted">
-                    {formatRelativeTime(note.modifiedMs, locale)}
-                  </span>
-                </div>
-              </Surface>
-            ))}
-            {!filteredNotes.length && (
-              <p className="px-3 py-8 text-center text-xs text-muted">{t("library.noMatches")}</p>
-            )}
-          </div>
+          <NoteCardWindow
+            activePath={activePath}
+            density={density}
+            locale={locale}
+            menuPath={menuTarget?.path ?? null}
+            notes={filteredNotes}
+            onOpenMenu={setMenuTarget}
+            onSelect={(path) => void selectNote(path)}
+          />
+          {!filteredNotes.length && (
+            <p className="px-3 py-8 text-center text-xs text-muted">{t("library.noMatches")}</p>
+          )}
         </div>
       ) : (
         <NoteOutline documentKey={activePath} headings={headings} />
@@ -215,5 +161,182 @@ export function NoteList({
         target={menuTarget}
       />
     </section>
+  );
+}
+
+function NoteCardWindow({
+  notes,
+  activePath,
+  menuPath,
+  density,
+  locale,
+  onSelect,
+  onOpenMenu,
+}: {
+  notes: NoteMeta[];
+  activePath: string | null;
+  menuPath: string | null;
+  density: string;
+  locale: AppLocale;
+  onSelect: (path: string) => void;
+  onOpenMenu: (target: NoteMenuTarget) => void;
+}) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [scrollTop, setScrollTop] = useState(0);
+  const [height, setHeight] = useState(0);
+  const virtual = notes.length > NOTE_LIST_VIRTUAL_THRESHOLD;
+  const rowHeight = density === "compact" ? VIRTUAL_ROW_COMPACT : VIRTUAL_ROW_COMFORTABLE;
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const update = () => setHeight(el.clientHeight);
+    update();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  const start = virtual
+    ? Math.max(0, Math.floor(scrollTop / rowHeight) - VIRTUAL_OVERSCAN)
+    : 0;
+  const visibleCount = virtual
+    ? Math.max(1, Math.ceil((height || rowHeight) / rowHeight)) + VIRTUAL_OVERSCAN * 2
+    : notes.length;
+  const end = virtual ? Math.min(notes.length, start + visibleCount) : notes.length;
+  const windowNotes = notes.slice(start, end);
+
+  return (
+    <div
+      className="note-list-scroll grid flex-1 content-start gap-1.5 overflow-auto px-2.5 pb-3"
+      onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
+      ref={scrollRef}
+    >
+      {virtual ? (
+        <div style={{ height: notes.length * rowHeight, position: "relative" }}>
+          {windowNotes.map((note, index) => (
+            <div
+              key={note.relativePath}
+              style={{
+                position: "absolute",
+                top: (start + index) * rowHeight,
+                left: 0,
+                right: 0,
+                height: rowHeight,
+              }}
+            >
+              <NoteCard
+                active={note.relativePath === activePath}
+                density={density}
+                locale={locale}
+                menuOpen={menuPath === note.relativePath}
+                note={note}
+                onOpenMenu={onOpenMenu}
+                onSelect={onSelect}
+              />
+            </div>
+          ))}
+        </div>
+      ) : (
+        windowNotes.map((note) => (
+          <NoteCard
+            active={note.relativePath === activePath}
+            density={density}
+            key={note.relativePath}
+            locale={locale}
+            menuOpen={menuPath === note.relativePath}
+            note={note}
+            onOpenMenu={onOpenMenu}
+            onSelect={onSelect}
+          />
+        ))
+      )}
+    </div>
+  );
+}
+
+function NoteCard({
+  note,
+  active,
+  menuOpen,
+  density,
+  locale,
+  onSelect,
+  onOpenMenu,
+}: {
+  note: NoteMeta;
+  active: boolean;
+  menuOpen: boolean;
+  density: string;
+  locale: AppLocale;
+  onSelect: (path: string) => void;
+  onOpenMenu: (target: NoteMenuTarget) => void;
+}) {
+  return (
+    <Surface
+      aria-expanded={menuOpen}
+      aria-haspopup="menu"
+      aria-label={note.title}
+      className={cn(
+        "note-card group cursor-pointer rounded-lg border-transparent bg-transparent shadow-none",
+        density === "compact" ? "px-3 py-2.5" : "px-3 py-3",
+        active && "is-active",
+        note.dirty && "is-dirty",
+        menuOpen && "is-menu-target",
+      )}
+      data-note-card={note.relativePath}
+      onClick={() => onSelect(note.relativePath)}
+      onContextMenu={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        onOpenMenu({
+          x: event.clientX,
+          y: event.clientY,
+          path: note.relativePath,
+        });
+      }}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onSelect(note.relativePath);
+          return;
+        }
+        if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) {
+          event.preventDefault();
+          const rect = event.currentTarget.getBoundingClientRect();
+          onOpenMenu({
+            x: rect.left + 12,
+            y: rect.bottom - 4,
+            path: note.relativePath,
+          });
+        }
+      }}
+      role="button"
+      tabIndex={0}
+    >
+      <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2">
+        {note.extension === "mdx" ? (
+          <Code2 className="h-3.5 w-3.5 text-accent" />
+        ) : (
+          <FileText className="h-3.5 w-3.5 text-accent" />
+        )}
+        <h3 className="truncate text-[13px] font-semibold text-text">{note.title}</h3>
+        {note.favorite && <Star className="h-3.5 w-3.5 fill-accent text-accent" />}
+      </div>
+      <p className="mt-1.5 line-clamp-2 text-[11px] leading-[1.65] text-muted">
+        {note.excerpt || note.relativePath}
+      </p>
+      <div className="mt-1.5 flex min-w-0 items-center gap-1.5">
+        <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
+          {note.tags.slice(0, 3).map((tag) => (
+            <Tag key={tag}>#{tag}</Tag>
+          ))}
+        </div>
+        <span className="shrink-0 text-[9px] text-muted">
+          {formatRelativeTime(note.modifiedMs, locale)}
+        </span>
+      </div>
+    </Surface>
   );
 }

@@ -8,6 +8,7 @@ import {
   extractTitle,
   filterNotes,
   folderName,
+  queryNotesInMemory,
   isRootFolder,
   noteStats,
   parseNote,
@@ -140,6 +141,20 @@ title: Two Sum
     expect(filterNotes(notes, "", "all", { type: "tag", value: "WORK" }, 100)).toEqual([
       notes[0],
     ]);
+  });
+
+  it("builds an in-memory library page with the same filter semantics", () => {
+    const files = notes.map(({ favorite: _favorite, ...file }) => file);
+    const page = queryNotesInMemory(files, {
+      q: "project",
+      nav: "all",
+      folder: null,
+      tag: null,
+      nowMs: 100,
+    });
+    expect(page.notes.map((note) => note.relativePath)).toEqual(["work/alpha.md"]);
+    expect(page.stats.total).toBe(2);
+    expect(page.stats.uncategorized).toBe(1);
   });
 
   it("parses and deduplicates tag tokens", () => {

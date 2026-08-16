@@ -5,7 +5,7 @@ use std::{
 };
 
 pub const NOTE_EXTENSIONS: [&str; 2] = ["md", "mdx"];
-pub const IGNORED_DIRS: [&str; 10] = [
+pub const IGNORED_DIRS: [&str; 14] = [
     ".git",
     ".memoir",
     ".memoir-trash",
@@ -16,6 +16,10 @@ pub const IGNORED_DIRS: [&str; 10] = [
     "target",
     ".next",
     ".turbo",
+    "out",
+    "coverage",
+    "__pycache__",
+    "venv",
 ];
 
 pub fn normalize_root(root: &str) -> AppResult<PathBuf> {
