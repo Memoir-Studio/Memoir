@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { forwardRef, lazy, Suspense, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { IconButton, cn } from "../../components/ui";
+import { fileDropTargetFromPoint, watchNativeFileDrop } from "../../platform/file-drop";
 import { isTauriRuntime } from "../../platform/runtime";
 import { useAppStore } from "../../store/app-store";
 import { useI18n } from "../../i18n/react";
@@ -91,9 +92,11 @@ export const EditorWorkspace = forwardRef<EditorHandle, {
   const saveActiveNote = useAppStore((state) => state.saveActiveNote);
   const toggleFavorite = useAppStore((state) => state.toggleFavorite);
   const savePastedImages = useAppStore((state) => state.savePastedImages);
+  const importDroppedImages = useAppStore((state) => state.importDroppedImages);
   const importAttachments = useAppStore((state) => state.importAttachments);
   const { t } = useI18n();
   const [isExporting, setIsExporting] = useState(false);
+  const [nativeDropActive, setNativeDropActive] = useState(false);
   const untitled = t("editor.untitledFallback");
   const activeNote = notes.find((note) => note.relativePath === activePath) || null;
   const hasDocument = Boolean(activeNote && loadedContentPath === activePath);
@@ -207,6 +210,34 @@ export const EditorWorkspace = forwardRef<EditorHandle, {
     };
   }, []);
 
+  useEffect(() => {
+    let disposed = false;
+    let stop: (() => void) | undefined;
+    void watchNativeFileDrop((event) => {
+      if (event.type === "leave") {
+        setNativeDropActive(false);
+        return;
+      }
+      const overEditor = fileDropTargetFromPoint(event.x, event.y) === "editor";
+      if (event.type === "hover") {
+        setNativeDropActive(overEditor);
+        return;
+      }
+      setNativeDropActive(false);
+      if (!overEditor) return;
+      void importDroppedImages(event.paths).then((markdown) => {
+        if (markdown) editorRef.current?.insertTextAtCoords(event.x, event.y, markdown);
+      });
+    }).then((unlisten) => {
+      if (disposed) unlisten();
+      else stop = unlisten;
+    });
+    return () => {
+      disposed = true;
+      stop?.();
+    };
+  }, [importDroppedImages]);
+
   useImperativeHandle(
     forwardedRef,
     () => ({
@@ -216,6 +247,7 @@ export const EditorWorkspace = forwardRef<EditorHandle, {
       insertSnippet: (before, after, placeholder) =>
         editorRef.current?.insertSnippet(before, after, placeholder),
       insertText: (text) => editorRef.current?.insertText(text),
+      insertTextAtCoords: (x, y, text) => editorRef.current?.insertTextAtCoords(x, y, text),
     }),
     [],
   );
@@ -380,6 +412,7 @@ export const EditorWorkspace = forwardRef<EditorHandle, {
                 fileName={activeNote?.fileName || untitled}
                 isDark={isDark}
                 onChange={setContent}
+                highlightDrop={nativeDropActive}
                 onPasteImages={savePastedImages}
                 onScroll={() => syncScroll("editor")}
                 ref={editorRef}

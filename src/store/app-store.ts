@@ -11,6 +11,7 @@ import type { AppGateways } from "../gateways/contracts";
 import { getGateways } from "../gateways";
 import {
   fileToBase64,
+  imagePathsFromDrop,
   markdownForAttachments,
   MAX_ATTACHMENT_BYTES,
   suggestedPasteFileName,
@@ -762,6 +763,34 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
         );
         const saved = await get().saveAttachments(inputs);
         return markdownForAttachments(get().activePath, saved);
+      },
+
+      async importDroppedImages(sourcePaths) {
+        const { workspaceRoot, activePath, settings } = get();
+        const paths = imagePathsFromDrop(sourcePaths);
+        if (!workspaceRoot || paths.length === 0) return "";
+        if (!activePath) {
+          set({ error: storeT(settings, "errors.pasteNeedsNote") });
+          return "";
+        }
+        try {
+          const imported = await gateways.workspace.importAttachmentsFromPaths(
+            workspaceRoot,
+            paths,
+          );
+          if (!imported.length) return "";
+          set({
+            attachments: mergeAttachments(get().attachments, imported),
+            status: storeT(get().settings, "status.attachmentSaved"),
+            error: "",
+          });
+          return markdownForAttachments(get().activePath, imported);
+        } catch (error) {
+          set({
+            error: storeT(get().settings, "errors.importAttachment", { message: toMessage(error) }),
+          });
+          return "";
+        }
       },
 
       async importAttachments() {

@@ -152,7 +152,7 @@ Each desktop workspace also has a disposable library cache at `<workspace>/.memo
 
 Add `.memoir/` to the vault’s root `.gitignore`. If the folder lives in iCloud, Dropbox, or OneDrive, exclude `.memoir/` from sync. Memoir writes an inner `.memoir/.gitignore` containing `*` so a force-added folder still ignores the database.
 
-Pasted and imported images are ordinary files in workspace `.memoir-attachments/YYYY-MM/`. Older files in `attachments/` are still listed. They are not stored in app-data. The browser demo keeps them in memory as data URLs.
+Pasted, dropped, and imported images are ordinary files in workspace `.memoir-attachments/YYYY-MM/`. Older files in `attachments/` are still listed. They are not stored in app-data. The browser demo keeps them in memory as data URLs. Desktop file drops use the native window drag-drop event because the webview does not expose OS files on `dataTransfer`.
 
 The browser build is an in-memory demo. It does not read or write real files, does not open SQLite, and it does not persist settings.
 

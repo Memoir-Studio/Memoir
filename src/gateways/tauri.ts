@@ -97,8 +97,12 @@ export class TauriWorkspaceGateway implements WorkspaceGateway {
     });
     if (!selected) return [];
     const paths = Array.isArray(selected) ? selected : [selected];
+    return this.importAttachmentsFromPaths(root, paths);
+  }
+
+  async importAttachmentsFromPaths(root: string, sourcePaths: string[]) {
     const imported: AttachmentFile[] = [];
-    for (const sourcePath of paths) {
+    for (const sourcePath of sourcePaths) {
       imported.push(await call<AttachmentFile>("import_attachment", { root, sourcePath }));
     }
     return imported;

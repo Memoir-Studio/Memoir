@@ -148,6 +148,7 @@ export const en = {
   "editor.loadingEditor": "Loading editor…",
   "editor.loadingPreview": "Loading preview…",
   "editor.markdownEditor": "Markdown editor",
+  "editor.dropImages": "Drop to save in the attachment library",
   "editor.words": "{count} words",
   "editor.words_one": "{count} word",
   "editor.chars": "{count} characters",

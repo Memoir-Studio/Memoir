@@ -109,6 +109,24 @@ describe("Tauri gateways", () => {
     expect(invoke).toHaveBeenCalledWith("query_library", { root: "/notes", query });
   });
 
+  it("imports dropped files through the existing attachment command", async () => {
+    const { TauriWorkspaceGateway } = await import("./tauri");
+    invoke.mockResolvedValue({
+      relativePath: ".memoir-attachments/2026-08/shot.png",
+      fileName: "shot.png",
+      extension: "png",
+      mimeType: "image/png",
+      modifiedMs: 1,
+      size: 12,
+    });
+    const gateway = new TauriWorkspaceGateway();
+    await gateway.importAttachmentsFromPaths("/notes", ["/tmp/shot.png"]);
+    expect(invoke).toHaveBeenCalledWith("import_attachment", {
+      root: "/notes",
+      sourcePath: "/tmp/shot.png",
+    });
+  });
+
   it("saves attachments with camelCase DTOs", async () => {
     const { TauriWorkspaceGateway } = await import("./tauri");
     invoke.mockResolvedValue({

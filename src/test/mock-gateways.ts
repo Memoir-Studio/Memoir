@@ -147,12 +147,35 @@ export class MockWorkspaceGateway implements WorkspaceGateway {
     return attachment;
   }
 
+  importedPaths: string[] = [];
+
   async importAttachments() {
     if (this.failAttachment) throw new Error("attachment disk full");
     for (const attachment of this.nextImported) {
       this.attachments.set(attachment.relativePath, attachment);
     }
     return [...this.nextImported];
+  }
+
+  async importAttachmentsFromPaths(_root: string, sourcePaths: string[]) {
+    if (this.failAttachment) throw new Error("attachment disk full");
+    this.importedPaths.push(...sourcePaths);
+    const imported: AttachmentFile[] = [];
+    for (const sourcePath of sourcePaths) {
+      const fileName = sourcePath.split(/[\\/]/).pop() || "drop.png";
+      const relativePath = attachmentRelativePath(fileName);
+      const attachment: AttachmentFile = {
+        relativePath,
+        fileName,
+        extension: fileName.split(".").pop() || "png",
+        mimeType: mimeFromExtension(fileName.split(".").pop() || "png"),
+        modifiedMs: Date.now(),
+        size: 12,
+      };
+      this.attachments.set(relativePath, attachment);
+      imported.push(attachment);
+    }
+    return imported;
   }
 
   async deleteAttachment(_root: string, relativePath: string) {

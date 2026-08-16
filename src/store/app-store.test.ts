@@ -393,6 +393,22 @@ describe("app store actions", () => {
     expect(gateways.workspace.savedAttachments).toEqual([]);
   });
 
+  it("imports dropped image files into the attachment library", async () => {
+    const gateways = createMockGateways();
+    const store = createAppStore(gateways);
+    await store.getState().openWorkspace("/workspace");
+
+    const markdown = await store.getState().importDroppedImages([
+      "/tmp/notes.md",
+      "/home/me/Pictures/diagram.webp",
+    ]);
+    expect(gateways.workspace.importedPaths).toEqual(["/home/me/Pictures/diagram.webp"]);
+    expect(markdown).toContain("diagram.webp");
+    expect(store.getState().attachments.some((item) => item.fileName === "diagram.webp")).toBe(
+      true,
+    );
+  });
+
   it("does not reconcile or scan attachments on create rename delete or save", async () => {
     const gateways = createMockGateways();
     const store = createAppStore(gateways);

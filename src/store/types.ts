@@ -82,6 +82,7 @@ export type AppActions = {
   refreshAttachments(): Promise<void>;
   saveAttachments(inputs: SaveAttachmentInput[]): Promise<AttachmentFile[]>;
   savePastedImages(files: File[]): Promise<string>;
+  importDroppedImages(sourcePaths: string[]): Promise<string>;
   importAttachments(): Promise<AttachmentFile[]>;
   deleteAttachment(relativePath: string): Promise<void>;
   rebuildIndex(): Promise<void>;

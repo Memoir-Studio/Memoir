@@ -279,6 +279,10 @@ export class BrowserWorkspaceGateway implements WorkspaceGateway {
     return imported;
   }
 
+  async importAttachmentsFromPaths(_root: string, _sourcePaths: string[]) {
+    return [];
+  }
+
   async deleteAttachment(root: string, relativePath: string) {
     this.assertRoot(root);
     if (!this.attachments.delete(relativePath)) {

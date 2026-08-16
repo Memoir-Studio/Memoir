@@ -145,6 +145,7 @@ export const zh = {
   "editor.loadingEditor": "正在加载编辑器…",
   "editor.loadingPreview": "正在加载预览…",
   "editor.markdownEditor": "Markdown 编辑器",
+  "editor.dropImages": "松开以保存到附件库",
   "editor.words": "{count}词",
   "editor.words_one": "{count}词",
   "editor.chars": "{count}字符",

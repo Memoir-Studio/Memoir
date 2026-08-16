@@ -4,13 +4,21 @@ import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirro
 import { searchKeymap } from "@codemirror/search";
 import { EditorSelection } from "@codemirror/state";
 import { EditorView, keymap, lineNumbers } from "@codemirror/view";
-import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { clamp } from "./scroll-sync";
 import { collectClipboardImages, padMarkdownBlock } from "../../domain/attachments";
 import type { AppSettings } from "../../domain/settings";
 import { useI18n } from "../../i18n/react";
 import { noteStats, parseNote } from "../library/note-utils";
-import { Tag } from "../../components/ui";
+import { cn, Tag } from "../../components/ui";
+
+function positionFromCoords(view: EditorView, x: number, y: number) {
+  try {
+    return view.posAtCoords({ x, y }) ?? view.state.selection.main.from;
+  } catch {
+    return view.state.selection.main.from;
+  }
+}
 
 function insertAt(view: EditorView, from: number, to: number, text: string) {
   const insertFrom = Math.min(from, view.state.doc.length);
@@ -89,14 +97,21 @@ function createEditorExtensions(
         const files = collectClipboardImages(event.dataTransfer);
         if (!files.length) return false;
         event.preventDefault();
-        const position =
-          view.posAtCoords({ x: event.clientX, y: event.clientY }) ?? view.state.selection.main.from;
+        event.stopPropagation();
+        if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+        const position = positionFromCoords(view, event.clientX, event.clientY);
         void onPasteImages(files).then((markdown) => {
           if (markdown) insertMarkdownBlock(view, position, position, markdown);
         });
         return true;
       },
       dragover(event) {
+        if (!event.dataTransfer?.types.includes("Files")) return false;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "copy";
+        return true;
+      },
+      dragenter(event) {
         if (!event.dataTransfer?.types.includes("Files")) return false;
         event.preventDefault();
         return true;
@@ -162,6 +177,7 @@ export interface EditorHandle {
   scrollToLine: (line: number, offset?: number) => void;
   insertSnippet: (before: string, after?: string, placeholder?: string) => void;
   insertText: (text: string) => void;
+  insertTextAtCoords: (x: number, y: number, text: string) => void;
 }
 
 interface EditorPaneProps {
@@ -172,6 +188,7 @@ interface EditorPaneProps {
   onChange: (content: string) => void;
   onScroll?: () => void;
   onPasteImages?: (files: File[]) => Promise<string>;
+  highlightDrop?: boolean;
 }
 
 export const EditorPane = forwardRef<EditorHandle, EditorPaneProps>(function EditorPane(
@@ -183,11 +200,14 @@ export const EditorPane = forwardRef<EditorHandle, EditorPaneProps>(function Edi
     onChange,
     onScroll,
     onPasteImages,
+    highlightDrop = false,
   },
   forwardedRef,
 ) {
   const { t, tc } = useI18n();
   const editorRef = useRef<ReactCodeMirrorRef>(null);
+  const [htmlDropActive, setHtmlDropActive] = useState(false);
+  const dropDepthRef = useRef(0);
   const onScrollRef = useRef(onScroll);
   const detachScrollRef = useRef<(() => void) | null>(null);
   onScrollRef.current = onScroll;
@@ -231,14 +251,38 @@ export const EditorPane = forwardRef<EditorHandle, EditorPaneProps>(function Edi
         const selection = view.state.selection.main;
         insertMarkdownBlock(view, selection.from, selection.to, text);
       },
+      insertTextAtCoords: (x, y, text) => {
+        const view = editorRef.current?.view;
+        if (!view || !text) return;
+        const position = positionFromCoords(view, x, y);
+        insertMarkdownBlock(view, position, position, text);
+      },
     }),
     [],
   );
 
+  const showDrop = highlightDrop || htmlDropActive;
+
   return (
     <section
       aria-label={t("editor.markdownEditor")}
-      className="editor-pane relative min-h-0 min-w-0 overflow-hidden border-r border-border bg-canvas max-[760px]:min-h-[calc(100vh-138px)] max-[760px]:border-r-0"
+      className={cn(
+        "editor-pane relative min-h-0 min-w-0 overflow-hidden border-r border-border bg-canvas max-[760px]:min-h-[calc(100vh-138px)] max-[760px]:border-r-0",
+        showDrop && "is-file-drop",
+      )}
+      onDragEnter={(event) => {
+        if (!event.dataTransfer?.types.includes("Files")) return;
+        dropDepthRef.current += 1;
+        setHtmlDropActive(true);
+      }}
+      onDragLeave={() => {
+        dropDepthRef.current = Math.max(0, dropDepthRef.current - 1);
+        if (dropDepthRef.current === 0) setHtmlDropActive(false);
+      }}
+      onDrop={() => {
+        dropDepthRef.current = 0;
+        setHtmlDropActive(false);
+      }}
     >
       <CodeMirror
         basicSetup={false}
@@ -256,6 +300,11 @@ export const EditorPane = forwardRef<EditorHandle, EditorPaneProps>(function Edi
         ref={editorRef}
         value={content}
       />
+      {showDrop && (
+        <div className="editor-drop-overlay" role="status">
+          {t("editor.dropImages")}
+        </div>
+      )}
       <footer className="editor-statusbar absolute inset-x-0 bottom-0 flex h-7 items-center gap-3 border-t border-border bg-elevated/80 px-4 text-[9px] text-muted backdrop-blur-md">
         <span>{tc("editor.words", stats.words)}</span>
         <span>{tc("editor.chars", stats.chars)}</span>

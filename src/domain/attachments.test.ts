@@ -3,6 +3,7 @@ import {
   attachmentMonthDir,
   attachmentRelativePath,
   collectClipboardImages,
+  imagePathsFromDrop,
   escapeMarkdownAlt,
   formatBytes,
   isImageFile,
@@ -87,5 +88,27 @@ describe("attachments", () => {
     } as unknown as DataTransfer;
     expect(collectClipboardImages(data)).toEqual([png]);
     expect(collectClipboardImages(null)).toEqual([]);
+  });
+
+  it("collects image clipboard items even when kind is not file", () => {
+    const png = new File([new Uint8Array([1, 2, 3])], "image.png", { type: "image/png" });
+    const data = {
+      items: [
+        {
+          kind: "string",
+          type: "image/png",
+          getAsFile: () => png,
+        },
+      ],
+      files: [],
+    } as unknown as DataTransfer;
+    expect(collectClipboardImages(data)).toEqual([png]);
+  });
+
+  it("keeps only image paths from a native file drop", () => {
+    expect(imagePathsFromDrop(["/tmp/photo.PNG", "/tmp/notes.md", "C:\\shots\\a.webp"])).toEqual([
+      "/tmp/photo.PNG",
+      "C:\\shots\\a.webp",
+    ]);
   });
 });

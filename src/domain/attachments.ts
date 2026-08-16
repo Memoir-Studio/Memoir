@@ -79,6 +79,14 @@ export function isImageFile(file: { name: string; type: string }): boolean {
   return Boolean(extensionFromMime(file.type) || extensionFromFileName(file.name));
 }
 
+export function isImagePath(path: string): boolean {
+  return Boolean(extensionFromFileName(path.split(/[\\/]/).pop() || path));
+}
+
+export function imagePathsFromDrop(paths: string[]): string[] {
+  return paths.filter(isImagePath);
+}
+
 export function sanitizeAttachmentFileName(name: string): string {
   const base = name.replace(/\\/g, "/").split("/").pop()?.trim() ?? "";
   let slug = "";
@@ -188,7 +196,7 @@ export function collectClipboardImages(data: DataTransfer | null): File[] {
   if (!data) return [];
   const fromItems: File[] = [];
   for (const item of Array.from(data.items ?? [])) {
-    if (item.kind !== "file") continue;
+    if (item.kind !== "file" && !item.type.startsWith("image/")) continue;
     const file = item.getAsFile();
     if (file && isImageFile(file)) fromItems.push(file);
   }

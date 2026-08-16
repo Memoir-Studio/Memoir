@@ -39,6 +39,7 @@ export interface WorkspaceGateway {
   scanAttachments(root: string): Promise<AttachmentFile[]>;
   saveAttachment(root: string, input: SaveAttachmentInput): Promise<AttachmentFile>;
   importAttachments(root: string): Promise<AttachmentFile[]>;
+  importAttachmentsFromPaths(root: string, sourcePaths: string[]): Promise<AttachmentFile[]>;
   deleteAttachment(root: string, relativePath: string): Promise<string>;
   openPath(path: string): Promise<void>;
   revealPath(path: string): Promise<void>;
