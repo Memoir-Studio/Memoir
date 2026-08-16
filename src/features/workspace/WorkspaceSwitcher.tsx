@@ -12,11 +12,7 @@ import { createPortal } from "react-dom";
 import { cn, usePresence } from "../../components/ui";
 import { useI18n } from "../../i18n/react";
 import { useAppStore } from "../../store/app-store";
-import {
-  mergeRecentWorkspaces,
-  workspaceDisplayName,
-  workspaceInitial,
-} from "./workspace-utils";
+import { mergeRecentWorkspaces, workspaceDisplayName } from "./workspace-utils";
 
 const MENU_GAP = 6;
 const MENU_PAD = 8;
@@ -235,9 +231,6 @@ export function WorkspaceSwitcher({
                   title={current ? t("nav.currentWorkspace") : root}
                   type="button"
                 >
-                  <span aria-hidden className="workspace-switcher-avatar">
-                    {workspaceInitial(name)}
-                  </span>
                   <span className="min-w-0">
                     <span className="block truncate text-[12px] font-semibold text-text">{name}</span>
                     <span className="block truncate text-[10px] text-muted" title={root}>
@@ -253,7 +246,7 @@ export function WorkspaceSwitcher({
             <div className="workspace-switcher-separator" role="separator" />
             <button
               className={cn(
-                "workspace-switcher-item workspace-switcher-open",
+                "workspace-switcher-item workspace-switcher-open is-action",
                 activeIndex === workspaces.length && "is-active",
               )}
               onClick={() => selectIndex(workspaces.length)}
@@ -261,9 +254,7 @@ export function WorkspaceSwitcher({
               role="menuitem"
               type="button"
             >
-              <span aria-hidden className="workspace-switcher-avatar is-action">
-                <FolderOpen strokeWidth={1.8} />
-              </span>
+              <FolderOpen aria-hidden className="h-3.5 w-3.5 shrink-0" strokeWidth={1.8} />
               <span className="min-w-0 truncate text-[12px] font-medium">
                 {t("nav.openAnotherWorkspace")}
               </span>

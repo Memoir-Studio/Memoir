@@ -54,7 +54,7 @@
 
 .workspace-switcher-item {
   display: grid;
-  grid-template-columns: 28px minmax(0, 1fr) 14px;
+  grid-template-columns: minmax(0, 1fr) 14px;
   align-items: center;
   gap: 8px;
   width: 100%;
@@ -69,7 +69,7 @@
 
 .workspace-switcher-item.is-action {
   min-height: 34px;
-  grid-template-columns: 28px minmax(0, 1fr);
+  grid-template-columns: 14px minmax(0, 1fr);
 }
 
 .workspace-switcher-item.is-active,
@@ -77,28 +77,6 @@
 .workspace-switcher-item:focus-visible {
   background: color-mix(in srgb, var(--memoir-accent-soft) 82%, var(--memoir-elevated));
   outline: none;
-}
-
-.workspace-switcher-avatar {
-  display: grid;
-  width: 28px;
-  height: 28px;
-  place-items: center;
-  border-radius: 999px;
-  background: var(--memoir-accent-soft);
-  color: var(--memoir-accent);
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.workspace-switcher-avatar.is-action {
-  background: color-mix(in srgb, var(--memoir-elevated) 80%, var(--memoir-panel));
-  color: var(--memoir-muted);
-}
-
-.workspace-switcher-avatar svg {
-  width: 14px;
-  height: 14px;
 }
 
 .workspace-switcher-check {

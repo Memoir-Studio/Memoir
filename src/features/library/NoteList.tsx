@@ -77,9 +77,13 @@ export function NoteList({
         data-tauri-drag-region={isTauriRuntime() ? "" : undefined}
         onMouseDown={handleWindowDragMouseDown}
       >
-        {mode === "index" || mode === "sync" ? (
+        {mode === "index" || mode === "sync" || mode === "attachments" ? (
           <h2 className="text-[13px] font-semibold tracking-[-0.02em] text-text">
-            {mode === "sync" ? t("library.cloudSync") : t("library.index")}
+            {mode === "sync"
+              ? t("library.cloudSync")
+              : mode === "attachments"
+                ? t("library.attachments")
+                : t("library.index")}
           </h2>
         ) : (
           <div className="view-switcher library-mode-switcher flex items-center rounded-lg p-0.5">

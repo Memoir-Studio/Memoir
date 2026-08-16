@@ -34,6 +34,7 @@ describe("WorkspaceSwitcher", () => {
     const menu = view.getByRole("menu", { name: "切换工作区" });
     expect(menu).toBeInTheDocument();
     expect(view.getByRole("menuitem", { name: /日记/ })).toHaveAttribute("aria-current", "true");
+    expect(view.getByRole("menu", { name: "切换工作区" })).not.toHaveTextContent(/^M$/);
 
     await user.click(view.getByRole("menuitem", { name: /工作/ }));
     expect(openWorkspace).toHaveBeenCalledWith("/home/me/工作");

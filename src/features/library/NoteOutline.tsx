@@ -12,6 +12,14 @@ function headingInset(depth: number) {
   return BASE_INSET + Math.min(Math.max(depth, 1) - 1, MAX_INDENT_LEVEL) * INSET_STEP;
 }
 
+function minHeadingDepth(headings: HeadingItem[]) {
+  return headings.reduce((min, heading) => Math.min(min, heading.depth), 6);
+}
+
+function outlineLevel(depth: number, minDepth: number) {
+  return Math.max(1, depth - minDepth + 1);
+}
+
 function prefersReducedMotion() {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
@@ -84,6 +92,8 @@ export function NoteOutline({
     }, 480);
   };
 
+  const rootDepth = minHeadingDepth(headings);
+
   return (
     <nav
       aria-label={t("outline.label")}
@@ -96,14 +106,15 @@ export function NoteOutline({
       <div className="outline-items">
         {headings.map((heading) => {
           const current = heading.id === activeId;
+          const level = outlineLevel(heading.depth, rootDepth);
           return (
             <button
               aria-current={current ? "location" : undefined}
               className={cn("outline-item", current && "is-active")}
-              data-depth={heading.depth}
+              data-depth={level}
               key={heading.id}
               onClick={() => activate(heading.id)}
-              style={{ "--outline-inset": `${headingInset(heading.depth)}px` } as CSSProperties}
+              style={{ "--outline-inset": `${headingInset(level)}px` } as CSSProperties}
               title={heading.text}
               type="button"
             >

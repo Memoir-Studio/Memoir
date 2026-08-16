@@ -71,6 +71,25 @@ describe("NoteOutline", () => {
     expect(view.getByRole("button", { name: "最后" })).toBeInTheDocument();
   });
 
+  it("pins the shallowest heading to the left when the note starts at h3", () => {
+    const view = render(
+      <NoteOutline
+        documentKey="tasks.md"
+        headings={[
+          { id: "p0", depth: 3, text: "最高优先级" },
+          { id: "p1", depth: 3, text: "很高优先级" },
+          { id: "p2", depth: 4, text: "细节" },
+        ]}
+      />,
+    );
+    const items = view.getAllByRole("button");
+    expect(items[0]).toHaveAttribute("data-depth", "1");
+    expect(items[1]).toHaveAttribute("data-depth", "1");
+    expect(items[2]).toHaveAttribute("data-depth", "2");
+    expect(items[0]).toHaveStyle({ "--outline-inset": "14px" });
+    expect(items[2]).toHaveStyle({ "--outline-inset": "32px" });
+  });
+
   it("shows an empty state when the note has no headings", () => {
     const view = render(<NoteOutline documentKey="empty.md" headings={[]} />);
 

@@ -164,7 +164,9 @@ describe("NoteList", () => {
       />,
     );
 
-    expect(view.queryByRole("button", { name: "附件" })).not.toBeInTheDocument();
+    expect(view.queryByRole("button", { name: "笔记" })).not.toBeInTheDocument();
+    expect(view.queryByRole("button", { name: "大纲" })).not.toBeInTheDocument();
+    expect(view.getByRole("heading", { name: "附件" })).toBeInTheDocument();
     expect(view.getByText("shot.png")).toBeInTheDocument();
     expect(view.getByRole("button", { name: "导入图片" })).toBeInTheDocument();
   });
