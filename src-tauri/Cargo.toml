@@ -1,6 +1,7 @@
 [package]
 name = "memoir"
-version = "0.1.0"
+# App, installer, and GitHub release tag all use this field.
+version = "0.1.1"
 description = "A memoir that stays on disk"
 authors = ["you"]
 edition = "2021"
