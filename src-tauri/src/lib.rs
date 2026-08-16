@@ -4,6 +4,7 @@ mod infrastructure;
 mod services;
 #[cfg(test)]
 mod tests;
+mod tray;
 mod window_frame;
 
 use commands::{
@@ -35,6 +36,8 @@ pub fn run() {
                 window_frame::persist_on_changes(window.clone(), app_state.clone(), frame.clone());
                 window_frame::reveal(&window, frame.maximized);
             }
+            let close_policy = tray::install(app, &app_state)?;
+            app.manage(close_policy);
             app.manage(AppServices {
                 workspace: WorkspaceService::new(LocalFileSystem::new()),
                 cloud_sync: CloudSyncService::new(
@@ -75,6 +78,18 @@ pub fn run() {
             test_cloud_sync,
             run_cloud_sync
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Reopen {
+                has_visible_windows: false,
+                ..
+            } = event
+            {
+                tray::show_main(&app);
+            }
+            #[cfg(not(target_os = "macos"))]
+            let _ = (app, event);
+        });
 }

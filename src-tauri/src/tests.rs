@@ -255,8 +255,20 @@ fn app_state_defaults_version_compatibility_and_favorites_are_isolated() {
     assert_eq!(upgraded.preferences.appearance.ui_scale, 1.0);
     assert_eq!(upgraded.preferences.appearance.theme, "dark");
     assert_eq!(upgraded.preferences.appearance.locale, "system");
+    assert_eq!(upgraded.preferences.general.close_behavior, "tray");
+    assert!(upgraded.preferences.closes_to_tray());
     assert_eq!(upgraded.window, WindowFrameState::default());
     assert!(upgraded.folder_appearances.is_empty());
+}
+
+#[test]
+fn close_behavior_quit_disables_tray_hide() {
+    let mut settings = AppSettings::default();
+    assert!(settings.closes_to_tray());
+    settings.general.close_behavior = "quit".into();
+    assert!(!settings.closes_to_tray());
+    settings.general.close_behavior = "unknown".into();
+    assert!(settings.closes_to_tray());
 }
 
 #[test]

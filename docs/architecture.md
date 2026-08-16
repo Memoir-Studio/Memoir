@@ -32,14 +32,16 @@ commands  →  services  →  domain
 
 lib.rs          dependency assembly only
 window_frame.rs native window size / maximized persistence
+tray.rs         system tray and close-to-tray
 ```
 
 - `domain` — structured errors, note and app-state models, path rules.
 - `services` — workspace CRUD, index reconcile / write-through, preferences, favorites, folder appearance, drafts, and legacy migration.
 - `infrastructure` — local filesystem, disposable workspace SQLite index, app-data JSON, drafts, atomic writes.
 - `commands` — accept camelCase DTOs, call a service, return a serialized result.
-- `lib.rs` — resolve the Tauri app-data path, inject services, register plugins and commands, restore the window frame.
+- `lib.rs` — resolve the Tauri app-data path, inject services, register plugins and commands, restore the window frame, install the tray.
 - `window_frame.rs` is not a command. On setup it restores size from `app-state.json`; on resize (debounced) and close it writes back through `AppStateService`.
+- `tray.rs` is not a command. It owns the tray icon and intercepts `CloseRequested` so the default close hides to the tray. `preferences.general.closeBehavior` (`tray` | `quit`) is read from `app-state.json` and refreshed on `save_preferences`. Tray Quit calls `app.exit(0)`.
 
 ## Frontend layout
 
@@ -135,7 +137,7 @@ app-data/
 
 `app-state.json` (version `1`) stores:
 
-- `preferences` — appearance and editor settings
+- `preferences` — appearance, editor, and general settings (close-to-tray)
 - `recentWorkspaces` — last 10 roots, most recent first
 - `lastWorkspace`
 - `sidebarCollapsed`

@@ -1,4 +1,4 @@
-import { Check, ExternalLink, Info, Palette, RotateCcw, Type } from "lucide-react";
+import { Check, ExternalLink, Info, Palette, RotateCcw, SlidersHorizontal, Type } from "lucide-react";
 import type { AppSettings, LocalePreference } from "../../domain/settings";
 import {
   Button,
@@ -82,6 +82,38 @@ const accentKeys = [
   { value: "violet", labelKey: "settings.accentViolet", color: "#8a65d1" },
   { value: "slate", labelKey: "settings.accentSlate", color: "#607287" },
 ] as const;
+
+function GeneralSettings({
+  settings,
+  onChange,
+}: {
+  settings: AppSettings;
+  onChange: (settings: AppSettings) => void;
+}) {
+  const { t } = useI18n();
+  const general = settings.general;
+  const update = (patch: Partial<AppSettings["general"]>) =>
+    onChange({ ...settings, general: { ...general, ...patch } });
+
+  return (
+    <div className="settings-section">
+      <SettingRow
+        description={t("settings.closeBehaviorHint")}
+        label={t("settings.closeBehavior")}
+      >
+        <SegmentedControl
+          label={t("settings.closeBehavior")}
+          onChange={(closeBehavior) => update({ closeBehavior })}
+          options={[
+            { value: "tray", label: t("settings.closeToTray") },
+            { value: "quit", label: t("settings.quitDirectly") },
+          ]}
+          value={general.closeBehavior}
+        />
+      </SettingRow>
+    </div>
+  );
+}
 
 function AppearanceSettings({
   settings,
@@ -308,6 +340,7 @@ export default function SettingsDialog({
 }) {
   const { t } = useI18n();
   const navigation = [
+    { value: "general", labelKey: "settings.general", icon: SlidersHorizontal },
     { value: "appearance", labelKey: "settings.appearance", icon: Palette },
     { value: "editor", labelKey: "settings.editor", icon: Type },
     { value: "about", labelKey: "settings.about", icon: Info },
@@ -352,6 +385,9 @@ export default function SettingsDialog({
           </Button>
         </aside>
         <section className="settings-content">
+          {section === "general" && (
+            <GeneralSettings key="general" onChange={onSettingsChange} settings={settings} />
+          )}
           {section === "appearance" && (
             <AppearanceSettings key="appearance" onChange={onSettingsChange} settings={settings} />
           )}

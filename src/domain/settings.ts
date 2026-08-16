@@ -7,6 +7,7 @@ export type ContentWidth = "narrow" | "standard" | "wide" | "full";
 export type ViewMode = "edit" | "split" | "preview";
 export type AppLocale = "zh" | "en";
 export type LocalePreference = "system" | AppLocale;
+export type CloseBehavior = "tray" | "quit";
 
 export const MIN_UI_SCALE = 0.8;
 export const MAX_UI_SCALE = 2;
@@ -31,6 +32,9 @@ export type AppSettings = {
     lineNumbers: boolean;
     defaultView: ViewMode;
   };
+  general: {
+    closeBehavior: CloseBehavior;
+  };
 };
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -52,6 +56,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
     lineNumbers: false,
     defaultView: "split",
   },
+  general: {
+    closeBehavior: "tray",
+  },
 };
 
 export function clampUiScale(value: unknown): number {
@@ -65,10 +72,18 @@ export function isLocalePreference(value: unknown): value is LocalePreference {
   return value === "system" || value === "zh" || value === "en";
 }
 
+export function isCloseBehavior(value: unknown): value is CloseBehavior {
+  return value === "tray" || value === "quit";
+}
+
 export function mergeSettings(settings?: Partial<AppSettings> | null): AppSettings {
   const appearance = {
     ...DEFAULT_SETTINGS.appearance,
     ...settings?.appearance,
+  };
+  const general = {
+    ...DEFAULT_SETTINGS.general,
+    ...settings?.general,
   };
   return {
     appearance: {
@@ -81,6 +96,12 @@ export function mergeSettings(settings?: Partial<AppSettings> | null): AppSettin
     editor: {
       ...DEFAULT_SETTINGS.editor,
       ...settings?.editor,
+    },
+    general: {
+      ...general,
+      closeBehavior: isCloseBehavior(general.closeBehavior)
+        ? general.closeBehavior
+        : DEFAULT_SETTINGS.general.closeBehavior,
     },
   };
 }

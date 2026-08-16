@@ -1,1 +1,1 @@
-export type SettingsSection = "appearance" | "editor" | "about";
+export type SettingsSection = "general" | "appearance" | "editor" | "about";

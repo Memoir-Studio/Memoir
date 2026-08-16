@@ -220,6 +220,7 @@ export const zh = {
   "create.newTag": "新标签",
 
   "settings.title": "设置",
+  "settings.general": "通用",
   "settings.appearance": "外观",
   "settings.editor": "编辑器",
   "settings.about": "关于",
@@ -264,6 +265,10 @@ export const zh = {
   "settings.lineWrapping": "自动换行",
   "settings.lineWrappingHint": "让长行在编辑器宽度内折行。",
   "settings.lineNumbers": "显示行号",
+  "settings.closeBehavior": "关闭窗口",
+  "settings.closeBehaviorHint": "点击关闭按钮或使用系统关闭时，最小化到托盘或直接退出。",
+  "settings.closeToTray": "最小化到托盘",
+  "settings.quitDirectly": "直接退出",
   "settings.defaultView": "默认视图",
   "settings.viewEdit": "编辑",
   "settings.viewSplit": "分栏",

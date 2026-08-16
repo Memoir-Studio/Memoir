@@ -38,4 +38,21 @@ describe("settings merge", () => {
       }).appearance.locale,
     ).toBe("system");
   });
+
+  it("defaults and sanitizes close behavior", () => {
+    expect(mergeSettings(null).general.closeBehavior).toBe("tray");
+    expect(mergeSettings({}).general.closeBehavior).toBe("tray");
+    expect(
+      mergeSettings({
+        general: { closeBehavior: "quit" },
+      }).general.closeBehavior,
+    ).toBe("quit");
+    expect(
+      mergeSettings({
+        general: {
+          closeBehavior: "hide" as AppSettings["general"]["closeBehavior"],
+        },
+      }).general.closeBehavior,
+    ).toBe("tray");
+  });
 });

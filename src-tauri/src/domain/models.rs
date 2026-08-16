@@ -194,12 +194,39 @@ impl Default for EditorSettings {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct GeneralSettings {
+    #[serde(default = "default_close_behavior")]
+    pub close_behavior: String,
+}
+
+fn default_close_behavior() -> String {
+    "tray".into()
+}
+
+impl Default for GeneralSettings {
+    fn default() -> Self {
+        Self {
+            close_behavior: default_close_behavior(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct AppSettings {
     #[serde(default)]
     pub appearance: AppearanceSettings,
     #[serde(default)]
     pub editor: EditorSettings,
+    #[serde(default)]
+    pub general: GeneralSettings,
+}
+
+impl AppSettings {
+    pub fn closes_to_tray(&self) -> bool {
+        self.general.close_behavior != "quit"
+    }
 }
 
 pub const DEFAULT_WINDOW_WIDTH: f64 = 1200.0;

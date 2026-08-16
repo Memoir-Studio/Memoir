@@ -123,5 +123,34 @@ describe("SettingsDialog", () => {
     await user.click(link);
     expect(openExternal).toHaveBeenCalledWith(GITHUB_REPO_URL);
   });
+
+  it("emits close behavior from the general section", async () => {
+    const onSettingsChange = vi.fn();
+    const user = userEvent.setup();
+    const view = render(
+      <SettingsDialog
+        onClose={() => undefined}
+        onReset={() => undefined}
+        onSectionChange={() => undefined}
+        onSettingsChange={onSettingsChange}
+        open
+        section="general"
+        settings={DEFAULT_SETTINGS}
+      />,
+    );
+
+    expect(view.getByRole("button", { name: "最小化到托盘" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await user.click(view.getByRole("button", { name: "直接退出" }));
+    expect(onSettingsChange).toHaveBeenCalledWith({
+      ...DEFAULT_SETTINGS,
+      general: {
+        ...DEFAULT_SETTINGS.general,
+        closeBehavior: "quit",
+      },
+    });
+  });
 });
 

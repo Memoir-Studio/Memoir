@@ -5,8 +5,10 @@ use crate::{
         LibraryPage, LibraryQuery, MigrationResult, NoteFile, RenamedNote, WorkspaceIndexInfo,
     },
     services::{AppStateService, CloudSyncService, WorkspaceService},
+    tray::ClosePolicy,
 };
 use std::path::PathBuf;
+use std::sync::Arc;
 use tauri::{AppHandle, Manager, State};
 
 fn allow_workspace_media(app: &AppHandle, root: &str) {
@@ -227,14 +229,20 @@ pub fn load_app_state(services: State<'_, AppServices>) -> Result<AppState, AppE
 
 #[tauri::command]
 pub fn save_preferences(
+    app: AppHandle,
     services: State<'_, AppServices>,
+    close_policy: State<'_, Arc<ClosePolicy>>,
     preferences: AppSettings,
     last_workspace: Option<String>,
     sidebar_collapsed: bool,
 ) -> Result<AppState, AppError> {
-    services
-        .app_state
-        .save_preferences(preferences, last_workspace, sidebar_collapsed)
+    let state = services.app_state.save_preferences(
+        preferences,
+        last_workspace,
+        sidebar_collapsed,
+    )?;
+    crate::tray::sync_from_preferences(&app, &state.preferences, close_policy.as_ref());
+    Ok(state)
 }
 
 #[tauri::command]

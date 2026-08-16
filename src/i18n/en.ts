@@ -223,6 +223,7 @@ export const en = {
   "create.newTag": "new-tag",
 
   "settings.title": "Settings",
+  "settings.general": "General",
   "settings.appearance": "Appearance",
   "settings.editor": "Editor",
   "settings.about": "About",
@@ -267,6 +268,10 @@ export const en = {
   "settings.lineWrapping": "Line wrapping",
   "settings.lineWrappingHint": "Wrap long lines to the editor width.",
   "settings.lineNumbers": "Line numbers",
+  "settings.closeBehavior": "Close window",
+  "settings.closeBehaviorHint": "When you click close or use the system close command, minimize to the tray or quit.",
+  "settings.closeToTray": "Minimize to tray",
+  "settings.quitDirectly": "Quit",
   "settings.defaultView": "Default view",
   "settings.viewEdit": "Edit",
   "settings.viewSplit": "Split",
