@@ -54,6 +54,8 @@ function storeT(settings: AppSettings, key: MessageKey, params?: MessageParams) 
 const PREFERENCES_DEBOUNCE_MS = 300;
 const DRAFT_DEBOUNCE_MS = 450;
 const QUERY_DEBOUNCE_MS = 150;
+const CLOUD_SYNC_DEBOUNCE_MS = 15_000;
+const CLOUD_SYNC_OPEN_DELAY_MS = 2_000;
 export const AUTOSAVE_INTERVAL_MS = 3000;
 
 function isOpenUnsavedNote(state: {
@@ -128,6 +130,8 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
   let autosaveTimer: number | null = null;
   let queryTimer: number | null = null;
   let querySeq = 0;
+  let cloudSyncTimer: number | null = null;
+  let cloudSyncInFlight = false;
 
   const store = create<AppStore>((set, get) => {
     const persistPreferences = () => {
@@ -177,6 +181,29 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
           });
         }
       }, DRAFT_DEBOUNCE_MS);
+    };
+
+    const scheduleCloudSync = (delayMs = CLOUD_SYNC_DEBOUNCE_MS) => {
+      const state = get();
+      if (!state.workspaceRoot || !state.cloudSyncProfile.enabled) return;
+      if (cloudSyncTimer !== null) window.clearTimeout(cloudSyncTimer);
+      cloudSyncTimer = window.setTimeout(() => {
+        cloudSyncTimer = null;
+        void runScheduledCloudSync();
+      }, delayMs);
+    };
+
+    const runScheduledCloudSync = async () => {
+      const state = get();
+      if (!state.workspaceRoot || !state.cloudSyncProfile.enabled || cloudSyncInFlight) return;
+      cloudSyncInFlight = true;
+      try {
+        await get().runCloudSync();
+      } catch {
+        // Store already records the error.
+      } finally {
+        cloudSyncInFlight = false;
+      }
     };
 
     const loadCloudSyncProfile = async (root: string | null) => {
@@ -328,6 +355,7 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
           if (workspaceRoot) {
             await loadCloudSyncProfile(workspaceRoot);
             await get().refreshWorkspace();
+            scheduleCloudSync(CLOUD_SYNC_OPEN_DELAY_MS);
           }
           set({ initialized: true });
         } catch (error) {
@@ -381,6 +409,7 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
             set({ recentWorkspaces });
             await loadCloudSyncProfile(workspaceRoot);
             await get().refreshWorkspace();
+            scheduleCloudSync(CLOUD_SYNC_OPEN_DELAY_MS);
             return;
           }
           set({
@@ -403,6 +432,7 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
           });
           await loadCloudSyncProfile(workspaceRoot);
           await get().refreshWorkspace();
+          scheduleCloudSync(CLOUD_SYNC_OPEN_DELAY_MS);
         } catch (error) {
           set({
             isLoading: false,
@@ -522,6 +552,7 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
               ),
             };
           });
+          scheduleCloudSync();
         } catch (error) {
           set((state) => ({
             isSaving: state.activePath === savePath ? false : state.isSaving,
@@ -733,6 +764,7 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
             status: storeT(get().settings, "status.attachmentSaved"),
             error: "",
           });
+          scheduleCloudSync();
           return saved;
         } catch (error) {
           set({

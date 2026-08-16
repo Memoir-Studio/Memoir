@@ -31,15 +31,10 @@
         "scope": {
           "allow": [
             "$HOME/**",
-            "$HOME/**/.memoir-attachments/**",
             "$DOCUMENT/**",
-            "$DOCUMENT/**/.memoir-attachments/**",
             "$DESKTOP/**",
-            "$DESKTOP/**/.memoir-attachments/**",
             "$DOWNLOAD/**",
-            "$DOWNLOAD/**/.memoir-attachments/**",
-            "$PICTURE/**",
-            "$PICTURE/**/.memoir-attachments/**"
+            "$PICTURE/**"
           ]
         }
       }

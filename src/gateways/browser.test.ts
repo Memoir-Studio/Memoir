@@ -92,7 +92,7 @@ describe("BrowserWorkspaceGateway", () => {
       fileName: "paste.png",
       mimeType: "image/png",
     });
-    expect(saved.relativePath).toMatch(/^\.memoir-attachments\/\d{4}-\d{2}\/paste\.png$/);
+    expect(saved.relativePath).toMatch(/^attachments\/\d{4}-\d{2}\/paste\.png$/);
     expect(await gateway.scanAttachments("demo://memoir")).toHaveLength(1);
     expect(gateway.resolveMediaPath(`demo://memoir/${saved.relativePath}`)).toMatch(
       /^data:image\/png;base64,AAAA$/,

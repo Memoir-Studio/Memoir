@@ -112,6 +112,7 @@ pub struct FileIdentity {
     pub size: u64,
     pub modified_ms: u128,
     pub etag: Option<String>,
+    pub hash: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -136,6 +137,8 @@ pub struct SnapshotEntry {
     pub remote_modified_ms: u128,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub remote_etag: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub local_hash: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -217,7 +220,52 @@ pub fn validate_profile_for_connect(profile: &CloudSyncProfile) -> AppResult<()>
     Ok(())
 }
 
+pub fn is_conflict_sidecar(relative_path: &str) -> bool {
+    Path::new(relative_path)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| name.contains(".conflict-"))
+}
+
+pub fn conflict_sidecar_path(relative_path: &str, stamp_ms: u64) -> String {
+    let path = Path::new(relative_path);
+    let parent = path
+        .parent()
+        .map(|value| value.to_string_lossy().replace('\\', "/"))
+        .filter(|value| !value.is_empty())
+        .unwrap_or_default();
+    let stem = path
+        .file_stem()
+        .and_then(|value| value.to_str())
+        .unwrap_or("file");
+    let name = match path.extension().and_then(|value| value.to_str()) {
+        Some(extension) if !extension.is_empty() => {
+            format!("{stem}.conflict-{stamp_ms}.{extension}")
+        }
+        _ => format!("{stem}.conflict-{stamp_ms}"),
+    };
+    if parent.is_empty() {
+        name
+    } else {
+        format!("{parent}/{name}")
+    }
+}
+
+pub fn is_writable_sync_path(relative_path: &str) -> bool {
+    if is_conflict_sidecar(relative_path) {
+        let Ok(path) = validate_relative_path(relative_path) else {
+            return false;
+        };
+        return (is_attachment_relative(&path) && validate_attachment_extension(&path).is_ok())
+            || is_supported_note(&path);
+    }
+    is_syncable_relative(relative_path)
+}
+
 pub fn is_syncable_relative(relative_path: &str) -> bool {
+    if is_conflict_sidecar(relative_path) {
+        return false;
+    }
     let Ok(path) = validate_relative_path(relative_path) else {
         return false;
     };
@@ -255,11 +303,18 @@ pub fn snapshot_from_identities(local: &FileIdentity, remote: &FileIdentity) -> 
         remote_size: remote.size,
         remote_modified_ms: remote.modified_ms,
         remote_etag: remote.etag.clone(),
+        local_hash: local.hash.clone().or_else(|| remote.hash.clone()),
     }
 }
 
 fn local_changed(local: &FileIdentity, snap: &SnapshotEntry) -> bool {
-    local.size != snap.local_size || local.modified_ms != snap.local_modified_ms
+    if local.size == snap.local_size && local.modified_ms == snap.local_modified_ms {
+        return false;
+    }
+    match (&local.hash, &snap.local_hash) {
+        (Some(current), Some(previous)) => current != previous,
+        _ => true,
+    }
 }
 
 fn remote_changed(remote: &FileIdentity, snap: &SnapshotEntry) -> bool {
@@ -272,6 +327,9 @@ fn remote_changed(remote: &FileIdentity, snap: &SnapshotEntry) -> bool {
 }
 
 fn same_content(local: &FileIdentity, remote: &FileIdentity) -> bool {
+    if let (Some(local_hash), Some(remote_hash)) = (&local.hash, &remote.hash) {
+        return local_hash == remote_hash;
+    }
     local.size == remote.size
         && (local.modified_ms == remote.modified_ms
             || remote.etag.as_deref().is_some_and(|etag| !etag.is_empty()))
@@ -340,6 +398,7 @@ mod tests {
             size,
             modified_ms,
             etag: None,
+            hash: None,
         }
     }
 
@@ -351,14 +410,20 @@ mod tests {
     fn classifies_syncable_workspace_paths() {
         assert!(is_syncable_relative("inbox.md"));
         assert!(is_syncable_relative("日记/today.mdx"));
-        assert!(is_syncable_relative(".memoir-attachments/2026-08/photo.png"));
+        assert!(is_syncable_relative("attachments/2026-08/photo.png"));
         assert!(is_syncable_relative("attachments/legacy.jpg"));
+        assert!(!is_syncable_relative("attachments/photo.conflict-1.png"));
         assert!(!is_syncable_relative("../escape.md"));
         assert!(!is_syncable_relative(".memoir/index.sqlite"));
         assert!(!is_syncable_relative(".memoir-trash/note.md"));
         assert!(!is_syncable_relative("node_modules/pkg/readme.md"));
-        assert!(!is_syncable_relative(".memoir-attachments"));
+        assert!(!is_syncable_relative(".memoir-attachments/2026-08/photo.png"));
         assert!(!is_syncable_relative("notes.txt"));
+        assert_eq!(
+            conflict_sidecar_path("attachments/2026-08/photo.png", 42),
+            "attachments/2026-08/photo.conflict-42.png"
+        );
+        assert!(is_writable_sync_path("attachments/2026-08/photo.conflict-42.png"));
     }
 
     #[test]
@@ -397,6 +462,32 @@ mod tests {
         assert_eq!(
             plan_file(None, Some(&remote), Some(&snapshot)),
             SyncAction::DeleteRemote
+        );
+    }
+
+    #[test]
+    fn matching_hashes_skip_a_touched_local_file() {
+        let local = FileIdentity {
+            relative_path: "a.md".into(),
+            size: 12,
+            modified_ms: 80,
+            etag: None,
+            hash: Some("abc".into()),
+        };
+        let remote = file("a.md", 10, 20);
+        let mut snapshot = snap(&file("a.md", 10, 20), &remote);
+        snapshot.local_hash = Some("abc".into());
+        assert_eq!(
+            plan_file(Some(&local), Some(&remote), Some(&snapshot)),
+            SyncAction::Skip
+        );
+        let different = FileIdentity {
+            hash: Some("def".into()),
+            ..local
+        };
+        assert_eq!(
+            plan_file(Some(&different), Some(&remote), Some(&snapshot)),
+            SyncAction::Upload
         );
     }
 

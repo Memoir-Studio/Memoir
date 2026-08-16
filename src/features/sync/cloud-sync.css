@@ -4,7 +4,8 @@
 
 .cloud-sync-form {
   display: grid;
-  gap: 12px;
+  align-content: start;
+  gap: 8px;
 }
 
 .cloud-sync-banner,
@@ -45,22 +46,26 @@
   line-height: 1.5;
 }
 
-.cloud-sync-status {
+.cloud-sync-status,
+.cloud-sync-summary {
   display: grid;
-  gap: 4px;
-  padding: 10px 12px;
+  align-content: start;
+  gap: 2px;
+  padding: 8px 10px;
   border: 1px solid color-mix(in srgb, var(--memoir-border) 72%, transparent);
   border-radius: 10px;
   background: color-mix(in srgb, var(--memoir-panel) 72%, transparent);
 }
 
-.cloud-sync-status strong {
+.cloud-sync-status strong,
+.cloud-sync-summary strong {
   color: var(--memoir-text);
   font-size: 12px;
   font-weight: 650;
 }
 
-.cloud-sync-status[data-status="error"] {
+.cloud-sync-status[data-status="error"],
+.cloud-sync-summary[data-status="error"] {
   border-color: color-mix(in srgb, var(--memoir-danger, #c45c4a) 28%, var(--memoir-border));
 }
 
@@ -75,4 +80,67 @@
 .cloud-sync-actions {
   display: grid;
   gap: 8px;
+}
+
+.cloud-sync-status[data-status="syncing"],
+.cloud-sync-summary[data-status="syncing"] {
+  border-color: color-mix(in srgb, var(--memoir-accent) 24%, var(--memoir-border));
+}
+
+.cloud-sync-empty {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+  padding: 8px 2px 4px;
+}
+
+.cloud-sync-empty-title {
+  margin: 0;
+  color: var(--memoir-text);
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.cloud-sync-summary .cloud-sync-row-description {
+  margin-top: 6px;
+}
+
+.cloud-sync-enabled {
+  flex: none;
+  color: var(--memoir-muted);
+  font-size: 10px;
+  font-weight: 620;
+}
+
+.cloud-sync-enabled[data-on="true"] {
+  color: var(--memoir-accent);
+}
+
+.cloud-sync-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.cloud-sync-stat {
+  display: grid;
+  gap: 1px;
+  padding: 7px 10px;
+  border: 1px solid color-mix(in srgb, var(--memoir-border) 68%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--memoir-elevated) 62%, transparent);
+}
+
+.cloud-sync-stat strong {
+  color: var(--memoir-text);
+  font-size: 16px;
+  font-weight: 680;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+}
+
+.cloud-sync-stat span {
+  color: var(--memoir-muted);
+  font-size: 10px;
 }

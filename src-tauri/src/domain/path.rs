@@ -9,7 +9,7 @@ pub const IGNORED_DIRS: [&str; 14] = [
     ".git",
     ".memoir",
     ".memoir-trash",
-    ".memoir-attachments",
+    "attachments",
     "node_modules",
     "dist",
     "build",
@@ -107,7 +107,7 @@ pub fn resolve_existing_attachment(
     crate::domain::attachment::validate_attachment_extension(&relative)?;
     if !is_attachment_relative(&relative) {
         return Err(AppError::invalid_path(
-            "Attachments must stay in the .memoir-attachments folder.",
+            "Attachments must stay in the attachments folder.",
         ));
     }
     let joined = root.join(relative);
@@ -127,7 +127,7 @@ pub fn resolve_new_attachment(root: &str, relative_path: &str) -> AppResult<(Pat
     crate::domain::attachment::validate_attachment_extension(&relative)?;
     if !is_attachment_relative(&relative) {
         return Err(AppError::invalid_path(
-            "Attachments must stay in the .memoir-attachments folder.",
+            "Attachments must stay in the attachments folder.",
         ));
     }
     let target = root.join(&relative);

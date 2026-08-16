@@ -209,7 +209,9 @@ describe("NoteList", () => {
     );
 
     expect(view.queryByRole("button", { name: "笔记" })).not.toBeInTheDocument();
-    expect(view.getByRole("heading", { name: "云同步" })).toBeInTheDocument();
+    expect(view.getByRole("button", { name: "同步" })).toHaveAttribute("aria-pressed", "true");
+    expect(view.getByText("还没有配置同步源")).toBeInTheDocument();
+    await user.click(view.getByRole("button", { name: "配置" }));
     expect(view.getByText(/目前支持 WebDAV/)).toBeInTheDocument();
     await user.type(
       view.getByPlaceholderText("https://dav.example.com/remote.php/dav/"),

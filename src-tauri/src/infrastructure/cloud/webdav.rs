@@ -44,8 +44,8 @@ impl WebDavProvider {
         let prefix = sanitize_remote_prefix(&profile.remote_prefix)?;
         let base = parse_base_url(&profile.webdav.url, &prefix)?;
         let client = Client::builder()
-            .timeout(Duration::from_secs(60))
-            .connect_timeout(Duration::from_secs(15))
+            .timeout(Duration::from_secs(300))
+            .connect_timeout(Duration::from_secs(20))
             .redirect(reqwest::redirect::Policy::limited(5))
             .danger_accept_invalid_certs(profile.webdav.insecure_tls)
             .user_agent("Memoir/0.1")
@@ -148,6 +148,7 @@ impl WebDavProvider {
                 size: item.size,
                 modified_ms: item.modified_ms,
                 etag: item.etag,
+                hash: None,
             });
         }
         Ok(())
@@ -238,6 +239,7 @@ impl CloudProvider for WebDavProvider {
             size: bytes.len() as u64,
             modified_ms,
             etag,
+            hash: None,
         })
     }
 

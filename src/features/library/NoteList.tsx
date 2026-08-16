@@ -72,51 +72,49 @@ export function NoteList({
         className,
       )}
     >
-      <header
-        className="flex h-14 shrink-0 items-center justify-between gap-2 px-4"
-        data-tauri-drag-region={isTauriRuntime() ? "" : undefined}
-        onMouseDown={handleWindowDragMouseDown}
-      >
-        {mode === "index" || mode === "sync" || mode === "attachments" ? (
-          <h2 className="text-[13px] font-semibold tracking-[-0.02em] text-text">
-            {mode === "sync"
-              ? t("library.cloudSync")
-              : mode === "attachments"
-                ? t("library.attachments")
-                : t("library.index")}
-          </h2>
-        ) : (
-          <div className="view-switcher library-mode-switcher flex items-center rounded-lg p-0.5">
-            <IconButton
-              active={mode === "notes"}
-              label={t("library.notes")}
-              onClick={() => setMode("notes")}
-            >
-              <BookOpen className="h-3.5 w-3.5" />
-              <span>{t("library.notes")}</span>
+      {mode !== "sync" && (
+        <header
+          className="flex h-14 shrink-0 items-center justify-between gap-2 px-4"
+          data-tauri-drag-region={isTauriRuntime() ? "" : undefined}
+          onMouseDown={handleWindowDragMouseDown}
+        >
+          {mode === "index" || mode === "attachments" ? (
+            <h2 className="text-[13px] font-semibold tracking-[-0.02em] text-text">
+              {mode === "attachments" ? t("library.attachments") : t("library.index")}
+            </h2>
+          ) : (
+            <div className="view-switcher library-mode-switcher flex items-center rounded-lg p-0.5">
+              <IconButton
+                active={mode === "notes"}
+                label={t("library.notes")}
+                onClick={() => setMode("notes")}
+              >
+                <BookOpen className="h-3.5 w-3.5" />
+                <span>{t("library.notes")}</span>
+              </IconButton>
+              <IconButton
+                active={mode === "outline"}
+                label={t("library.outline")}
+                onClick={() => setMode("outline")}
+              >
+                <ListTree className="h-3.5 w-3.5" />
+                <span>{t("library.outline")}</span>
+              </IconButton>
+            </div>
+          )}
+          {mode === "attachments" ? (
+            <IconButton label={t("library.importAttachment")} onClick={() => void importAttachments()}>
+              <Upload className="h-4 w-4" />
             </IconButton>
-            <IconButton
-              active={mode === "outline"}
-              label={t("library.outline")}
-              onClick={() => setMode("outline")}
-            >
-              <ListTree className="h-3.5 w-3.5" />
-              <span>{t("library.outline")}</span>
+          ) : mode === "index" ? (
+            <span aria-hidden className="h-8 w-8" />
+          ) : (
+            <IconButton label={t("library.newNote")} onClick={onCreate}>
+              <Plus className="h-4 w-4" />
             </IconButton>
-          </div>
-        )}
-        {mode === "attachments" ? (
-          <IconButton label={t("library.importAttachment")} onClick={() => void importAttachments()}>
-            <Upload className="h-4 w-4" />
-          </IconButton>
-        ) : mode === "index" || mode === "sync" ? (
-          <span aria-hidden className="h-8 w-8" />
-        ) : (
-          <IconButton label={t("library.newNote")} onClick={onCreate}>
-            <Plus className="h-4 w-4" />
-          </IconButton>
-        )}
-      </header>
+          )}
+        </header>
+      )}
 
       {mode === "attachments" ? (
         <AttachmentLibrary onInsert={onInsertAttachment} />

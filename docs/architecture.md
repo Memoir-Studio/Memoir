@@ -103,7 +103,7 @@ These are not commands. They go through plugins or Tauri helpers, still behind `
 | --- | --- |
 | `chooseWorkspace` | `tauri-plugin-dialog` |
 | `openPath` / `revealPath` / `openExternal` | `tauri-plugin-opener` (`openPath` / `revealItemInDir` / `openUrl`) |
-| `resolveMediaPath` | `convertFileSrc` via the enabled `asset` protocol, scoped to the open workspace and `.memoir-attachments/` |
+| `resolveMediaPath` | `convertFileSrc` via the enabled `asset` protocol, scoped to the open workspace and `attachments/` |
 
 Window size and maximized state never cross the webview as a command.
 
@@ -146,7 +146,7 @@ app-data/
 - `cloudSync` — per-workspace provider settings (WebDAV URL and credentials stay here, not in the vault)
 - `window` — logical width, height, maximized
 
-A last-sync snapshot lives at `sync/<workspace sha256>/snapshot.json` so two-way sync can detect local/remote edits and deletes. Notes and image attachments are replicated; `.memoir/`, trash, and drafts are not. Conflicts keep the newer mtime (local wins ties).
+A last-sync snapshot lives at `sync/<workspace sha256>/snapshot.json` so two-way sync can detect local/remote edits and deletes. Notes and image attachments are replicated; `.memoir/`, trash, and drafts are not. Attachments sync before notes. Conflicts keep the newer mtime (local wins ties); the losing attachment is kept as a local `*.conflict-*` file. Enabled workspaces also sync after open and after save.
 
 Drafts are separate files so typing does not rewrite the whole state file. State and draft writes create a sibling temp file, `sync`, then `rename`.
 
@@ -154,7 +154,7 @@ Each desktop workspace also has a disposable library cache at `<workspace>/.memo
 
 Add `.memoir/` to the vault’s root `.gitignore`. If the folder lives in iCloud, Dropbox, or OneDrive, exclude `.memoir/` from sync. Memoir writes an inner `.memoir/.gitignore` containing `*` so a force-added folder still ignores the database.
 
-Pasted, dropped, and imported images are ordinary files in workspace `.memoir-attachments/YYYY-MM/`. Older files in `attachments/` are still listed. They are not stored in app-data. The browser demo keeps them in memory as data URLs. Desktop file drops use the native window drag-drop event because the webview does not expose OS files on `dataTransfer`.
+Pasted, dropped, and imported images are ordinary files in workspace `attachments/YYYY-MM/`. They are not stored in app-data. The browser demo keeps them in memory as data URLs. Desktop file drops use the native window drag-drop event because the webview does not expose OS files on `dataTransfer`.
 
 The browser build is an in-memory demo. It does not read or write real files, does not open SQLite, and it does not persist settings.
 
@@ -162,10 +162,10 @@ The browser build is an in-memory demo. It does not read or write real files, do
 
 - Reject empty paths, absolute paths, `.`, `..`, and any non-normal path component.
 - Only `.md` / `.mdx` for notes.
-- Attachments live in workspace `.memoir-attachments/YYYY-MM/`. Writes accept only image extensions (`png`, `jpg`, `jpeg`, `gif`, `webp`, `bmp`, `avif`, `svg`), stay inside that folder or the legacy `attachments/` directory, and are capped at 20 MB. Deletes go to `.memoir-trash/` like notes.
+- Attachments live in workspace `attachments/YYYY-MM/`. Writes accept only image extensions (`png`, `jpg`, `jpeg`, `gif`, `webp`, `bmp`, `avif`, `svg`), stay inside that folder, and are capped at 20 MB. Deletes go to `.memoir-trash/` like notes. Conflicts keep the losing image as a local `*.conflict-*` sibling.
 - Canonicalize before read, write-of-existing, rename, and delete; the result must still be inside the workspace.
 - Before creating a new file, canonicalize the nearest existing parent so a symlink cannot escape.
-- Scan skips symbolic link **entries**, any directory whose name starts with `.`, and `node_modules`, `dist`, `build`, `target`, `.next`, `.turbo`. `.git`, `.memoir`, `.memoir-trash`, and `.memoir-attachments` are skipped as hidden names (and listed in `IGNORED_DIRS`).
+- Scan skips symbolic link **entries**, any directory whose name starts with `.`, and `node_modules`, `dist`, `build`, `target`, `.next`, `.turbo`. `.git`, `.memoir`, `.memoir-trash`, and `attachments` are skipped as note folders (and listed in `IGNORED_DIRS`).
 - Delete is a rename into `<workspace>/.memoir-trash/<unix-seconds>-<filename>`. A symlinked trash directory is rejected.
 
 ## Extending

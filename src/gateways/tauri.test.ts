@@ -112,7 +112,7 @@ describe("Tauri gateways", () => {
   it("imports dropped files through the existing attachment command", async () => {
     const { TauriWorkspaceGateway } = await import("./tauri");
     invoke.mockResolvedValue({
-      relativePath: ".memoir-attachments/2026-08/shot.png",
+      relativePath: "attachments/2026-08/shot.png",
       fileName: "shot.png",
       extension: "png",
       mimeType: "image/png",

@@ -3,9 +3,12 @@ use crate::{
         attachment::{
             attachment_month_dir, is_attachment_relative, mime_from_extension,
             resolve_attachment_extension, sanitize_attachment_file_name, unique_file_name,
-            ATTACHMENTS_DIR, LEGACY_ATTACHMENTS_DIR, MAX_ATTACHMENT_BYTES,
+            ATTACHMENTS_DIR, MAX_ATTACHMENT_BYTES,
         },
-        cloud_sync::{is_note_relative, is_syncable_relative, FileIdentity},
+        cloud_sync::{
+            is_conflict_sidecar, is_note_relative, is_writable_sync_path,
+            FileIdentity,
+        },
         folder_of,
         path::{
             create_parent_dirs, is_supported_note, normalize_root, resolve_existing_attachment,
@@ -174,9 +177,7 @@ impl LocalFileSystem {
     pub fn scan_attachments(&self, root: &str) -> AppResult<Vec<AttachmentFile>> {
         let root = normalize_root(root)?;
         let mut attachments = Vec::new();
-        for dir_name in [ATTACHMENTS_DIR, LEGACY_ATTACHMENTS_DIR] {
-            collect_attachment_tree(&root, &root.join(dir_name), &mut attachments)?;
-        }
+        collect_attachment_tree(&root, &root.join(ATTACHMENTS_DIR), &mut attachments)?;
         attachments.sort_by(|left, right| {
             right
                 .modified_ms
@@ -225,13 +226,20 @@ impl LocalFileSystem {
                 size: note.size,
                 modified_ms: note.modified_ms,
                 etag: None,
+                hash: None,
             })
             .collect::<Vec<_>>();
-        files.extend(attachments.into_iter().map(|attachment| FileIdentity {
-            relative_path: attachment.relative_path,
-            size: attachment.size,
-            modified_ms: attachment.modified_ms,
-            etag: None,
+        files.extend(attachments.into_iter().filter_map(|attachment| {
+            if is_conflict_sidecar(&attachment.relative_path) {
+                return None;
+            }
+            Some(FileIdentity {
+                relative_path: attachment.relative_path,
+                size: attachment.size,
+                modified_ms: attachment.modified_ms,
+                etag: None,
+                hash: None,
+            })
         }));
         Ok(files)
     }
@@ -246,13 +254,21 @@ impl LocalFileSystem {
         fs::read(&path).map_err(|error| AppError::io("Read sync file", &path, error))
     }
 
+    pub fn hash_sync_file(&self, root: &str, relative_path: &str) -> AppResult<String> {
+        let path = resolve_sync_path(root, relative_path, true)?.1;
+        hash_file(&path)
+    }
+
     pub fn write_sync_file(
         &self,
         root: &str,
         relative_path: &str,
         bytes: &[u8],
     ) -> AppResult<FileIdentity> {
-        if is_attachment_relative(Path::new(relative_path)) && bytes.len() > MAX_ATTACHMENT_BYTES {
+        if (is_attachment_relative(Path::new(relative_path))
+            || is_conflict_sidecar(relative_path))
+            && bytes.len() > MAX_ATTACHMENT_BYTES
+        {
             return Err(AppError::attachment_too_large());
         }
         let (root_path, target) = match resolve_sync_path(root, relative_path, true) {
@@ -277,7 +293,7 @@ impl LocalFileSystem {
 }
 
 fn resolve_sync_path(root: &str, relative_path: &str, existing: bool) -> AppResult<(PathBuf, PathBuf)> {
-    if !is_syncable_relative(relative_path) {
+    if !is_writable_sync_path(relative_path) {
         return Err(AppError::invalid_path(
             "Cloud sync only writes notes and image attachments.",
         ));
@@ -309,7 +325,14 @@ fn file_identity_from_path(root: &Path, path: &Path) -> AppResult<FileIdentity> 
         size: metadata.len(),
         modified_ms: modified_ms(metadata.modified()),
         etag: None,
+        hash: hash_file(path).ok(),
     })
+}
+
+fn hash_file(path: &Path) -> AppResult<String> {
+    use sha2::{Digest, Sha256};
+    let bytes = fs::read(path).map_err(|error| AppError::io("Hash synced file", path, error))?;
+    Ok(format!("{:x}", Sha256::digest(&bytes)))
 }
 
 fn write_attachment_bytes(

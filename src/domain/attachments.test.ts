@@ -31,23 +31,23 @@ describe("attachments", () => {
 
   it("builds markdown that stays relative to the current note", () => {
     const attachment = {
-      relativePath: ".memoir-attachments/2026-08/paste-1.png",
+      relativePath: "attachments/2026-08/paste-1.png",
       fileName: "paste-1.png",
     };
     expect(markdownImageForAttachment("welcome.md", attachment)).toBe(
-      "![paste-1](.memoir-attachments/2026-08/paste-1.png)",
+      "![paste-1](attachments/2026-08/paste-1.png)",
     );
     expect(markdownImageForAttachment("日记/today.md", attachment)).toBe(
-      "![paste-1](../.memoir-attachments/2026-08/paste-1.png)",
+      "![paste-1](../attachments/2026-08/paste-1.png)",
     );
     expect(escapeMarkdownAlt("weird [alt]")).toBe("weird alt");
     expect(
       markdownForAttachments("welcome.md", [
         attachment,
-        { relativePath: ".memoir-attachments/2026-08/b.gif", fileName: "b.gif" },
+        { relativePath: "attachments/2026-08/b.gif", fileName: "b.gif" },
       ]),
     ).toBe(
-      "![paste-1](.memoir-attachments/2026-08/paste-1.png)\n\n![b](.memoir-attachments/2026-08/b.gif)",
+      "![paste-1](attachments/2026-08/paste-1.png)\n\n![b](attachments/2026-08/b.gif)",
     );
   });
 
@@ -55,7 +55,7 @@ describe("attachments", () => {
     const now = new Date("2026-08-15T14:30:52");
     expect(attachmentMonthDir(now)).toBe("2026-08");
     expect(attachmentRelativePath("photo.png", now)).toBe(
-      ".memoir-attachments/2026-08/photo.png",
+      "attachments/2026-08/photo.png",
     );
   });
 

@@ -1,10 +1,12 @@
 use crate::{
     domain::{
         cloud_sync::{
-            action_as_transfer, now_ms, plan_file, sanitize_profile, snapshot_from_identities,
-            validate_profile_for_connect, CloudSyncFileError, CloudSyncProbe, CloudSyncProfile,
-            CloudSyncReport, CloudSyncRunResult, FileIdentity, SyncAction,
+            action_as_transfer, conflict_sidecar_path, is_conflict_sidecar, now_ms, plan_file,
+            sanitize_profile, snapshot_from_identities, validate_profile_for_connect,
+            CloudSyncFileError, CloudSyncProbe, CloudSyncProfile, CloudSyncReport,
+            CloudSyncRunResult, FileIdentity, SyncAction,
         },
+        attachment::is_attachment_relative,
         path::normalize_workspace_key,
         AppError, AppResult, ErrorCode,
     },
@@ -16,6 +18,7 @@ use crate::{
     services::AppStateService,
 };
 use std::collections::{BTreeMap, BTreeSet};
+use std::path::Path;
 
 #[derive(Debug, Clone)]
 pub struct CloudSyncService {
@@ -115,19 +118,39 @@ impl CloudSyncService {
         paths.extend(local_map.keys().cloned());
         paths.extend(remote_map.keys().cloned());
         paths.extend(snapshot.files.keys().cloned());
+        let mut ordered: Vec<String> = paths.into_iter().collect();
+        ordered.sort_by(|left, right| {
+            sync_rank(left)
+                .cmp(&sync_rank(right))
+                .then_with(|| left.cmp(right))
+        });
 
         let mut report = CloudSyncReport::default();
         let mut next_snapshot = snapshot.clone();
 
-        for path in paths {
-            let local = local_map.get(&path);
+        for path in ordered {
+            if is_conflict_sidecar(&path) {
+                continue;
+            }
             let remote = remote_map.get(&path);
             let snap = snapshot.files.get(&path);
+            let hashed = enrich_local_hash(workspace_root, &self.filesystem, local_map.get(&path), snap);
+            let local = hashed.as_ref().or_else(|| local_map.get(&path));
             let planned = plan_file(local, remote, snap);
             if matches!(planned, SyncAction::Conflict(_)) {
                 report.conflicts += 1;
             }
             let action = action_as_transfer(planned);
+            if matches!(planned, SyncAction::Conflict(_)) {
+                let _ = self.keep_conflict_copy(
+                    workspace_root,
+                    provider,
+                    &path,
+                    planned,
+                    local,
+                    remote,
+                );
+            }
             match self.apply_action(workspace_root, provider, &path, action, local, remote) {
                 Ok(ApplyResult::Skipped) => report.skipped += 1,
                 Ok(ApplyResult::Uploaded(entry)) => {
@@ -193,6 +216,7 @@ impl CloudSyncService {
                     size: bytes.len() as u64,
                     modified_ms: local.modified_ms,
                     etag: None,
+                    hash: local.hash.clone(),
                 });
                 Ok(ApplyResult::Downloaded(snapshot_from_identities(
                     &local, &remote,
@@ -207,6 +231,39 @@ impl CloudSyncService {
                 Ok(ApplyResult::DeletedLocal)
             }
         }
+    }
+
+    fn keep_conflict_copy(
+        &self,
+        workspace_root: &str,
+        provider: &dyn CloudProvider,
+        path: &str,
+        planned: SyncAction,
+        local: Option<&FileIdentity>,
+        remote: Option<&FileIdentity>,
+    ) -> AppResult<()> {
+        if !is_attachment_relative(Path::new(path)) {
+            return Ok(());
+        }
+        let sidecar = unique_sidecar_path(workspace_root, &self.filesystem, path);
+        match planned {
+            SyncAction::Conflict(crate::domain::cloud_sync::ConflictWinner::Remote) => {
+                if local.is_some() {
+                    let bytes = self.filesystem.read_sync_file(workspace_root, path)?;
+                    self.filesystem
+                        .write_sync_file(workspace_root, &sidecar, &bytes)?;
+                }
+            }
+            SyncAction::Conflict(crate::domain::cloud_sync::ConflictWinner::Local) => {
+                if remote.is_some() {
+                    let bytes = provider.get(path)?;
+                    self.filesystem
+                        .write_sync_file(workspace_root, &sidecar, &bytes)?;
+                }
+            }
+            _ => {}
+        }
+        Ok(())
     }
 }
 
@@ -223,6 +280,49 @@ fn index_files(files: Vec<FileIdentity>) -> BTreeMap<String, FileIdentity> {
         .into_iter()
         .map(|file| (file.relative_path.clone(), file))
         .collect()
+}
+
+fn sync_rank(path: &str) -> u8 {
+    if is_attachment_relative(Path::new(path)) {
+        0
+    } else {
+        1
+    }
+}
+
+fn enrich_local_hash(
+    workspace_root: &str,
+    filesystem: &LocalFileSystem,
+    local: Option<&FileIdentity>,
+    snap: Option<&crate::domain::cloud_sync::SnapshotEntry>,
+) -> Option<FileIdentity> {
+    let local = local?;
+    let snap = snap?;
+    if local.size == snap.local_size && local.modified_ms == snap.local_modified_ms {
+        return None;
+    }
+    if local.hash.is_some() || snap.local_hash.is_none() {
+        return None;
+    }
+    let hash = filesystem.hash_sync_file(workspace_root, &local.relative_path).ok()?;
+    Some(FileIdentity {
+        hash: Some(hash),
+        ..local.clone()
+    })
+}
+
+fn unique_sidecar_path(workspace_root: &str, filesystem: &LocalFileSystem, path: &str) -> String {
+    let base = conflict_sidecar_path(path, now_ms());
+    if filesystem.stat_sync_file(workspace_root, &base).is_err() {
+        return base;
+    }
+    for index in 1..20 {
+        let candidate = conflict_sidecar_path(path, now_ms() + index as u64);
+        if filesystem.stat_sync_file(workspace_root, &candidate).is_err() {
+            return candidate;
+        }
+    }
+    base
 }
 
 #[cfg(test)]
@@ -254,6 +354,7 @@ mod tests {
                         size: bytes.len() as u64,
                         modified_ms,
                         etag: Some(format!("\"{modified_ms}\"")),
+                        hash: None,
                     },
                 ),
             );
@@ -294,6 +395,7 @@ mod tests {
                 size: bytes.len() as u64,
                 modified_ms: 9_000,
                 etag: Some("\"9000\"".into()),
+                hash: None,
             };
             self.files
                 .lock()
@@ -365,6 +467,35 @@ mod tests {
         let deleted = service.run_sync_with(&root, &provider).unwrap();
         assert_eq!(deleted.deleted_local, 1);
         assert!(!std::path::Path::new(&root).join("shared.md").exists());
+    }
+
+    #[test]
+    fn keeps_a_local_copy_when_a_remote_attachment_wins() {
+        let (_dir, service, root) = setup();
+        let image = [0x89, b'P', b'N', b'G', 1, 2, 3, 4];
+        let path = "attachments/2026-08/photo.png";
+        std::fs::create_dir_all(std::path::Path::new(&root).join("attachments/2026-08")).unwrap();
+        std::fs::write(std::path::Path::new(&root).join(path), image).unwrap();
+        let provider = MemoryProvider::new();
+        service.run_sync_with(&root, &provider).unwrap();
+
+        std::fs::write(std::path::Path::new(&root).join(path), b"local-changed").unwrap();
+        provider.insert(path, b"remote-newer-bytes!!", 9_999_999_999_999);
+        let report = service.run_sync_with(&root, &provider).unwrap();
+        assert_eq!(report.downloaded, 1);
+        assert_eq!(report.conflicts, 1);
+        let dir = std::path::Path::new(&root).join("attachments/2026-08");
+        let backups: Vec<_> = std::fs::read_dir(&dir)
+            .unwrap()
+            .filter_map(|entry| entry.ok())
+            .map(|entry| entry.file_name().to_string_lossy().into_owned())
+            .filter(|name| name.contains(".conflict-"))
+            .collect();
+        assert_eq!(backups.len(), 1);
+        assert_eq!(
+            std::fs::read(std::path::Path::new(&root).join(path)).unwrap(),
+            b"remote-newer-bytes!!"
+        );
     }
 
     #[test]

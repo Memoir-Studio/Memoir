@@ -366,7 +366,7 @@ describe("app store actions", () => {
       { bytesBase64: "AAAA", fileName: "paste-1.png", mimeType: "image/png" },
     ]);
     expect(saved[0]?.relativePath).toMatch(
-      /^\.memoir-attachments\/\d{4}-\d{2}\/paste-1\.png$/,
+      /^attachments\/\d{4}-\d{2}\/paste-1\.png$/,
     );
     expect(store.getState().attachments.map((item) => item.relativePath)).toEqual([
       saved[0]?.relativePath,

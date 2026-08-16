@@ -72,7 +72,7 @@ describe("EditorPane context menu", () => {
 
 describe("EditorPane image insert", () => {
   it("saves pasted clipboard images and inserts markdown", async () => {
-    const onPasteImages = vi.fn().mockResolvedValue("![shot](.memoir-attachments/2026-08/shot.png)");
+    const onPasteImages = vi.fn().mockResolvedValue("![shot](attachments/2026-08/shot.png)");
     const onChange = vi.fn();
     const view = render(
       <EditorPane
@@ -95,14 +95,14 @@ describe("EditorPane image insert", () => {
     await waitFor(() => {
       expect(
         onChange.mock.calls.some((call) =>
-          String(call[0]).includes("![shot](.memoir-attachments/2026-08/shot.png)"),
+          String(call[0]).includes("![shot](attachments/2026-08/shot.png)"),
         ),
       ).toBe(true);
     });
   });
 
   it("saves dropped image files at the caret", async () => {
-    const onPasteImages = vi.fn().mockResolvedValue("![drop](.memoir-attachments/2026-08/drop.png)");
+    const onPasteImages = vi.fn().mockResolvedValue("![drop](attachments/2026-08/drop.png)");
     const onChange = vi.fn();
     const view = render(
       <EditorPane
@@ -124,7 +124,7 @@ describe("EditorPane image insert", () => {
     await waitFor(() => {
       expect(
         onChange.mock.calls.some((call) =>
-          String(call[0]).includes("![drop](.memoir-attachments/2026-08/drop.png)"),
+          String(call[0]).includes("![drop](attachments/2026-08/drop.png)"),
         ),
       ).toBe(true);
     });

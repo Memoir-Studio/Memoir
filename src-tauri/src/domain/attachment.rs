@@ -2,8 +2,7 @@ use crate::domain::{AppError, AppResult};
 use std::path::{Component, Path};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-pub const ATTACHMENTS_DIR: &str = ".memoir-attachments";
-pub const LEGACY_ATTACHMENTS_DIR: &str = "attachments";
+pub const ATTACHMENTS_DIR: &str = "attachments";
 pub const MAX_ATTACHMENT_BYTES: usize = 20 * 1024 * 1024;
 pub const ATTACHMENT_EXTENSIONS: [&str; 8] = [
     "png", "jpg", "jpeg", "gif", "webp", "bmp", "avif", "svg",
@@ -14,7 +13,7 @@ pub fn is_attachment_extension(extension: &str) -> bool {
 }
 
 pub fn is_attachment_root_name(name: &std::ffi::OsStr) -> bool {
-    name == ATTACHMENTS_DIR || name == LEGACY_ATTACHMENTS_DIR
+    name == ATTACHMENTS_DIR
 }
 
 pub fn is_attachment_relative(relative: &Path) -> bool {

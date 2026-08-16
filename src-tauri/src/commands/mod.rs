@@ -16,7 +16,6 @@ fn allow_workspace_media(app: &AppHandle, root: &str) {
     let path = path.canonicalize().unwrap_or(path);
     let scope = app.asset_protocol_scope();
     let _ = scope.allow_directory(&path, true);
-    // Dot-directories are hidden from `**` globs on Unix, so allow the library explicitly.
     let _ = scope.allow_directory(path.join(ATTACHMENTS_DIR), true);
 }
 

@@ -1,7 +1,6 @@
 import { relativePathFromNote } from "./paths";
 
-export const ATTACHMENTS_DIR = ".memoir-attachments";
-export const LEGACY_ATTACHMENTS_DIR = "attachments";
+export const ATTACHMENTS_DIR = "attachments";
 export const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
 
 export const ATTACHMENT_EXTENSIONS = [

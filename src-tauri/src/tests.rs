@@ -91,11 +91,11 @@ fn sync_file_writes_stay_inside_the_workspace() {
         .unwrap();
     assert_eq!(fs::read_to_string(workspace.path().join("inbox.md")).unwrap(), "# Inbox");
     filesystem
-        .write_sync_file(root, ".memoir-attachments/2026-08/photo.png", b"png-bytes")
+        .write_sync_file(root, "attachments/2026-08/photo.png", b"png-bytes")
         .unwrap();
     assert!(workspace
         .path()
-        .join(".memoir-attachments/2026-08/photo.png")
+        .join("attachments/2026-08/photo.png")
         .exists());
     assert_eq!(
         filesystem
@@ -506,12 +506,12 @@ fn saves_lists_and_trashes_attachments_inside_the_library() {
         .unwrap();
     assert_eq!(
         saved.relative_path,
-        format!(".memoir-attachments/{month}/photo.png")
+        format!("attachments/{month}/photo.png")
     );
     assert_eq!(saved.extension, "png");
     assert!(workspace
         .path()
-        .join(format!(".memoir-attachments/{month}/photo.png"))
+        .join(format!("attachments/{month}/photo.png"))
         .exists());
 
     let duplicate = filesystem
@@ -519,19 +519,12 @@ fn saves_lists_and_trashes_attachments_inside_the_library() {
         .unwrap();
     assert_eq!(
         duplicate.relative_path,
-        format!(".memoir-attachments/{month}/photo-1.png")
+        format!("attachments/{month}/photo-1.png")
     );
 
-    fs::create_dir_all(workspace.path().join("attachments")).unwrap();
-    fs::write(workspace.path().join("attachments/legacy.png"), sample_png()).unwrap();
-
     let listed = filesystem.scan_attachments(root).unwrap();
-    assert_eq!(listed.len(), 3);
-    assert!(listed.iter().any(|item| item.relative_path == "attachments/legacy.png"));
-    assert!(listed.iter().all(|item| {
-        item.relative_path.starts_with(".memoir-attachments/")
-            || item.relative_path.starts_with("attachments/")
-    }));
+    assert_eq!(listed.len(), 2);
+    assert!(listed.iter().all(|item| item.relative_path.starts_with("attachments/")));
 
     let outside = tempdir().unwrap();
     let source = outside.path().join("diagram.webp");
@@ -541,16 +534,16 @@ fn saves_lists_and_trashes_attachments_inside_the_library() {
         .unwrap();
     assert_eq!(
         imported.relative_path,
-        format!(".memoir-attachments/{month}/diagram.png")
+        format!("attachments/{month}/diagram.png")
     );
 
     let trashed = filesystem
-        .delete_attachment(root, &format!(".memoir-attachments/{month}/photo.png"))
+        .delete_attachment(root, &format!("attachments/{month}/photo.png"))
         .unwrap();
     assert!(trashed.starts_with(".memoir-trash/"));
     assert!(!workspace
         .path()
-        .join(format!(".memoir-attachments/{month}/photo.png"))
+        .join(format!("attachments/{month}/photo.png"))
         .exists());
 }
 
