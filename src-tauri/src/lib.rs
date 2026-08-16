@@ -7,11 +7,10 @@ mod tests;
 mod window_frame;
 
 use commands::{
-    create_note, delete_attachment, delete_draft, delete_note, drafts_exist, import_attachment,
-    load_app_state, migrate_legacy_state, read_draft, read_note, rename_note, save_attachment,
-    save_preferences, scan_attachments, scan_workspace, set_favorite, set_folder_appearance,
-    write_draft, write_export_file, write_note,
-    AppServices,
+    create_note, delete_attachment, delete_draft, delete_note, drafts_exist, get_index_info,
+    import_attachment, load_app_state, migrate_legacy_state, read_draft, read_note, rebuild_index,
+    rename_note, save_attachment, save_preferences, scan_attachments, scan_workspace, set_favorite,
+    set_folder_appearance, write_draft, write_export_file, write_note, AppServices,
 };
 use infrastructure::{app_data::AppDataRepository, filesystem::LocalFileSystem};
 use services::{AppStateService, WorkspaceService};
@@ -42,6 +41,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             scan_workspace,
+            get_index_info,
+            rebuild_index,
             read_note,
             write_note,
             create_note,

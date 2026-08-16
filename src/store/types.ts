@@ -21,11 +21,13 @@ export type DocumentSlice = {
   isSaving: boolean;
 };
 
+export type LibraryPanelMode = "notes" | "outline" | "attachments" | "index";
+
 export type LibrarySlice = {
   query: string;
   navFilter: NavFilter;
   scopedFilter: ScopedFilter;
-  libraryPanelMode: "notes" | "outline" | "attachments";
+  libraryPanelMode: LibraryPanelMode;
 };
 
 export type SettingsSlice = {
@@ -67,6 +69,7 @@ export type AppActions = {
   savePastedImages(files: File[]): Promise<string>;
   importAttachments(): Promise<AttachmentFile[]>;
   deleteAttachment(relativePath: string): Promise<void>;
+  rebuildIndex(): Promise<void>;
   setQuery(query: string): void;
   setNavFilter(navFilter: NavFilter): void;
   setScopedFilter(scopedFilter: ScopedFilter): void;

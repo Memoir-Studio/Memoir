@@ -18,6 +18,7 @@ import { handleWindowDragMouseDown } from "../window/window-drag";
 import { formatRelativeTime } from "../../i18n";
 import { useI18n } from "../../i18n/react";
 import { AttachmentLibrary } from "../attachments/AttachmentLibrary";
+import { IndexInspector } from "./IndexInspector";
 import { NoteContextMenu, type NoteMenuTarget } from "./NoteContextMenu";
 import { NoteOutline } from "./NoteOutline";
 import { extractHeadings, filterNotes, parseNote } from "./note-utils";
@@ -70,28 +71,36 @@ export function NoteList({
         data-tauri-drag-region={isTauriRuntime() ? "" : undefined}
         onMouseDown={handleWindowDragMouseDown}
       >
-        <div className="view-switcher library-mode-switcher flex items-center rounded-lg p-0.5">
-          <IconButton
-            active={mode === "notes"}
-            label={t("library.notes")}
-            onClick={() => setMode("notes")}
-          >
-            <BookOpen className="h-3.5 w-3.5" />
-            <span>{t("library.notes")}</span>
-          </IconButton>
-          <IconButton
-            active={mode === "outline"}
-            label={t("library.outline")}
-            onClick={() => setMode("outline")}
-          >
-            <ListTree className="h-3.5 w-3.5" />
-            <span>{t("library.outline")}</span>
-          </IconButton>
-        </div>
+        {mode === "index" ? (
+          <h2 className="text-[13px] font-semibold tracking-[-0.02em] text-text">
+            {t("library.index")}
+          </h2>
+        ) : (
+          <div className="view-switcher library-mode-switcher flex items-center rounded-lg p-0.5">
+            <IconButton
+              active={mode === "notes"}
+              label={t("library.notes")}
+              onClick={() => setMode("notes")}
+            >
+              <BookOpen className="h-3.5 w-3.5" />
+              <span>{t("library.notes")}</span>
+            </IconButton>
+            <IconButton
+              active={mode === "outline"}
+              label={t("library.outline")}
+              onClick={() => setMode("outline")}
+            >
+              <ListTree className="h-3.5 w-3.5" />
+              <span>{t("library.outline")}</span>
+            </IconButton>
+          </div>
+        )}
         {mode === "attachments" ? (
           <IconButton label={t("library.importAttachment")} onClick={() => void importAttachments()}>
             <Upload className="h-4 w-4" />
           </IconButton>
+        ) : mode === "index" ? (
+          <span aria-hidden className="h-8 w-8" />
         ) : (
           <IconButton label={t("library.newNote")} onClick={onCreate}>
             <Plus className="h-4 w-4" />
@@ -101,6 +110,8 @@ export function NoteList({
 
       {mode === "attachments" ? (
         <AttachmentLibrary onInsert={onInsertAttachment} />
+      ) : mode === "index" ? (
+        <IndexInspector />
       ) : mode === "notes" ? (
         <div className="memoir-fade-in flex min-h-0 flex-1 flex-col">
           <label className="note-search relative mx-3 mt-2.5 block">

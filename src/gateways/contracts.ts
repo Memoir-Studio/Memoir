@@ -1,6 +1,7 @@
 import type { AppState, LegacyStatePayload, MigrationResult } from "../domain/app-state";
 import type { AttachmentFile, SaveAttachmentInput } from "../domain/attachments";
 import type { FolderAppearance } from "../domain/folders";
+import type { WorkspaceIndexInfo } from "../domain/index-info";
 import type { NoteExtension, RawNoteFile } from "../domain/notes";
 import type { AppSettings } from "../domain/settings";
 
@@ -15,6 +16,8 @@ export type CreateNoteInput = {
 export interface WorkspaceGateway {
   chooseWorkspace(title?: string): Promise<string | null>;
   scanWorkspace(root: string): Promise<RawNoteFile[]>;
+  getIndexInfo(root: string): Promise<WorkspaceIndexInfo>;
+  rebuildIndex(root: string): Promise<WorkspaceIndexInfo>;
   readNote(root: string, relativePath: string): Promise<string>;
   writeNote(root: string, relativePath: string, content: string): Promise<void>;
   createNote(input: CreateNoteInput): Promise<string>;
@@ -25,6 +28,7 @@ export interface WorkspaceGateway {
   importAttachments(root: string): Promise<AttachmentFile[]>;
   deleteAttachment(root: string, relativePath: string): Promise<string>;
   openPath(path: string): Promise<void>;
+  revealPath(path: string): Promise<void>;
   openExternal(url: string): Promise<void>;
   resolveMediaPath(path: string): string;
   chooseExportPath(input: { defaultPath: string; title?: string }): Promise<string | null>;

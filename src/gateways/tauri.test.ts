@@ -4,6 +4,7 @@ const invoke = vi.fn();
 const open = vi.fn();
 const save = vi.fn();
 const openPath = vi.fn();
+const revealItemInDir = vi.fn();
 
 vi.mock("@tauri-apps/api/core", () => ({
   invoke,
@@ -13,6 +14,7 @@ vi.mock("@tauri-apps/plugin-dialog", () => ({ open, save }));
 vi.mock("@tauri-apps/plugin-opener", () => ({
   openPath,
   openUrl: vi.fn(),
+  revealItemInDir,
 }));
 
 describe("Tauri gateways", () => {
@@ -21,6 +23,7 @@ describe("Tauri gateways", () => {
     open.mockReset();
     save.mockReset();
     openPath.mockReset();
+    revealItemInDir.mockReset();
   });
 
   it("uses camelCase DTOs for workspace commands", async () => {
@@ -41,6 +44,33 @@ describe("Tauri gateways", () => {
       folder: "work",
       tags: ["team"],
     });
+  });
+
+  it("loads and rebuilds the workspace index with camelCase DTOs", async () => {
+    const { TauriWorkspaceGateway } = await import("./tauri");
+    const info = {
+      persistent: true,
+      relativePath: ".memoir/index.sqlite",
+      fileSize: 12,
+      walSize: 0,
+      shmSize: 0,
+      schemaVersion: 1,
+      schemaName: "memoir-index",
+      parseAlgoVersion: 1,
+      indexReadCap: 1024,
+      createdMs: 1,
+      lastReconcileMs: 2,
+      noteCount: 3,
+      tagCount: 1,
+      tagLinkCount: 1,
+      truncatedCount: 0,
+    };
+    invoke.mockResolvedValue(info);
+    const gateway = new TauriWorkspaceGateway();
+    await expect(gateway.getIndexInfo("/notes")).resolves.toEqual(info);
+    expect(invoke).toHaveBeenCalledWith("get_index_info", { root: "/notes" });
+    await expect(gateway.rebuildIndex("/notes")).resolves.toEqual(info);
+    expect(invoke).toHaveBeenCalledWith("rebuild_index", { root: "/notes" });
   });
 
   it("saves attachments with camelCase DTOs", async () => {
@@ -107,6 +137,14 @@ describe("Tauri gateways", () => {
       path: "/tmp/two.pdf",
       bytesBase64: "AAAA",
     });
+  });
+
+  it("reveals a path in the system file manager", async () => {
+    const { TauriWorkspaceGateway } = await import("./tauri");
+    revealItemInDir.mockResolvedValue(undefined);
+    const gateway = new TauriWorkspaceGateway();
+    await gateway.revealPath("/notes/one.md");
+    expect(revealItemInDir).toHaveBeenCalledWith("/notes/one.md");
   });
 
   it("asks draftsExist with camelCase arguments", async () => {

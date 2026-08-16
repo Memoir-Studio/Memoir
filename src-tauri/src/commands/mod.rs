@@ -1,7 +1,7 @@
 use crate::{
     domain::{
         attachment::ATTACHMENTS_DIR, AppError, AppSettings, AppState, AttachmentFile,
-        FolderAppearance, LegacyStatePayload, MigrationResult, NoteFile,
+        FolderAppearance, LegacyStatePayload, MigrationResult, NoteFile, WorkspaceIndexInfo,
     },
     services::{AppStateService, WorkspaceService},
 };
@@ -95,6 +95,34 @@ pub fn delete_note(
     relative_path: String,
 ) -> Result<String, AppError> {
     services.workspace.delete(&root, &relative_path)
+}
+
+#[tauri::command]
+pub async fn get_index_info(
+    services: State<'_, AppServices>,
+    root: String,
+) -> Result<WorkspaceIndexInfo, AppError> {
+    let workspace = services.workspace.clone();
+    tauri::async_runtime::spawn_blocking(move || workspace.index_info(&root))
+        .await
+        .map_err(|error| {
+            AppError::new(crate::domain::ErrorCode::Io, "Index info interrupted.")
+                .with_details(error.to_string())
+        })?
+}
+
+#[tauri::command]
+pub async fn rebuild_index(
+    services: State<'_, AppServices>,
+    root: String,
+) -> Result<WorkspaceIndexInfo, AppError> {
+    let workspace = services.workspace.clone();
+    tauri::async_runtime::spawn_blocking(move || workspace.rebuild_index(&root))
+        .await
+        .map_err(|error| {
+            AppError::new(crate::domain::ErrorCode::Io, "Index rebuild interrupted.")
+                .with_details(error.to_string())
+        })?
 }
 
 #[tauri::command]

@@ -602,6 +602,42 @@ fn workspace_scan_returns_cached_metadata_and_skips_unchanged_reads() {
         reads_after_first
     );
     assert!(workspace.path().join(".memoir/index.sqlite").exists());
+
+    let info = service.index_info(root).unwrap();
+    assert!(info.persistent);
+    assert_eq!(info.note_count, 2);
+    assert_eq!(info.tag_count, 1);
+    assert!(info.file_size > 0);
+    assert!(info.last_reconcile_ms > 0);
+}
+
+#[test]
+fn rebuild_index_drops_cache_and_reparses() {
+    let workspace = tempdir().unwrap();
+    let root = workspace.path().to_str().unwrap();
+    fs::write(
+        workspace.path().join("one.md"),
+        "---\ntitle: One\ntags: [a]\n---\n\n# One\n\nHello.",
+    )
+    .unwrap();
+    let service = WorkspaceService::new(LocalFileSystem);
+    service.scan(root).unwrap();
+    let reads = service
+        .content_reads
+        .load(std::sync::atomic::Ordering::Relaxed);
+    let first_created = service.index_info(root).unwrap().created_ms;
+
+    let rebuilt = service.rebuild_index(root).unwrap();
+    assert_eq!(rebuilt.note_count, 1);
+    assert_eq!(rebuilt.tag_count, 1);
+    assert!(rebuilt.created_ms >= first_created);
+    assert!(
+        service
+            .content_reads
+            .load(std::sync::atomic::Ordering::Relaxed)
+            > reads
+    );
+    assert!(workspace.path().join(".memoir/index.sqlite").exists());
 }
 
 #[test]

@@ -36,6 +36,26 @@ pub struct AttachmentFile {
     pub size: u64,
 }
 
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceIndexInfo {
+    pub persistent: bool,
+    pub relative_path: String,
+    pub file_size: u64,
+    pub wal_size: u64,
+    pub shm_size: u64,
+    pub schema_version: i32,
+    pub schema_name: String,
+    pub parse_algo_version: u32,
+    pub index_read_cap: u64,
+    pub created_ms: u128,
+    pub last_reconcile_ms: u128,
+    pub note_count: u64,
+    pub tag_count: u64,
+    pub tag_link_count: u64,
+    pub truncated_count: u64,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct AppearanceSettings {

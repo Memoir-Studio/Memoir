@@ -1,5 +1,6 @@
 import {
   Clock3,
+  Database,
   FileText,
   Folder,
   FolderOpen,
@@ -36,7 +37,7 @@ function NavButton({
   onClick,
 }: {
   label: string;
-  count: number;
+  count?: number;
   active: boolean;
   collapsed: boolean;
   icon: ReactNode;
@@ -60,14 +61,18 @@ function NavButton({
         {icon}
       </span>
       <span className={cn("truncate", collapsed && "min-[761px]:hidden")}>{label}</span>
-      <span
-        className={cn(
-          "sidebar-nav-count tabular-nums",
-          collapsed && "min-[761px]:hidden",
-        )}
-      >
-        {count}
-      </span>
+      {typeof count === "number" ? (
+        <span
+          className={cn(
+            "sidebar-nav-count tabular-nums",
+            collapsed && "min-[761px]:hidden",
+          )}
+        >
+          {count}
+        </span>
+      ) : (
+        <span className={cn(collapsed && "min-[761px]:hidden")} />
+      )}
     </button>
   );
 }
@@ -194,6 +199,7 @@ export function LibrarySidebar({
 
   const folderLabel = (folder: string) =>
     isRootFolder(folder) ? t("library.rootFolder") : folder;
+  const notesNavActive = libraryPanelMode === "notes" || libraryPanelMode === "outline";
 
   return (
     <aside
@@ -247,7 +253,7 @@ export function LibrarySidebar({
       <div className="min-h-0 flex-1 overflow-y-auto">
         <nav className="grid gap-1 px-2.5 pb-2 pt-2">
           <NavButton
-            active={libraryPanelMode !== "attachments" && navFilter === "all" && !scopedFilter}
+            active={notesNavActive && navFilter === "all" && !scopedFilter}
             collapsed={collapsed}
             count={notes.length}
             icon={<FileText strokeWidth={1.8} />}
@@ -255,7 +261,7 @@ export function LibrarySidebar({
             onClick={() => setNavFilter("all")}
           />
           <NavButton
-            active={libraryPanelMode !== "attachments" && navFilter === "recent"}
+            active={notesNavActive && navFilter === "recent"}
             collapsed={collapsed}
             count={notes.filter((note) => Date.now() - note.modifiedMs <= 7 * 86_400_000).length}
             icon={<Clock3 strokeWidth={1.8} />}
@@ -263,7 +269,7 @@ export function LibrarySidebar({
             onClick={() => setNavFilter("recent")}
           />
           <NavButton
-            active={libraryPanelMode !== "attachments" && navFilter === "favorites"}
+            active={notesNavActive && navFilter === "favorites"}
             collapsed={collapsed}
             count={notes.filter((note) => note.favorite).length}
             icon={<Star strokeWidth={1.8} />}
@@ -271,7 +277,7 @@ export function LibrarySidebar({
             onClick={() => setNavFilter("favorites")}
           />
           <NavButton
-            active={libraryPanelMode !== "attachments" && navFilter === "uncategorized"}
+            active={notesNavActive && navFilter === "uncategorized"}
             collapsed={collapsed}
             count={notes.filter((note) => note.tags.length === 0).length}
             icon={<Inbox strokeWidth={1.8} />}
@@ -285,6 +291,13 @@ export function LibrarySidebar({
             icon={<Paperclip strokeWidth={1.8} />}
             label={t("nav.attachments")}
             onClick={() => setLibraryPanelMode("attachments")}
+          />
+          <NavButton
+            active={libraryPanelMode === "index"}
+            collapsed={collapsed}
+            icon={<Database strokeWidth={1.8} />}
+            label={t("nav.index")}
+            onClick={() => setLibraryPanelMode("index")}
           />
         </nav>
 
@@ -300,7 +313,7 @@ export function LibrarySidebar({
           {folders.slice(0, 8).map((folder) => (
             <FolderNavItem
               active={
-                libraryPanelMode !== "attachments" &&
+                notesNavActive &&
                 scopedFilter?.type === "folder" &&
                 scopedFilter.value === folder
               }
@@ -337,7 +350,7 @@ export function LibrarySidebar({
           {tags.slice(0, 8).map((tag) => (
             <NavButton
               active={
-                libraryPanelMode !== "attachments" &&
+                notesNavActive &&
                 scopedFilter?.type === "tag" &&
                 normalizeTag(scopedFilter.value) === normalizeTag(tag)
               }

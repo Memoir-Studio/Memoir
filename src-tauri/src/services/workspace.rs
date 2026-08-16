@@ -2,7 +2,7 @@ use crate::{
     domain::{
         note_parse::{decode_utf8_prefix, parse_note, file_name_title, INDEX_READ_CAP, PARSE_ALGO_VERSION},
         path::normalize_root,
-        AppResult, AttachmentFile, NoteFile, NoteIdentity,
+        AppError, AppResult, AttachmentFile, ErrorCode, NoteFile, NoteIdentity, WorkspaceIndexInfo,
     },
     infrastructure::{
         filesystem::{modified_ms, LocalFileSystem},
@@ -36,7 +36,6 @@ pub struct WorkspaceService {
 struct OpenWorkspaceIndex {
     root: PathBuf,
     conn: rusqlite::Connection,
-    #[allow(dead_code)]
     persistent: bool,
     generation: u64,
 }
@@ -328,6 +327,40 @@ impl WorkspaceService {
             self.try_write_through(&root_path, |conn| sqlite::delete_note(conn, relative_path));
         }
         Ok(trashed)
+    }
+
+    pub fn index_info(&self, root: &str) -> AppResult<WorkspaceIndexInfo> {
+        let root_path = normalize_root(root)?;
+        let mut guard = self.lock_index();
+        self.ensure_open_for_scan(&mut guard, &root_path);
+        let open = guard.as_ref().expect("index handle");
+        Ok(sqlite::collect_index_info(
+            &open.conn,
+            &root_path,
+            open.persistent,
+        ))
+    }
+
+    pub fn rebuild_index(&self, root: &str) -> AppResult<WorkspaceIndexInfo> {
+        let root_path = normalize_root(root)?;
+        {
+            let mut guard = self.lock_index();
+            if let Some(open) = guard.take() {
+                sqlite::checkpoint(&open.conn);
+                drop(open);
+            }
+            let db_path = sqlite::index_dir(&root_path).join(sqlite::INDEX_FILE);
+            if !sqlite::try_delete_triple(&db_path) {
+                self.ensure_open_for_scan(&mut guard, &root_path);
+                return Err(AppError::new(
+                    ErrorCode::Io,
+                    "Couldn't delete the index files.",
+                ));
+            }
+            self.ensure_open_for_scan(&mut guard, &root_path);
+        }
+        self.scan(root)?;
+        self.index_info(root)
     }
 
     pub fn scan_attachments(&self, root: &str) -> AppResult<Vec<AttachmentFile>> {

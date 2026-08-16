@@ -672,6 +672,22 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
         }
       },
 
+      async rebuildIndex() {
+        const root = get().workspaceRoot;
+        if (!root) return;
+        set({ isLoading: true, error: "" });
+        try {
+          await gateways.workspace.rebuildIndex(root);
+          await get().refreshWorkspace();
+          set({ status: storeT(get().settings, "status.indexRebuilt") });
+        } catch (error) {
+          set({
+            isLoading: false,
+            error: storeT(get().settings, "errors.rebuildIndex", { message: toMessage(error) }),
+          });
+        }
+      },
+
       setQuery(query) {
         set({ query });
       },

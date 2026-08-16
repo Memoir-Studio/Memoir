@@ -64,6 +64,8 @@ The store is five slices: `workspace`, `document`, `library`, `settings`, `ui`. 
 Workspace commands:
 
 - `scan_workspace` — walks identity (`path` / `mtime` / `size`), reconciles `<workspace>/.memoir/index.sqlite`, and returns cached `title` / `tags` / `excerpt`
+- `get_index_info` — returns the current workspace SQLite index snapshot (path, size, counts, schema)
+- `rebuild_index` — deletes the disposable index files, reopens an empty cache, rescans, and returns fresh `get_index_info`
 - `read_note`
 - `write_note`
 - `create_note`
@@ -91,7 +93,7 @@ These are not commands. They go through plugins or Tauri helpers, still behind `
 | Method | Backend |
 | --- | --- |
 | `chooseWorkspace` | `tauri-plugin-dialog` |
-| `openPath` / `openExternal` | `tauri-plugin-opener` |
+| `openPath` / `revealPath` / `openExternal` | `tauri-plugin-opener` (`openPath` / `revealItemInDir` / `openUrl`) |
 | `resolveMediaPath` | `convertFileSrc` via the enabled `asset` protocol, scoped to the open workspace and `.memoir-attachments/` |
 
 Window size and maximized state never cross the webview as a command.

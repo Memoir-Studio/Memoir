@@ -78,4 +78,32 @@ describe("LibrarySidebar folders", () => {
     expect(view.getByRole("menu", { name: "思考 的操作" })).toBeInTheDocument();
     expect(view.getByRole("menuitem", { name: "自定义外观" })).toBeInTheDocument();
   });
+
+  it("opens the workspace index panel from the drawer", async () => {
+    useAppStore.setState({
+      workspaceRoot: "/notes",
+      notes: [
+        {
+          relativePath: "one.md",
+          fileName: "one.md",
+          extension: "md",
+          modifiedMs: 1,
+          size: 10,
+          title: "One",
+          tags: [],
+          excerpt: "",
+          favorite: false,
+        },
+      ],
+      libraryPanelMode: "notes",
+    });
+    const user = userEvent.setup();
+    const view = render(
+      <LibrarySidebar isDark={false} onCreateFolder={() => undefined} onCreateTag={() => undefined} />,
+    );
+
+    await user.click(view.getByRole("button", { name: "索引库" }));
+    expect(useAppStore.getState().libraryPanelMode).toBe("index");
+    expect(view.getByRole("button", { name: "索引库" })).toHaveAttribute("aria-current", "page");
+  });
 });

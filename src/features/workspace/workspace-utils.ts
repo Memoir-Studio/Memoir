@@ -1,3 +1,10 @@
+import { resolveWorkspaceFilePath } from "../../domain/paths";
+import { getGateways } from "../../gateways";
+
+export async function revealWorkspaceItem(root: string, ...relativeParts: string[]) {
+  await getGateways().workspace.revealPath(resolveWorkspaceFilePath(root, ...relativeParts));
+}
+
 export function workspaceDisplayName(root: string | null | undefined, fallback = "") {
   if (!root) return fallback;
   const name = root.replace(/[\\/]+$/, "").split(/[\\/]/).pop();

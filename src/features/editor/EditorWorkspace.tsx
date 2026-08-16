@@ -27,6 +27,8 @@ import { useI18n } from "../../i18n/react";
 import { parseNote } from "../library/note-utils";
 import { handleWindowDragMouseDown } from "../window/window-drag";
 import { markdownForAttachments } from "../../domain/attachments";
+import { mapGatewayError } from "../../domain/errors";
+import { revealWorkspaceItem } from "../workspace/workspace-utils";
 import type { EditorHandle } from "./EditorPane";
 import {
   bodySourceLineOffset,
@@ -38,7 +40,6 @@ import {
   type ScrollAnchor,
 } from "./scroll-sync";
 import { exportNotePdf } from "../export/export-note-pdf";
-import { getGateways } from "../../gateways";
 
 const EditorPane = lazy(() => import("./EditorPane"));
 const PreviewPane = lazy(() => import("../preview/PreviewPane"));
@@ -324,11 +325,14 @@ export const EditorWorkspace = forwardRef<EditorHandle, {
           <IconButton
             className="max-[760px]:hidden"
             label={t("editor.openInSystem")}
-            onClick={() =>
-              workspaceRoot &&
-              activePath &&
-              void getGateways().workspace.openPath(`${workspaceRoot}/${activePath}`)
-            }
+            onClick={() => {
+              if (!workspaceRoot || !activePath) return;
+              void revealWorkspaceItem(workspaceRoot, activePath).catch((error) => {
+                useAppStore.setState({
+                  error: t("errors.openInSystem", { message: mapGatewayError(error).message }),
+                });
+              });
+            }}
           >
             <ExternalLink className="h-4 w-4" />
           </IconButton>

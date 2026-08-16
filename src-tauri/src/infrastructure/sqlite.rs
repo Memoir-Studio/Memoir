@@ -1,7 +1,7 @@
 use crate::domain::{
     note_parse::{INDEX_READ_CAP, PARSE_ALGO_VERSION},
     path::ensure_inside,
-    NoteFile,
+    NoteFile, WorkspaceIndexInfo,
 };
 use rusqlite::{params, Connection, OptionalExtension};
 use std::{
@@ -12,6 +12,7 @@ use std::{
 
 pub const INDEX_DIR: &str = ".memoir";
 pub const INDEX_FILE: &str = "index.sqlite";
+pub const INDEX_RELATIVE_PATH: &str = ".memoir/index.sqlite";
 pub const CURRENT_USER_VERSION: i32 = 1;
 
 const ALLOWED_TABLES: &[&str] = &["meta", "notes", "note_tags"];
@@ -235,15 +236,104 @@ fn schema_is_safe(conn: &Connection) -> bool {
     true
 }
 
+fn sidecar_path(db_path: &Path, suffix: &str) -> PathBuf {
+    let mut name = db_path
+        .file_name()
+        .map(|value| value.to_os_string())
+        .unwrap_or_default();
+    name.push(suffix);
+    db_path.with_file_name(name)
+}
+
 pub fn try_delete_triple(db_path: &Path) -> bool {
     let mut ok = true;
     for suffix in ["", "-wal", "-shm"] {
-        let path = PathBuf::from(format!("{}{suffix}", db_path.display()));
+        let path = if suffix.is_empty() {
+            db_path.to_path_buf()
+        } else {
+            sidecar_path(db_path, suffix)
+        };
         if path.exists() && fs::remove_file(&path).is_err() {
             ok = false;
         }
     }
     ok
+}
+
+fn file_len(path: &Path) -> u64 {
+    fs::metadata(path)
+        .map(|metadata| metadata.len())
+        .unwrap_or(0)
+}
+
+fn count_sql(conn: &Connection, sql: &str) -> u64 {
+    conn.query_row(sql, [], |row| row.get::<_, i64>(0))
+        .ok()
+        .map(|value| value.max(0) as u64)
+        .unwrap_or(0)
+}
+
+fn meta_string(conn: &Connection, key: &str) -> String {
+    conn.query_row(
+        "SELECT value FROM meta WHERE key = ?1",
+        params![key],
+        |row| row.get(0),
+    )
+    .optional()
+    .ok()
+    .flatten()
+    .unwrap_or_default()
+}
+
+fn meta_u128(conn: &Connection, key: &str) -> u128 {
+    meta_string(conn, key).parse().unwrap_or(0)
+}
+
+fn meta_u64(conn: &Connection, key: &str) -> u64 {
+    meta_string(conn, key).parse().unwrap_or(0)
+}
+
+pub fn collect_index_info(conn: &Connection, root: &Path, persistent: bool) -> WorkspaceIndexInfo {
+    let db_path = index_dir(root).join(INDEX_FILE);
+    let (file_size, wal_size, shm_size) = if persistent {
+        (
+            file_len(&db_path),
+            file_len(&sidecar_path(&db_path, "-wal")),
+            file_len(&sidecar_path(&db_path, "-shm")),
+        )
+    } else {
+        (0, 0, 0)
+    };
+    let parse_algo = parse_algo_version(conn).unwrap_or(PARSE_ALGO_VERSION);
+    let index_read_cap = meta_u64(conn, "index_read_cap");
+    WorkspaceIndexInfo {
+        persistent,
+        relative_path: INDEX_RELATIVE_PATH.into(),
+        file_size,
+        wal_size,
+        shm_size,
+        schema_version: user_version(conn).unwrap_or(0),
+        schema_name: {
+            let name = meta_string(conn, "schema_name");
+            if name.is_empty() {
+                "memoir-index".into()
+            } else {
+                name
+            }
+        },
+        parse_algo_version: parse_algo,
+        index_read_cap: if index_read_cap == 0 {
+            INDEX_READ_CAP as u64
+        } else {
+            index_read_cap
+        },
+        created_ms: meta_u128(conn, "created_ms"),
+        last_reconcile_ms: meta_u128(conn, "last_reconcile_ms"),
+        note_count: count_sql(conn, "SELECT COUNT(*) FROM notes"),
+        tag_count: count_sql(conn, "SELECT COUNT(DISTINCT tag_norm) FROM note_tags"),
+        tag_link_count: count_sql(conn, "SELECT COUNT(*) FROM note_tags"),
+        truncated_count: count_sql(conn, "SELECT COUNT(*) FROM notes WHERE parse_truncated = 1"),
+    }
 }
 
 pub fn checkpoint(conn: &Connection) {
@@ -545,6 +635,41 @@ mod tests {
         drop(index);
         let rebuilt = open_or_rebuild(root.path());
         assert!(schema_is_safe(&rebuilt.conn));
+    }
+
+    #[test]
+    fn reports_index_info_for_a_populated_database() {
+        let root = tempdir().unwrap();
+        let index = open_or_rebuild(root.path());
+        upsert_note(
+            &index.conn,
+            &note_row(
+                "one.md".into(),
+                "one.md".into(),
+                "md".into(),
+                10,
+                4,
+                "abcd".into(),
+                true,
+                "One".into(),
+                "body".into(),
+                &["A".into()],
+            ),
+        )
+        .unwrap();
+        replace_tags(&index.conn, "one.md", &["A".into()]).unwrap();
+        set_meta(&index.conn, "last_reconcile_ms", "99").unwrap();
+        let info = collect_index_info(&index.conn, root.path(), index.persistent);
+        assert!(info.persistent);
+        assert_eq!(info.relative_path, INDEX_RELATIVE_PATH);
+        assert_eq!(info.note_count, 1);
+        assert_eq!(info.tag_count, 1);
+        assert_eq!(info.tag_link_count, 1);
+        assert_eq!(info.truncated_count, 1);
+        assert_eq!(info.last_reconcile_ms, 99);
+        assert!(info.file_size > 0);
+        assert_eq!(info.parse_algo_version, PARSE_ALGO_VERSION);
+        assert_eq!(info.schema_version, CURRENT_USER_VERSION);
     }
 
     #[test]

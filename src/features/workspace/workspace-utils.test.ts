@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { setGatewaysForTests } from "../../gateways";
+import { createMockGateways } from "../../test/mock-gateways";
 import {
   mergeRecentWorkspaces,
+  revealWorkspaceItem,
   workspaceDisplayName,
   workspaceInitial,
 } from "./workspace-utils";
@@ -24,5 +27,20 @@ describe("workspace utils", () => {
     expect(mergeRecentWorkspaces("/b", ["/a", "/b", "/c"])).toEqual(["/b", "/a", "/c"]);
     expect(mergeRecentWorkspaces(null, ["/a", "/a"])).toEqual(["/a"]);
     expect(mergeRecentWorkspaces("/only", [])).toEqual(["/only"]);
+  });
+
+  it("reveals a workspace-relative path through the gateway", async () => {
+    const gateways = createMockGateways();
+    const revealed: string[] = [];
+    gateways.workspace.revealPath = async (path) => {
+      revealed.push(path);
+    };
+    setGatewaysForTests(gateways);
+    try {
+      await revealWorkspaceItem("/notes", "思考", "今天吃什么.mdx");
+      expect(revealed).toEqual(["/notes/思考/今天吃什么.mdx"]);
+    } finally {
+      setGatewaysForTests(null);
+    }
   });
 });

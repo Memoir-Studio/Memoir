@@ -40,6 +40,19 @@ describe("BrowserWorkspaceGateway", () => {
     vi.unstubAllGlobals();
   });
 
+  it("reports an in-memory index for the demo workspace", async () => {
+    const gateway = new BrowserWorkspaceGateway();
+    const info = await gateway.getIndexInfo("demo://memoir");
+    expect(info.persistent).toBe(false);
+    expect(info.relativePath).toBe(".memoir/index.sqlite");
+    expect(info.noteCount).toBeGreaterThan(0);
+    expect(info.tagCount).toBeGreaterThan(0);
+    await expect(gateway.rebuildIndex("demo://memoir")).resolves.toMatchObject({
+      persistent: false,
+      noteCount: info.noteCount,
+    });
+  });
+
   it("stores pasted attachments in memory and resolves them as data URLs", async () => {
     const gateway = new BrowserWorkspaceGateway();
     const saved = await gateway.saveAttachment("demo://memoir", {

@@ -72,6 +72,23 @@ describe("app store actions", () => {
     );
   });
 
+  it("rebuilds the workspace index then refreshes notes", async () => {
+    const gateways = createMockGateways();
+    const store = createAppStore(gateways);
+    await store.getState().openWorkspace("/workspace");
+
+    await store.getState().rebuildIndex();
+    expect(gateways.workspace.rebuildCount).toBe(1);
+    expect(store.getState().error).toBe("");
+    expect(store.getState().status).toBe(
+      t(resolveLocale(store.getState().settings.appearance.locale), "status.indexRebuilt"),
+    );
+
+    gateways.workspace.failIndex = true;
+    await store.getState().rebuildIndex();
+    expect(store.getState().error).toContain("index locked");
+  });
+
   it("saves and clears folder appearance for the current workspace", async () => {
     const gateways = createMockGateways();
     const store = createAppStore(gateways);

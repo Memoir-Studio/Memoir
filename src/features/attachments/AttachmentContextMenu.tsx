@@ -1,9 +1,10 @@
 import { Copy, ExternalLink, ImagePlus, Trash2 } from "lucide-react";
 import { ContextMenu, ContextMenuItem, ContextMenuSeparator } from "../../components/ui";
 import type { AttachmentFile } from "../../domain/attachments";
-import { getGateways } from "../../gateways";
+import { mapGatewayError } from "../../domain/errors";
 import { useI18n } from "../../i18n/react";
 import { useAppStore } from "../../store/app-store";
+import { revealWorkspaceItem } from "../workspace/workspace-utils";
 
 export type AttachmentMenuTarget = {
   x: number;
@@ -69,7 +70,11 @@ export function AttachmentContextMenu({
         label={t("menu.openInSystem")}
         onSelect={() => {
           if (!workspaceRoot) return;
-          void getGateways().workspace.openPath(`${workspaceRoot}/${attachment.relativePath}`);
+          void revealWorkspaceItem(workspaceRoot, attachment.relativePath).catch((error) => {
+            useAppStore.setState({
+              error: t("errors.openInSystem", { message: mapGatewayError(error).message }),
+            });
+          });
         }}
       />
       <ContextMenuSeparator />

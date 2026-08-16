@@ -5,9 +5,10 @@ import {
   ContextMenuItem,
   ContextMenuSeparator,
 } from "../../components/ui";
-import { getGateways } from "../../gateways";
+import { mapGatewayError } from "../../domain/errors";
 import { useI18n } from "../../i18n/react";
 import { useAppStore } from "../../store/app-store";
+import { revealWorkspaceItem } from "../workspace/workspace-utils";
 
 export type NoteMenuTarget = {
   x: number;
@@ -85,7 +86,11 @@ export function NoteContextMenu({
         label={t("menu.openInSystem")}
         onSelect={() => {
           if (!workspaceRoot) return;
-          void getGateways().workspace.openPath(`${workspaceRoot}/${note.relativePath}`);
+          void revealWorkspaceItem(workspaceRoot, note.relativePath).catch((error) => {
+            useAppStore.setState({
+              error: t("errors.openInSystem", { message: mapGatewayError(error).message }),
+            });
+          });
         }}
       />
       <ContextMenuItem

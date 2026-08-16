@@ -1,10 +1,11 @@
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
-import { openPath, openUrl } from "@tauri-apps/plugin-opener";
+import { openPath, openUrl, revealItemInDir } from "@tauri-apps/plugin-opener";
 import type { AppState, LegacyStatePayload, MigrationResult } from "../domain/app-state";
 import type { AttachmentFile, SaveAttachmentInput } from "../domain/attachments";
 import { ATTACHMENT_EXTENSIONS } from "../domain/attachments";
 import type { FolderAppearance } from "../domain/folders";
+import type { WorkspaceIndexInfo } from "../domain/index-info";
 import type { RawNoteFile } from "../domain/notes";
 import type { AppSettings } from "../domain/settings";
 import { mapGatewayError } from "../domain/errors";
@@ -30,6 +31,14 @@ export class TauriWorkspaceGateway implements WorkspaceGateway {
 
   scanWorkspace(root: string) {
     return call<RawNoteFile[]>("scan_workspace", { root });
+  }
+
+  getIndexInfo(root: string) {
+    return call<WorkspaceIndexInfo>("get_index_info", { root });
+  }
+
+  rebuildIndex(root: string) {
+    return call<WorkspaceIndexInfo>("rebuild_index", { root });
   }
 
   readNote(root: string, relativePath: string) {
@@ -83,12 +92,28 @@ export class TauriWorkspaceGateway implements WorkspaceGateway {
     return call<string>("delete_attachment", { root, relativePath });
   }
 
-  openPath(path: string) {
-    return openPath(path);
+  async openPath(path: string) {
+    try {
+      await openPath(path);
+    } catch (error) {
+      throw mapGatewayError(error);
+    }
   }
 
-  openExternal(url: string) {
-    return openUrl(url);
+  async revealPath(path: string) {
+    try {
+      await revealItemInDir(path);
+    } catch (error) {
+      throw mapGatewayError(error);
+    }
+  }
+
+  async openExternal(url: string) {
+    try {
+      await openUrl(url);
+    } catch (error) {
+      throw mapGatewayError(error);
+    }
   }
 
   resolveMediaPath(path: string) {

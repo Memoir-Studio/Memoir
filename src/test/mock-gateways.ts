@@ -7,6 +7,7 @@ import {
   normalizeFolderAppearance,
   normalizeFolderKey,
 } from "../domain/folders";
+import { indexInfoFromNotes, type WorkspaceIndexInfo } from "../domain/index-info";
 import type { RawNoteFile } from "../domain/notes";
 import { parseNote } from "../features/library/note-utils";
 import { DEFAULT_SETTINGS } from "../domain/settings";
@@ -27,6 +28,9 @@ export class MockWorkspaceGateway implements WorkspaceGateway {
   failWrite = false;
   failAttachment = false;
   nextImported: AttachmentFile[] = [];
+  failIndex = false;
+  rebuildCount = 0;
+  indexInfoOverrides: Partial<WorkspaceIndexInfo> = {};
 
   async chooseWorkspace(_title?: string) {
     return "/workspace";
@@ -47,6 +51,23 @@ export class MockWorkspaceGateway implements WorkspaceGateway {
         excerpt: parsed.excerpt,
       };
     });
+  }
+
+  async getIndexInfo(): Promise<WorkspaceIndexInfo> {
+    if (this.failIndex) throw new Error("index locked");
+    const notes = await this.scanWorkspace();
+    return indexInfoFromNotes(notes, {
+      persistent: true,
+      fileSize: 4096,
+      createdMs: 1,
+      lastReconcileMs: 2,
+      ...this.indexInfoOverrides,
+    });
+  }
+
+  async rebuildIndex() {
+    this.rebuildCount += 1;
+    return this.getIndexInfo();
   }
 
   async readNote(_root: string, relativePath: string) {
@@ -113,8 +134,9 @@ export class MockWorkspaceGateway implements WorkspaceGateway {
     return `.memoir-trash/${relativePath}`;
   }
 
-  async openPath() {}
-  async openExternal() {}
+  async openPath(_path: string) {}
+  async revealPath(_path: string) {}
+  async openExternal(_url?: string) {}
   resolveMediaPath(path: string) {
     return path;
   }

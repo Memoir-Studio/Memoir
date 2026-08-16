@@ -498,3 +498,97 @@
     0 0 0 2px var(--memoir-elevated),
     0 0 0 4px var(--memoir-muted);
 }
+
+.index-inspector {
+  font-family: "SF Pro Text", "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
+  font-synthesis: none;
+}
+
+.index-hero {
+  border: 1px solid color-mix(in srgb, var(--memoir-border) 72%, transparent);
+  background: color-mix(in srgb, var(--memoir-elevated) 78%, var(--memoir-panel));
+}
+
+.index-status {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--memoir-accent-soft) 78%, transparent);
+  color: color-mix(in srgb, var(--memoir-text) 82%, var(--memoir-muted));
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.index-status.is-memory {
+  background: color-mix(in srgb, var(--memoir-danger) 14%, var(--memoir-elevated));
+  color: var(--memoir-danger);
+}
+
+.index-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.index-stat {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--memoir-elevated) 70%, var(--memoir-panel));
+}
+
+.index-stat-value {
+  color: var(--memoir-text);
+  font-size: 16px;
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+
+.index-stat-label {
+  margin-top: 4px;
+  color: var(--memoir-muted);
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.index-meta {
+  display: grid;
+  gap: 2px;
+  padding: 6px 2px;
+}
+
+.index-row {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  min-height: 24px;
+  font-size: 12px;
+}
+
+.index-row dt {
+  color: color-mix(in srgb, var(--memoir-muted) 90%, var(--memoir-text));
+}
+
+.index-row dd {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--memoir-text);
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.index-callout {
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--memoir-accent-soft) 62%, var(--memoir-panel));
+  color: color-mix(in srgb, var(--memoir-text) 78%, var(--memoir-muted));
+  font-size: 11px;
+  line-height: 1.5;
+}

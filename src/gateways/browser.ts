@@ -15,6 +15,7 @@ import {
   normalizeFolderAppearance,
   normalizeFolderKey,
 } from "../domain/folders";
+import { indexInfoFromNotes, type WorkspaceIndexInfo } from "../domain/index-info";
 import type { RawNoteFile } from "../domain/notes";
 import { parseNote } from "../features/library/note-utils";
 import { DEFAULT_SETTINGS } from "../domain/settings";
@@ -127,6 +128,18 @@ export class BrowserWorkspaceGateway implements WorkspaceGateway {
         excerpt: parsed.excerpt,
       };
     });
+  }
+
+  async getIndexInfo(root: string): Promise<WorkspaceIndexInfo> {
+    const notes = await this.scanWorkspace(root);
+    return indexInfoFromNotes(notes, {
+      createdMs: Math.min(...notes.map((note) => note.modifiedMs)),
+      lastReconcileMs: Date.now(),
+    });
+  }
+
+  async rebuildIndex(root: string) {
+    return this.getIndexInfo(root);
   }
 
   async readNote(root: string, relativePath: string) {
@@ -255,6 +268,8 @@ export class BrowserWorkspaceGateway implements WorkspaceGateway {
   }
 
   async openPath() {}
+
+  async revealPath() {}
 
   async openExternal(url: string) {
     window.open(url, "_blank", "noopener,noreferrer");
