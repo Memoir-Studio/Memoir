@@ -281,7 +281,7 @@ describe("WorkspaceDialogs", () => {
     function ClickHarness() {
       const { openDelete } = useWorkspaceDialogs();
       return (
-        <button onClick={openDelete} type="button">
+        <button onClick={() => openDelete()} type="button">
           标题栏删除
         </button>
       );
