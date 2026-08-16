@@ -2,9 +2,7 @@
   animation: memoir-fade-in var(--memoir-motion-fast) var(--memoir-ease);
   overflow-anchor: none;
   overscroll-behavior: contain;
-  background:
-    linear-gradient(90deg, color-mix(in srgb, var(--memoir-panel) 25%, transparent), transparent 40px),
-    var(--memoir-canvas);
+  background: var(--memoir-canvas);
 }
 
 [data-body-font="serif"] .memoir-preview {
@@ -62,13 +60,76 @@
   color: color-mix(in srgb, var(--memoir-text) 91%, var(--memoir-muted));
 }
 
-.memoir-preview .task-list-item > input[type="checkbox"] {
-  cursor: pointer;
-  accent-color: var(--memoir-accent);
+.memoir-preview ul.contains-task-list,
+.memoir-preview ol.contains-task-list {
+  list-style: none;
+  padding-left: 0;
+  margin-left: 0;
 }
 
-.memoir-preview .task-list-item > input[type="checkbox"]:hover {
-  filter: brightness(0.96);
+.memoir-preview ul.contains-task-list > li.task-list-item,
+.memoir-preview ol.contains-task-list > li.task-list-item {
+  list-style: none;
+  position: relative;
+  margin-block: 0.42em;
+  padding-left: 1.9em;
+}
+
+.memoir-preview li.task-list-item::marker {
+  content: none;
+}
+
+.memoir-preview li.task-list-item > p {
+  margin: 0;
+}
+
+.memoir-preview li.task-list-item input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  position: absolute;
+  left: 0;
+  top: 0.38em;
+  width: 1.12em;
+  height: 1.12em;
+  margin: 0;
+  cursor: pointer;
+  border: 1.5px solid color-mix(in srgb, var(--memoir-muted) 42%, var(--memoir-border));
+  border-radius: 0.32em;
+  background: color-mix(in srgb, var(--memoir-elevated) 82%, var(--memoir-panel));
+  box-shadow: none;
+}
+
+.memoir-preview li.task-list-item input[type="checkbox"]:hover {
+  border-color: color-mix(in srgb, var(--memoir-muted) 62%, var(--memoir-text));
+}
+
+.memoir-preview li.task-list-item input[type="checkbox"]:checked {
+  border-color: var(--memoir-accent);
+  background-color: var(--memoir-accent);
+}
+
+.memoir-preview li.task-list-item input[type="checkbox"]:checked::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--memoir-accent-contrast);
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='none' stroke='black' stroke-width='2.1' stroke-linecap='round' stroke-linejoin='round' d='M3.4 8.3 6.6 11.4 12.6 4.6'/%3E%3C/svg%3E") center / 78% no-repeat;
+}
+
+.memoir-preview li.task-list-item input[type="checkbox"]:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--memoir-accent) 58%, transparent);
+  outline-offset: 1px;
+}
+
+.memoir-preview li.task-list-item input[type="checkbox"]:disabled {
+  cursor: default;
+}
+
+.memoir-preview li.task-list-item > ul.contains-task-list,
+.memoir-preview li.task-list-item > ol.contains-task-list {
+  margin-top: 0.2em;
+  margin-bottom: 0;
+  padding-left: 0.2em;
 }
 
 .memoir-preview hr {
@@ -114,6 +175,69 @@
   font-weight: 450;
   line-height: 1.72;
   text-shadow: none;
+}
+
+.memoir-preview .hljs-keyword,
+.memoir-preview .hljs-selector-tag,
+.memoir-preview .hljs-built_in,
+.memoir-preview .hljs-meta .hljs-keyword {
+  color: var(--memoir-code-keyword);
+}
+
+.memoir-preview .hljs-string,
+.memoir-preview .hljs-regexp,
+.memoir-preview .hljs-addition,
+.memoir-preview .hljs-meta-string {
+  color: var(--memoir-code-string);
+}
+
+.memoir-preview .hljs-number,
+.memoir-preview .hljs-literal,
+.memoir-preview .hljs-symbol {
+  color: var(--memoir-code-number);
+}
+
+.memoir-preview .hljs-title,
+.memoir-preview .hljs-title.function_,
+.memoir-preview .hljs-section {
+  color: var(--memoir-code-fn);
+}
+
+.memoir-preview .hljs-type,
+.memoir-preview .hljs-class .hljs-title,
+.memoir-preview .hljs-title.class_,
+.memoir-preview .hljs-built_in {
+  color: var(--memoir-code-type);
+}
+
+.memoir-preview .hljs-attr,
+.memoir-preview .hljs-attribute,
+.memoir-preview .hljs-name,
+.memoir-preview .hljs-selector-class,
+.memoir-preview .hljs-selector-id,
+.memoir-preview .hljs-selector-attr,
+.memoir-preview .hljs-property {
+  color: var(--memoir-code-prop);
+}
+
+.memoir-preview .hljs-comment,
+.memoir-preview .hljs-quote,
+.memoir-preview .hljs-doctag {
+  color: var(--memoir-muted);
+  font-style: italic;
+}
+
+.memoir-preview .hljs-variable,
+.memoir-preview .hljs-template-variable,
+.memoir-preview .hljs-params,
+.memoir-preview .hljs-bullet,
+.memoir-preview .hljs-operator,
+.memoir-preview .hljs-punctuation {
+  color: color-mix(in srgb, var(--memoir-text) 88%, var(--memoir-muted));
+}
+
+.memoir-preview .hljs-deletion {
+  color: var(--memoir-danger);
 }
 
 [data-theme="dark"] .memoir-preview pre {

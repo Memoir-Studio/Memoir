@@ -1,5 +1,6 @@
 import CodeMirror, { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { markdown } from "@codemirror/lang-markdown";
+import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import {
   defaultKeymap,
   history,
@@ -12,8 +13,10 @@ import {
 } from "@codemirror/commands";
 import { searchKeymap } from "@codemirror/search";
 import { EditorSelection } from "@codemirror/state";
-import { EditorView, keymap, lineNumbers } from "@codemirror/view";
+import { EditorView, highlightActiveLine, highlightActiveLineGutter, keymap, lineNumbers } from "@codemirror/view";
+import { tags as highlightTags } from "@lezer/highlight";
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState, type MutableRefObject } from "react";
+import { fencedCodeBlockHighlighter, fencedCodeLanguages } from "./code-languages";
 import { clamp } from "./scroll-sync";
 import { collectClipboardImages, padMarkdownBlock } from "../../domain/attachments";
 import { writeClipboardText } from "./clipboard";
@@ -119,6 +122,47 @@ function ignoreEditorPointer(event: Event, until: MutableRefObject<number>) {
   return false;
 }
 
+const markdownHighlightStyle = HighlightStyle.define([
+  { tag: highlightTags.heading1, class: "cm-md-heading cm-md-h1" },
+  { tag: highlightTags.heading2, class: "cm-md-heading cm-md-h2" },
+  { tag: highlightTags.heading3, class: "cm-md-heading cm-md-h3" },
+  { tag: highlightTags.heading4, class: "cm-md-heading cm-md-h4" },
+  { tag: highlightTags.heading5, class: "cm-md-heading cm-md-h5" },
+  { tag: highlightTags.heading6, class: "cm-md-heading cm-md-h6" },
+  { tag: highlightTags.processingInstruction, class: "cm-md-mark" },
+  { tag: highlightTags.atom, class: "cm-md-task" },
+  { tag: highlightTags.emphasis, class: "cm-md-emphasis" },
+  { tag: highlightTags.strong, class: "cm-md-strong" },
+  { tag: highlightTags.strikethrough, class: "cm-md-strikethrough" },
+  { tag: highlightTags.link, class: "cm-md-link" },
+  { tag: highlightTags.url, class: "cm-md-url" },
+  { tag: highlightTags.monospace, class: "cm-md-code" },
+  { tag: highlightTags.quote, class: "cm-md-quote" },
+  { tag: highlightTags.contentSeparator, class: "cm-md-hr" },
+  { tag: highlightTags.comment, class: "cm-md-comment" },
+  { tag: highlightTags.lineComment, class: "cm-md-comment" },
+  { tag: highlightTags.blockComment, class: "cm-md-comment" },
+  { tag: highlightTags.labelName, class: "cm-md-label" },
+  { tag: highlightTags.string, class: "cm-md-string" },
+  { tag: highlightTags.keyword, class: "cm-code-keyword" },
+  { tag: highlightTags.controlKeyword, class: "cm-code-keyword" },
+  { tag: highlightTags.definitionKeyword, class: "cm-code-keyword" },
+  { tag: highlightTags.moduleKeyword, class: "cm-code-keyword" },
+  { tag: highlightTags.bool, class: "cm-code-bool" },
+  { tag: highlightTags.number, class: "cm-code-number" },
+  { tag: highlightTags.literal, class: "cm-code-number" },
+  { tag: highlightTags.regexp, class: "cm-code-regexp" },
+  { tag: highlightTags.typeName, class: "cm-code-type" },
+  { tag: highlightTags.className, class: "cm-code-type" },
+  { tag: highlightTags.function(highlightTags.variableName), class: "cm-code-fn" },
+  { tag: highlightTags.function(highlightTags.propertyName), class: "cm-code-fn" },
+  { tag: highlightTags.definition(highlightTags.variableName), class: "cm-code-def" },
+  { tag: highlightTags.propertyName, class: "cm-code-prop" },
+  { tag: highlightTags.variableName, class: "cm-code-name" },
+  { tag: highlightTags.operator, class: "cm-code-operator" },
+  { tag: highlightTags.invalid, class: "cm-code-invalid" },
+]);
+
 function createEditorExtensions(
   isDark: boolean,
   settings: AppSettings["editor"],
@@ -128,9 +172,12 @@ function createEditorExtensions(
 ) {
   return [
     history(),
-    markdown(),
+    markdown({ codeLanguages: fencedCodeLanguages }),
+    syntaxHighlighting(markdownHighlightStyle),
+    fencedCodeBlockHighlighter(),
+    highlightActiveLine(),
     ...(settings.lineWrapping ? [EditorView.lineWrapping] : []),
-    ...(settings.lineNumbers ? [lineNumbers()] : []),
+    ...(settings.lineNumbers ? [lineNumbers(), highlightActiveLineGutter()] : []),
     keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap, indentWithTab]),
     EditorView.domEventHandlers({
       mousedown(event) {
@@ -204,25 +251,25 @@ function createEditorExtensions(
           overflowAnchor: "none",
           overscrollBehavior: "contain",
           backgroundColor: "var(--memoir-canvas)",
-          fontFamily: "var(--memoir-mono-font)",
+          fontFamily: "inherit",
         },
         ".cm-content": {
           minHeight: "100%",
-          padding: "30px 34px 84px",
-          backgroundColor: "var(--memoir-canvas)",
+          padding: "12px 16px 48px",
+          backgroundColor: "transparent",
           color: "var(--memoir-text)",
-          fontFamily: "var(--memoir-mono-font)",
-          lineHeight: "1.82",
+          fontFamily: "inherit",
+          lineHeight: "1.7",
           caretColor: "var(--memoir-text)",
         },
         ".cm-line": {
-          paddingLeft: "2px",
-          paddingRight: "18px",
+          paddingLeft: "0",
+          paddingRight: "8px",
         },
         ".cm-gutters": {
           backgroundColor: "var(--memoir-canvas)",
-          color: "color-mix(in srgb, var(--memoir-muted) 62%, transparent)",
-          borderRight: "1px solid var(--memoir-border)",
+          color: "color-mix(in srgb, var(--memoir-muted) 72%, transparent)",
+          borderRight: "1px solid color-mix(in srgb, var(--memoir-border) 70%, transparent)",
         },
         ".cm-lineNumbers .cm-gutterElement": {
           minWidth: "34px",
@@ -231,10 +278,13 @@ function createEditorExtensions(
           fontSize: "10px",
         },
         ".cm-activeLine, .cm-activeLineGutter": {
-          backgroundColor: "color-mix(in srgb, var(--memoir-panel) 46%, transparent)",
+          backgroundColor: "color-mix(in srgb, var(--memoir-text) 4%, transparent)",
         },
         ".cm-focused": { outline: "none" },
-        ".cm-cursor": { borderLeftColor: "var(--memoir-text)" },
+        ".cm-cursor, .cm-dropCursor": {
+          borderLeftColor: "var(--memoir-text)",
+          borderLeftWidth: "1.5px",
+        },
         ".cm-content ::selection": {
           backgroundColor: "color-mix(in srgb, var(--memoir-accent) 32%, transparent) !important",
         },

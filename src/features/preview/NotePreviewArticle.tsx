@@ -14,6 +14,7 @@ import {
 import ReactMarkdown, { type Components as MarkdownComponents } from "react-markdown";
 import { MDXProvider, useMDXComponents } from "@mdx-js/react";
 import type { MDXComponents } from "mdx/types.js";
+import rehypeHighlight from "rehype-highlight";
 import rehypeKatex from "rehype-katex";
 import rehypeRaw from "rehype-raw";
 import rehypeSlug from "rehype-slug";
@@ -33,7 +34,11 @@ const MDX_IMPORT_EXPORT_DISABLED = "MDX_IMPORT_EXPORT_DISABLED";
 
 const MermaidBlock = lazy(() => import("./MermaidBlock"));
 const remarkPlugins = [remarkGfm, remarkMath];
-const rehypePlugins = [rehypeSlug, rehypeKatex, rehypeTaskOffsets, rehypeSourceLines];
+const highlightCode: [typeof rehypeHighlight, { detect: boolean; plainText: string[] }] = [
+  rehypeHighlight,
+  { detect: false, plainText: ["mermaid"] },
+];
+const rehypePlugins = [rehypeSlug, rehypeKatex, rehypeTaskOffsets, rehypeSourceLines, highlightCode];
 const markdownRehypePlugins = [rehypeRaw, ...rehypePlugins];
 const mdxCache = new Map<string, ComponentType<{ components?: MDXComponents }>>();
 

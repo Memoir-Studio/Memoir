@@ -26,13 +26,19 @@
   --memoir-accent-soft: #e7e5df;
   --memoir-accent-contrast: #ffffff;
   --memoir-danger: #c94c41;
-  --memoir-mono-font: "SFMono-Regular", "Cascadia Code", "Roboto Mono", Menlo, Monaco, Consolas, monospace;
+  --memoir-mono-font: "SFMono-Regular", "Cascadia Code", "Roboto Mono", Menlo, Monaco, Consolas, "PingFang SC", "Microsoft YaHei", ui-monospace, monospace;
   --memoir-body-size: 15px;
   --memoir-line-height: 1.8;
   --memoir-motion: 160ms;
   --memoir-motion-fast: 140ms;
   --memoir-ease: cubic-bezier(0.22, 1, 0.36, 1);
   --memoir-window-inset: 8px;
+  --memoir-code-keyword: #8a4e30;
+  --memoir-code-string: #2d7a56;
+  --memoir-code-number: #b56a16;
+  --memoir-code-fn: #3d5f8f;
+  --memoir-code-type: #6a548f;
+  --memoir-code-prop: #5c6848;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -50,6 +56,12 @@
   --memoir-accent-soft: #393832;
   --memoir-accent-contrast: #171715;
   --memoir-danger: #ef766b;
+  --memoir-code-keyword: #e0a57a;
+  --memoir-code-string: #86c4a4;
+  --memoir-code-number: #e0b36a;
+  --memoir-code-fn: #8fb0dd;
+  --memoir-code-type: #b7a3dd;
+  --memoir-code-prop: #b3c49a;
 }
 
 [data-accent="ink"] {

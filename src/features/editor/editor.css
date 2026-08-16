@@ -73,12 +73,149 @@
 
 .editor-pane {
   animation: memoir-fade-in var(--memoir-motion-fast) var(--memoir-ease);
-  box-shadow: inset -1px 0 color-mix(in srgb, var(--memoir-border) 42%, transparent);
 }
 
 .editor-pane .cm-content ::selection,
 .editor-pane .cm-line ::selection {
-  background: color-mix(in srgb, var(--memoir-accent) 28%, transparent);
+  background: color-mix(in srgb, var(--memoir-accent) 22%, transparent);
+}
+
+.editor-pane .cm-md-heading {
+  font-weight: 730;
+  color: var(--memoir-text);
+  letter-spacing: -0.028em;
+}
+
+.editor-pane .cm-md-h1 {
+  font-size: 1.72em;
+  line-height: 1.28;
+}
+
+.editor-pane .cm-md-h2 {
+  font-size: 1.36em;
+  line-height: 1.32;
+}
+
+.editor-pane .cm-md-h3 {
+  font-size: 1.12em;
+  line-height: 1.4;
+}
+
+.editor-pane .cm-md-h4,
+.editor-pane .cm-md-h5,
+.editor-pane .cm-md-h6 {
+  font-size: 1em;
+}
+
+.editor-pane .cm-md-mark {
+  color: color-mix(in srgb, var(--memoir-muted) 88%, transparent);
+  font-weight: 500;
+}
+
+.editor-pane .cm-md-task {
+  color: color-mix(in srgb, var(--memoir-muted) 70%, var(--memoir-text));
+  font-weight: 550;
+  letter-spacing: 0.02em;
+}
+
+.editor-pane .cm-md-heading.cm-md-mark {
+  font-size: 0.62em;
+  font-weight: 550;
+  letter-spacing: 0;
+  vertical-align: 0.18em;
+}
+
+.editor-pane .cm-md-emphasis {
+  font-style: italic;
+}
+
+.editor-pane .cm-md-strong {
+  font-weight: 700;
+}
+
+.editor-pane .cm-md-strikethrough {
+  color: var(--memoir-muted);
+  text-decoration: line-through;
+}
+
+.editor-pane .cm-md-link {
+  color: var(--memoir-accent);
+}
+
+.editor-pane .cm-md-url,
+.editor-pane .cm-md-label {
+  color: color-mix(in srgb, var(--memoir-accent) 58%, var(--memoir-muted));
+}
+
+.editor-pane .cm-md-string,
+.editor-pane .cm-code-regexp {
+  color: var(--memoir-code-string);
+}
+
+.editor-pane .cm-md-code {
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--memoir-panel) 88%, transparent);
+  padding: 0.08em 0.28em;
+  color: color-mix(in srgb, var(--memoir-text) 88%, var(--memoir-muted));
+  font-family: var(--memoir-mono-font);
+  font-size: 0.9em;
+}
+
+.editor-pane .cm-md-codeblock {
+  background: color-mix(in srgb, var(--memoir-panel) 70%, transparent);
+  font-family: var(--memoir-mono-font);
+}
+
+.editor-pane .cm-md-codeblock .cm-md-code {
+  background: transparent;
+  padding: 0;
+  font-size: inherit;
+}
+
+.editor-pane .cm-code-keyword,
+.editor-pane .cm-code-bool {
+  color: var(--memoir-code-keyword);
+}
+
+.editor-pane .cm-code-number {
+  color: var(--memoir-code-number);
+}
+
+.editor-pane .cm-code-fn,
+.editor-pane .cm-code-def {
+  color: var(--memoir-code-fn);
+}
+
+.editor-pane .cm-code-type {
+  color: var(--memoir-code-type);
+}
+
+.editor-pane .cm-code-prop {
+  color: var(--memoir-code-prop);
+}
+
+.editor-pane .cm-code-name,
+.editor-pane .cm-code-operator {
+  color: color-mix(in srgb, var(--memoir-text) 88%, var(--memoir-muted));
+}
+
+.editor-pane .cm-code-invalid {
+  color: var(--memoir-danger);
+}
+
+.editor-pane .cm-md-quote,
+.editor-pane .cm-md-hr,
+.editor-pane .cm-md-comment {
+  color: var(--memoir-muted);
+}
+
+.editor-pane .cm-md-comment {
+  font-style: italic;
+}
+
+[data-body-font="serif"] .editor-pane .cm-scroller,
+[data-body-font="serif"] .editor-pane .cm-content {
+  font-family: ui-serif, "Songti SC", STSong, Georgia, serif;
 }
 
 .editor-pane.is-file-drop {
@@ -107,6 +244,6 @@
 
 @media (max-width: 980px) {
   .cm-content {
-    padding-inline: 22px !important;
+    padding-inline: 16px !important;
   }
 }

@@ -70,6 +70,57 @@ describe("EditorPane context menu", () => {
   });
 });
 
+describe("EditorPane source chrome", () => {
+  it("keeps the source pane on the same canvas as the preview", () => {
+    const view = render(
+      <EditorPane
+        content="# Hello"
+        fileName="hello.md"
+        isDark={false}
+        onChange={() => undefined}
+        settings={DEFAULT_SETTINGS}
+      />,
+    );
+    expect(view.container.querySelector(".editor-pane")).toHaveClass("bg-canvas");
+  });
+
+  it("highlights markdown structure instead of rendering flat text", async () => {
+    const view = render(
+      <EditorPane
+        content={"## Title\n\n**bold** and `code`\n\n- [ ] item"}
+        fileName="hello.md"
+        isDark={false}
+        onChange={() => undefined}
+        settings={DEFAULT_SETTINGS}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(view.container.querySelector(".cm-md-h2")).toBeTruthy();
+      expect(view.container.querySelector(".cm-md-strong")).toBeTruthy();
+      expect(view.container.querySelector(".cm-md-code")).toBeTruthy();
+      expect(view.container.querySelector(".cm-md-mark")).toBeTruthy();
+    });
+  });
+
+  it("highlights fenced python in the source editor", async () => {
+    const view = render(
+      <EditorPane
+        content={"```python\ndef main():\n    pass\n```"}
+        fileName="hello.md"
+        isDark={false}
+        onChange={() => undefined}
+        settings={DEFAULT_SETTINGS}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(view.container.querySelector(".cm-code-keyword")).toBeTruthy();
+      expect(view.container.querySelector(".cm-md-codeblock")).toBeTruthy();
+    });
+  });
+});
+
 describe("EditorPane image insert", () => {
   it("saves pasted clipboard images and inserts markdown", async () => {
     const onPasteImages = vi.fn().mockResolvedValue("![shot](attachments/2026-08/shot.png)");

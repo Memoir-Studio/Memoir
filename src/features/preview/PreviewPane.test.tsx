@@ -42,6 +42,8 @@ describe("PreviewPane task list", () => {
     );
     const user = userEvent.setup();
     const checkboxes = view.getAllByRole("checkbox", { name: "切换任务状态" });
+    expect(view.container.querySelector("ul.contains-task-list")).toBeTruthy();
+    expect(view.container.querySelectorAll("li.task-list-item")).toHaveLength(2);
 
     await user.click(checkboxes[1]);
 
@@ -82,6 +84,38 @@ describe("PreviewPane task list", () => {
     await user.click(checkbox);
 
     expect(updatedContent).toBe(["<Badge>MDX</Badge>", "", "- [x] MDX 任务", ""].join("\n"));
+  });
+});
+
+describe("PreviewPane fenced code", () => {
+  it("highlights python tokens in a fenced code block", () => {
+    const view = render(
+      <PreviewPane
+        activePath="hello.md"
+        content={"```python\ndef main():\n    pass\n```\n"}
+        note={{ ...note, relativePath: "hello.md", fileName: "hello.md", title: "Hello" }}
+        onContentChange={() => undefined}
+        root="/notes"
+      />,
+    );
+
+    expect(view.container.querySelector(".hljs-keyword")).toBeTruthy();
+    expect(view.container.querySelector("code.language-python, code.hljs")).toBeTruthy();
+  });
+
+  it("leaves mermaid fences for the diagram renderer", () => {
+    const view = render(
+      <PreviewPane
+        activePath="hello.md"
+        content={"```mermaid\ngraph LR\nA-->B\n```\n"}
+        note={{ ...note, relativePath: "hello.md", fileName: "hello.md", title: "Hello" }}
+        onContentChange={() => undefined}
+        root="/notes"
+      />,
+    );
+
+    expect(view.container.querySelector("[data-mermaid-pending]")).toBeTruthy();
+    expect(view.container.querySelector(".hljs-keyword")).toBeNull();
   });
 });
 
