@@ -393,10 +393,10 @@ export const EditorWorkspace = forwardRef<EditorHandle, {
           >
             <ExternalLink className="h-4 w-4" />
           </IconButton>
-          <IconButton className="max-[760px]:hidden" label={t("editor.rename")} onClick={onRename}>
+          <IconButton className="max-[760px]:hidden" label={t("editor.rename")} onClick={() => onRename()}>
             <Braces className="h-4 w-4" />
           </IconButton>
-          <IconButton className="max-[760px]:hidden" label={t("editor.delete")} onClick={onDelete}>
+          <IconButton className="max-[760px]:hidden" label={t("editor.delete")} onClick={() => onDelete()}>
             <Trash2 className="h-4 w-4" />
           </IconButton>
         </div>

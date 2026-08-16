@@ -51,4 +51,38 @@ describe("EditorWorkspace PDF export", () => {
     await user.click(view.getByRole("button", { name: "导出 PDF" }));
     expect(exportNotePdf).toHaveBeenCalledWith("alpha.md");
   });
+
+  it("invokes header delete and rename without passing the click event", async () => {
+    useAppStore.setState({
+      workspaceRoot: "/workspace",
+      notes: [
+        {
+          relativePath: "alpha.md",
+          fileName: "alpha.md",
+          extension: "md",
+          modifiedMs: 1,
+          size: 10,
+          title: "Alpha Guide",
+          tags: [],
+          excerpt: "",
+          favorite: false,
+        },
+      ],
+      activePath: "alpha.md",
+      loadedContentPath: "alpha.md",
+      content: "# Alpha Guide",
+      savedContent: "# Alpha Guide",
+    });
+    const onDelete = vi.fn();
+    const onRename = vi.fn();
+    const user = userEvent.setup();
+    const view = render(
+      <EditorWorkspace isDark={false} onDelete={onDelete} onRename={onRename} />,
+    );
+
+    await user.click(view.getByRole("button", { name: "删除" }));
+    await user.click(view.getByRole("button", { name: "重命名" }));
+    expect(onDelete).toHaveBeenCalledWith();
+    expect(onRename).toHaveBeenCalledWith();
+  });
 });

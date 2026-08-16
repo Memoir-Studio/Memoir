@@ -109,7 +109,7 @@ export function NoteList({
           ) : mode === "index" ? (
             <span aria-hidden className="h-8 w-8" />
           ) : (
-            <IconButton label={t("library.newNote")} onClick={onCreate}>
+            <IconButton label={t("library.newNote")} onClick={() => onCreate()}>
               <Plus className="h-4 w-4" />
             </IconButton>
           )}

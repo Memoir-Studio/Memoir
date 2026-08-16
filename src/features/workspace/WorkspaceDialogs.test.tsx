@@ -258,4 +258,43 @@ describe("WorkspaceDialogs", () => {
       expect(view.queryByRole("dialog", { name: "删除笔记" })).not.toBeInTheDocument();
     });
   });
+
+  it("falls back to the active note when delete is opened without a path", async () => {
+    const deleteNote = vi.fn().mockResolvedValue(undefined);
+    useAppStore.setState({
+      activePath: "alpha.md",
+      notes: [
+        {
+          relativePath: "alpha.md",
+          fileName: "alpha.md",
+          extension: "md",
+          modifiedMs: 1,
+          size: 10,
+          title: "Alpha",
+          tags: [],
+          excerpt: "",
+          favorite: false,
+        },
+      ],
+      deleteNote,
+    });
+    function ClickHarness() {
+      const { openDelete } = useWorkspaceDialogs();
+      return (
+        <button onClick={openDelete} type="button">
+          标题栏删除
+        </button>
+      );
+    }
+    const user = userEvent.setup();
+    const view = render(
+      <WorkspaceDialogsProvider>
+        <ClickHarness />
+      </WorkspaceDialogsProvider>,
+    );
+
+    await user.click(view.getByRole("button", { name: "标题栏删除" }));
+    await user.click(view.getByRole("button", { name: "移入回收站" }));
+    expect(deleteNote).toHaveBeenCalledWith("alpha.md");
+  });
 });

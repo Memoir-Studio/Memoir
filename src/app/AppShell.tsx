@@ -91,7 +91,7 @@ function WorkspaceLayout({
         <LibrarySidebar
           className={panelClass("navigation")}
           isDark={isDark}
-          onCreateFolder={() => openCreate("mdx", t("create.newFolder"))}
+          onCreateFolder={() => openCreate()}
           onCreateTag={() => openCreate("mdx", "", t("create.newTag"))}
         />
         <NoteList

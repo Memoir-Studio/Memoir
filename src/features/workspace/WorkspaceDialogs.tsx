@@ -93,18 +93,18 @@ export function WorkspaceDialogsProvider({ children }: { children: ReactNode }) 
         setFormDialog({
           type: "create",
           title: "",
-          extension,
-          folder,
-          tags: tag.trim() ? [tag.trim()] : [],
+          extension: extension === "md" || extension === "mdx" ? extension : "mdx",
+          folder: typeof folder === "string" ? folder : "",
+          tags: typeof tag === "string" && tag.trim() ? [tag.trim()] : [],
           tagQuery: "",
         });
       },
       openRename: (path) => {
-        const target = path ?? activePath;
+        const target = typeof path === "string" && path ? path : activePath;
         if (target) setFormDialog({ type: "rename", from: target, path: target });
       },
       openDelete: (path) => {
-        const target = path ?? activePath;
+        const target = typeof path === "string" && path ? path : activePath;
         if (target) setDeleteTarget(target);
       },
     }),

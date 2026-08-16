@@ -216,7 +216,6 @@ export const zh = {
 
   "create.untitledNote": "未命名笔记",
   "create.untitledMdx": "未命名 MDX",
-  "create.newFolder": "新建文件夹",
   "create.newTag": "新标签",
 
   "settings.title": "设置",

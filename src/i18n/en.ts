@@ -219,7 +219,6 @@ export const en = {
 
   "create.untitledNote": "Untitled Note",
   "create.untitledMdx": "Untitled MDX",
-  "create.newFolder": "New Folder",
   "create.newTag": "new-tag",
 
   "settings.title": "Settings",
