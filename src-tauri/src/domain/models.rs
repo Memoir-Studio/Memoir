@@ -1,3 +1,4 @@
+use crate::domain::cloud_sync::CloudSyncProfile;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -296,6 +297,8 @@ pub struct AppState {
     #[serde(default)]
     pub folder_appearances: BTreeMap<String, BTreeMap<String, FolderAppearance>>,
     #[serde(default)]
+    pub cloud_sync: BTreeMap<String, CloudSyncProfile>,
+    #[serde(default)]
     pub window: WindowFrameState,
 }
 
@@ -313,6 +316,7 @@ impl Default for AppState {
             sidebar_collapsed: false,
             favorites: BTreeMap::new(),
             folder_appearances: BTreeMap::new(),
+            cloud_sync: BTreeMap::new(),
             window: WindowFrameState::default(),
         }
     }

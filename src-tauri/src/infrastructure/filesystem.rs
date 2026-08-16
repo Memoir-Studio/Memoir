@@ -1,10 +1,11 @@
 use crate::{
     domain::{
         attachment::{
-            attachment_month_dir, mime_from_extension, resolve_attachment_extension,
-            sanitize_attachment_file_name, unique_file_name, ATTACHMENTS_DIR,
-            LEGACY_ATTACHMENTS_DIR,
+            attachment_month_dir, is_attachment_relative, mime_from_extension,
+            resolve_attachment_extension, sanitize_attachment_file_name, unique_file_name,
+            ATTACHMENTS_DIR, LEGACY_ATTACHMENTS_DIR, MAX_ATTACHMENT_BYTES,
         },
+        cloud_sync::{is_note_relative, is_syncable_relative, FileIdentity},
         folder_of,
         path::{
             create_parent_dirs, is_supported_note, normalize_root, resolve_existing_attachment,
@@ -212,6 +213,103 @@ impl LocalFileSystem {
         let (root, attachment_path) = resolve_existing_attachment(root, relative_path)?;
         move_to_workspace_trash(&root, &attachment_path, "deleted-attachment")
     }
+
+    pub fn list_syncable_files(&self, root: &str) -> AppResult<Vec<FileIdentity>> {
+        let notes = self.walk_workspace(root, &HashMap::new(), &[])?;
+        let attachments = self.scan_attachments(root)?;
+        let mut files = notes
+            .notes
+            .into_iter()
+            .map(|note| FileIdentity {
+                relative_path: note.relative_path,
+                size: note.size,
+                modified_ms: note.modified_ms,
+                etag: None,
+            })
+            .collect::<Vec<_>>();
+        files.extend(attachments.into_iter().map(|attachment| FileIdentity {
+            relative_path: attachment.relative_path,
+            size: attachment.size,
+            modified_ms: attachment.modified_ms,
+            etag: None,
+        }));
+        Ok(files)
+    }
+
+    pub fn stat_sync_file(&self, root: &str, relative_path: &str) -> AppResult<FileIdentity> {
+        let (root_path, path) = resolve_sync_path(root, relative_path, true)?;
+        file_identity_from_path(&root_path, &path)
+    }
+
+    pub fn read_sync_file(&self, root: &str, relative_path: &str) -> AppResult<Vec<u8>> {
+        let path = resolve_sync_path(root, relative_path, true)?.1;
+        fs::read(&path).map_err(|error| AppError::io("Read sync file", &path, error))
+    }
+
+    pub fn write_sync_file(
+        &self,
+        root: &str,
+        relative_path: &str,
+        bytes: &[u8],
+    ) -> AppResult<FileIdentity> {
+        if is_attachment_relative(Path::new(relative_path)) && bytes.len() > MAX_ATTACHMENT_BYTES {
+            return Err(AppError::attachment_too_large());
+        }
+        let (root_path, target) = match resolve_sync_path(root, relative_path, true) {
+            Ok(resolved) => resolved,
+            Err(error) if error.code == crate::domain::ErrorCode::NotFound => {
+                resolve_sync_path(root, relative_path, false)?
+            }
+            Err(error) => return Err(error),
+        };
+        create_parent_dirs(&root_path, &target)?;
+        atomic_write(&target, bytes)?;
+        file_identity_from_path(&root_path, &target)
+    }
+
+    pub fn delete_sync_file(&self, root: &str, relative_path: &str) -> AppResult<String> {
+        if is_note_relative(relative_path) {
+            self.delete_note(root, relative_path)
+        } else {
+            self.delete_attachment(root, relative_path)
+        }
+    }
+}
+
+fn resolve_sync_path(root: &str, relative_path: &str, existing: bool) -> AppResult<(PathBuf, PathBuf)> {
+    if !is_syncable_relative(relative_path) {
+        return Err(AppError::invalid_path(
+            "Cloud sync only writes notes and image attachments.",
+        ));
+    }
+    if is_note_relative(relative_path) {
+        if existing {
+            resolve_existing_note(root, relative_path)
+        } else {
+            resolve_new_note(root, relative_path)
+        }
+    } else if is_attachment_relative(Path::new(relative_path)) {
+        if existing {
+            resolve_existing_attachment(root, relative_path)
+        } else {
+            resolve_new_attachment(root, relative_path)
+        }
+    } else {
+        Err(AppError::invalid_path(
+            "Cloud sync only writes notes and image attachments.",
+        ))
+    }
+}
+
+fn file_identity_from_path(root: &Path, path: &Path) -> AppResult<FileIdentity> {
+    let metadata =
+        fs::metadata(path).map_err(|error| AppError::io("Inspect synced file", path, error))?;
+    Ok(FileIdentity {
+        relative_path: to_relative_path(root, path)?,
+        size: metadata.len(),
+        modified_ms: modified_ms(metadata.modified()),
+        etag: None,
+    })
 }
 
 fn write_attachment_bytes(

@@ -16,7 +16,7 @@ app  →  features  →  store  →  gateways  →  platform
 - `src/app/AppShell.tsx` boots the app: theme, DPI zoom, i18n, window-frame CSS, legacy migration, then composes features.
 - Features are grouped by area: `workspace`, `library`, `editor`, `preview`, `settings`, `window`.
 - `src/store/app-store.ts` holds workspace, document, library, settings, and UI state, plus the async actions that mutate them.
-- Store IO goes through `WorkspaceGateway` / `PersistenceGateway` only.
+- Store IO goes through `WorkspaceGateway` / `PersistenceGateway` / `CloudSyncGateway` only.
 - Components and hooks must not call Tauri `invoke` or read/write `localStorage`.
 - Features may call `WorkspaceGateway` for host-side actions that are not store mutations: `openPath`, `openExternal`, `resolveMediaPath`. Window chrome talks to `src/platform/window.ts`.
 - `src/migrations/legacy-storage.ts` is the only module allowed to read old `localStorage` keys. Those keys are deleted only after the backend confirms the atomic write.
@@ -46,7 +46,7 @@ window_frame.rs native window size / maximized persistence
 | Path | Role |
 | --- | --- |
 | `src/app` | Shell: init, theme, composition |
-| `src/features/*` | UI and feature-local helpers |
+| `src/features/*` | UI and feature-local helpers (`sync` is the cloud-sync panel in the library drawer) |
 | `src/store` | Zustand store and selectors |
 | `src/gateways` | Tauri and in-memory browser adapters |
 | `src/domain` | Shared TS models and settings merge |
@@ -57,7 +57,7 @@ window_frame.rs native window size / maximized persistence
 
 `getGateways()` in `src/gateways/index.ts` picks Tauri or browser from `isTauriRuntime()`. Tests inject mocks with `setGatewaysForTests`.
 
-The store is five slices: `workspace`, `document`, `library`, `settings`, `ui`. Preferences persist on a short debounce; unsaved edits write a draft; a longer interval autosaves the file.
+The store is five slices: `workspace`, `document`, `library`, `settings`, `ui`. Preferences persist on a short debounce; unsaved edits write a draft; a longer interval autosaves the file. Optional cloud sync is a third gateway (`CloudSyncGateway`): the planner is provider-agnostic, and WebDAV is the first `CloudProvider`.
 
 ## Tauri contract
 
@@ -87,6 +87,13 @@ Persistence commands:
 - `delete_draft`
 - `drafts_exist`
 - `migrate_legacy_state`
+
+Cloud sync commands:
+
+- `get_cloud_sync_profile`
+- `save_cloud_sync_profile`
+- `test_cloud_sync`
+- `run_cloud_sync`
 
 These are not commands. They go through plugins or Tauri helpers, still behind `WorkspaceGateway`:
 
@@ -134,7 +141,10 @@ app-data/
 - `sidebarCollapsed`
 - `favorites` — relative paths keyed by canonical workspace root
 - `folderAppearances` — emoji/color keyed by workspace, then folder
+- `cloudSync` — per-workspace provider settings (WebDAV URL and credentials stay here, not in the vault)
 - `window` — logical width, height, maximized
+
+A last-sync snapshot lives at `sync/<workspace sha256>/snapshot.json` so two-way sync can detect local/remote edits and deletes. Notes and image attachments are replicated; `.memoir/`, trash, and drafts are not. Conflicts keep the newer mtime (local wins ties).
 
 Drafts are separate files so typing does not rewrite the whole state file. State and draft writes create a sibling temp file, `sync`, then `rename`.
 
@@ -176,4 +186,4 @@ New Tauri command:
 5. Register it in `lib.rs`.
 6. Cover the filesystem rules with temp-dir tests in `src-tauri/src/tests.rs`, and the DTO / error mapping in the frontend gateway tests.
 
-Do not add a second persistence path, cloud sync, or telemetry without an issue first.
+A new cloud provider is a `CloudProvider` impl plus a profile variant. Do not add a second persistence path or telemetry without an issue first.

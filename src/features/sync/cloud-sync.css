@@ -1,0 +1,78 @@
+.cloud-sync-panel .memoir-field-label {
+  font-size: 11px;
+}
+
+.cloud-sync-form {
+  display: grid;
+  gap: 12px;
+}
+
+.cloud-sync-banner,
+.cloud-sync-hint,
+.cloud-sync-status,
+.cloud-sync-probe {
+  margin: 0;
+  color: var(--memoir-muted);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.cloud-sync-banner {
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--memoir-border) 80%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--memoir-panel) 88%, var(--memoir-elevated));
+}
+
+.cloud-sync-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.cloud-sync-row-label {
+  color: var(--memoir-text);
+  font-size: 12px;
+  font-weight: 620;
+  letter-spacing: -0.012em;
+}
+
+.cloud-sync-row-description {
+  margin: 4px 0 0;
+  color: var(--memoir-muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.cloud-sync-status {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--memoir-border) 72%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--memoir-panel) 72%, transparent);
+}
+
+.cloud-sync-status strong {
+  color: var(--memoir-text);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.cloud-sync-status[data-status="error"] {
+  border-color: color-mix(in srgb, var(--memoir-danger, #c45c4a) 28%, var(--memoir-border));
+}
+
+.cloud-sync-probe[data-ok="true"] {
+  color: var(--memoir-accent);
+}
+
+.cloud-sync-probe[data-ok="false"] {
+  color: var(--memoir-danger, #c45c4a);
+}
+
+.cloud-sync-actions {
+  display: grid;
+  gap: 8px;
+}

@@ -451,6 +451,33 @@ describe("app store actions", () => {
     expect(gateways.workspace.queryLibraryCount).toBeGreaterThan(queriesAfterOpen);
   });
 
+  it("saves and runs cloud sync through the gateway then refreshes", async () => {
+    const gateways = createMockGateways();
+    const store = createAppStore(gateways);
+    await store.getState().openWorkspace("/workspace");
+
+    await store.getState().saveCloudSyncProfile({
+      enabled: true,
+      provider: "webdav",
+      remotePrefix: "Memoir",
+      webdav: {
+        url: "https://dav.example/dav",
+        username: "ada",
+        password: "secret",
+        insecureTls: false,
+      },
+    });
+    expect(store.getState().cloudSyncProfile.webdav.url).toBe("https://dav.example/dav");
+    expect(store.getState().cloudSyncProfile.enabled).toBe(true);
+
+    const reconciles = gateways.workspace.reconcileCount;
+    await store.getState().runCloudSync();
+    expect(gateways.cloudSync.lastRun).toEqual({ root: "/workspace", profile: undefined });
+    expect(store.getState().cloudSyncProfile.lastStatus).toBe("ok");
+    expect(store.getState().cloudSyncProfile.lastReport?.uploaded).toBe(1);
+    expect(gateways.workspace.reconcileCount).toBe(reconciles + 1);
+  });
+
   it("lists drafts once for the current page instead of probing every path", async () => {
     const gateways = createMockGateways();
     gateways.workspace.files.set("two.md", "# Two");

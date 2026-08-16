@@ -7,14 +7,14 @@ mod tests;
 mod window_frame;
 
 use commands::{
-    create_note, delete_attachment, delete_draft, delete_note, drafts_exist, get_index_info,
-    import_attachment, load_app_state, migrate_legacy_state, query_library, read_draft, read_note,
-    rebuild_index, reconcile_workspace, rename_note, save_attachment, save_preferences,
-    scan_attachments, set_favorite, set_folder_appearance, write_draft, write_export_file,
-    write_note, AppServices,
+    create_note, delete_attachment, delete_draft, delete_note, drafts_exist, get_cloud_sync_profile,
+    get_index_info, import_attachment, load_app_state, migrate_legacy_state, query_library,
+    read_draft, read_note, rebuild_index, reconcile_workspace, rename_note, run_cloud_sync,
+    save_attachment, save_cloud_sync_profile, save_preferences, scan_attachments, set_favorite,
+    set_folder_appearance, test_cloud_sync, write_draft, write_export_file, write_note, AppServices,
 };
 use infrastructure::{app_data::AppDataRepository, filesystem::LocalFileSystem};
-use services::{AppStateService, WorkspaceService};
+use services::{AppStateService, CloudSyncService, WorkspaceService};
 use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -24,7 +24,8 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             let app_data_dir = app.path().app_data_dir()?;
-            let app_state = AppStateService::new(AppDataRepository::new(app_data_dir));
+            let app_data = AppDataRepository::new(app_data_dir);
+            let app_state = AppStateService::new(app_data.clone());
             if let Some(window) = app.get_webview_window("main") {
                 let frame = app_state
                     .load()
@@ -36,6 +37,11 @@ pub fn run() {
             }
             app.manage(AppServices {
                 workspace: WorkspaceService::new(LocalFileSystem::new()),
+                cloud_sync: CloudSyncService::new(
+                    LocalFileSystem::new(),
+                    app_state.clone(),
+                    app_data,
+                ),
                 app_state,
             });
             Ok(())
@@ -63,7 +69,11 @@ pub fn run() {
             write_draft,
             delete_draft,
             migrate_legacy_state,
-            write_export_file
+            write_export_file,
+            get_cloud_sync_profile,
+            save_cloud_sync_profile,
+            test_cloud_sync,
+            run_cloud_sync
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -19,6 +19,7 @@ import { formatRelativeTime } from "../../i18n";
 import type { AppLocale } from "../../i18n/locale";
 import { useI18n } from "../../i18n/react";
 import { AttachmentLibrary } from "../attachments/AttachmentLibrary";
+import { CloudSyncPanel } from "../sync/CloudSyncPanel";
 import { IndexInspector } from "./IndexInspector";
 import { NoteContextMenu, type NoteMenuTarget } from "./NoteContextMenu";
 import { NoteOutline } from "./NoteOutline";
@@ -76,9 +77,9 @@ export function NoteList({
         data-tauri-drag-region={isTauriRuntime() ? "" : undefined}
         onMouseDown={handleWindowDragMouseDown}
       >
-        {mode === "index" ? (
+        {mode === "index" || mode === "sync" ? (
           <h2 className="text-[13px] font-semibold tracking-[-0.02em] text-text">
-            {t("library.index")}
+            {mode === "sync" ? t("library.cloudSync") : t("library.index")}
           </h2>
         ) : (
           <div className="view-switcher library-mode-switcher flex items-center rounded-lg p-0.5">
@@ -104,7 +105,7 @@ export function NoteList({
           <IconButton label={t("library.importAttachment")} onClick={() => void importAttachments()}>
             <Upload className="h-4 w-4" />
           </IconButton>
-        ) : mode === "index" ? (
+        ) : mode === "index" || mode === "sync" ? (
           <span aria-hidden className="h-8 w-8" />
         ) : (
           <IconButton label={t("library.newNote")} onClick={onCreate}>
@@ -117,6 +118,8 @@ export function NoteList({
         <AttachmentLibrary onInsert={onInsertAttachment} />
       ) : mode === "index" ? (
         <IndexInspector />
+      ) : mode === "sync" ? (
+        <CloudSyncPanel />
       ) : mode === "notes" ? (
         <div className="memoir-fade-in flex min-h-0 flex-1 flex-col">
           <label className="note-search relative mx-3 mt-2.5 block">

@@ -1,5 +1,6 @@
 use crate::{
     domain::{
+        cloud_sync::{sanitize_profile, CloudSyncProfile},
         path::{normalize_workspace_key, validate_relative_path},
         AppResult, AppSettings, AppState, FolderAppearance, LegacyStatePayload, MigrationResult,
     },
@@ -136,6 +137,36 @@ impl AppStateService {
         }
         self.repository.save_state(&state)?;
         Ok(state)
+    }
+
+    pub fn cloud_sync_profile(&self, workspace_root: &str) -> AppResult<CloudSyncProfile> {
+        let workspace_root =
+            normalize_workspace_key(workspace_root).unwrap_or_else(|_| workspace_root.to_string());
+        let state = self.repository.load_state()?;
+        Ok(state
+            .cloud_sync
+            .get(&workspace_root)
+            .cloned()
+            .unwrap_or_default())
+    }
+
+    pub fn save_cloud_sync_profile(
+        &self,
+        workspace_root: String,
+        profile: CloudSyncProfile,
+    ) -> AppResult<CloudSyncProfile> {
+        let _guard = self
+            .state_lock
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        let workspace_root = normalize_workspace_key(&workspace_root)?;
+        let profile = sanitize_profile(profile)?;
+        let mut state = self.repository.load_state()?;
+        state
+            .cloud_sync
+            .insert(workspace_root, profile.clone());
+        self.repository.save_state(&state)?;
+        Ok(profile)
     }
 
     pub fn drafts_exist(

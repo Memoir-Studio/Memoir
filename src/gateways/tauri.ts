@@ -8,8 +8,20 @@ import type { FolderAppearance } from "../domain/folders";
 import type { WorkspaceIndexInfo } from "../domain/index-info";
 import type { LibraryPage, LibraryQuery, RawNoteFile, RenamedNote } from "../domain/notes";
 import type { AppSettings } from "../domain/settings";
+import type {
+  CloudSyncProbe,
+  CloudSyncProfile,
+  CloudSyncProfileInput,
+  CloudSyncRunResult,
+} from "../domain/cloud-sync";
 import { mapGatewayError } from "../domain/errors";
-import type { AppGateways, CreateNoteInput, PersistenceGateway, WorkspaceGateway } from "./contracts";
+import type {
+  AppGateways,
+  CloudSyncGateway,
+  CreateNoteInput,
+  PersistenceGateway,
+  WorkspaceGateway,
+} from "./contracts";
 
 async function call<T>(command: string, args?: Record<string, unknown>): Promise<T> {
   try {
@@ -189,9 +201,28 @@ export class TauriPersistenceGateway implements PersistenceGateway {
   }
 }
 
+export class TauriCloudSyncGateway implements CloudSyncGateway {
+  getProfile(workspaceRoot: string) {
+    return call<CloudSyncProfile>("get_cloud_sync_profile", { workspaceRoot });
+  }
+
+  saveProfile(workspaceRoot: string, profile: CloudSyncProfileInput) {
+    return call<CloudSyncProfile>("save_cloud_sync_profile", { workspaceRoot, profile });
+  }
+
+  testConnection(profile: CloudSyncProfileInput) {
+    return call<CloudSyncProbe>("test_cloud_sync", { profile });
+  }
+
+  runSync(workspaceRoot: string, profile?: CloudSyncProfileInput) {
+    return call<CloudSyncRunResult>("run_cloud_sync", { workspaceRoot, profile });
+  }
+}
+
 export function createTauriGateways(): AppGateways {
   return {
     workspace: new TauriWorkspaceGateway(),
     persistence: new TauriPersistenceGateway(),
+    cloudSync: new TauriCloudSyncGateway(),
   };
 }

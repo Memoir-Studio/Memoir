@@ -192,6 +192,30 @@ describe("NoteList", () => {
     expect(view.getByRole("button", { name: "重建索引" })).toBeInTheDocument();
   });
 
+  it("shows the cloud sync panel from the sidebar", async () => {
+    useAppStore.setState({
+      workspaceRoot: "/workspace",
+      libraryPanelMode: "sync",
+    });
+    const user = userEvent.setup();
+    const view = render(
+      <NoteList
+        onCreate={() => undefined}
+        onDelete={() => undefined}
+        onRename={() => undefined}
+      />,
+    );
+
+    expect(view.queryByRole("button", { name: "笔记" })).not.toBeInTheDocument();
+    expect(view.getByRole("heading", { name: "云同步" })).toBeInTheDocument();
+    expect(view.getByText(/目前支持 WebDAV/)).toBeInTheDocument();
+    await user.type(
+      view.getByPlaceholderText("https://dav.example.com/remote.php/dav/"),
+      "https://dav.example/dav",
+    );
+    expect(view.getByDisplayValue("https://dav.example/dav")).toBeInTheDocument();
+  });
+
   it("opens a note context menu for rename, favorite and delete", async () => {
     const onRename = vi.fn();
     const onDelete = vi.fn();

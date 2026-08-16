@@ -82,6 +82,38 @@ fn rejects_symlink_escape_for_existing_and_new_notes() {
 }
 
 #[test]
+fn sync_file_writes_stay_inside_the_workspace() {
+    let workspace = tempdir().unwrap();
+    let root = workspace.path().to_str().unwrap();
+    let filesystem = LocalFileSystem::new();
+    filesystem
+        .write_sync_file(root, "inbox.md", b"# Inbox")
+        .unwrap();
+    assert_eq!(fs::read_to_string(workspace.path().join("inbox.md")).unwrap(), "# Inbox");
+    filesystem
+        .write_sync_file(root, ".memoir-attachments/2026-08/photo.png", b"png-bytes")
+        .unwrap();
+    assert!(workspace
+        .path()
+        .join(".memoir-attachments/2026-08/photo.png")
+        .exists());
+    assert_eq!(
+        filesystem
+            .write_sync_file(root, "../escape.md", b"nope")
+            .unwrap_err()
+            .code,
+        ErrorCode::InvalidPath
+    );
+    assert_eq!(
+        filesystem
+            .write_sync_file(root, ".memoir/index.md", b"nope")
+            .unwrap_err()
+            .code,
+        ErrorCode::InvalidPath
+    );
+}
+
+#[test]
 fn scans_notes_sorted_and_ignores_hidden_directories() {
     let workspace = tempdir().unwrap();
     fs::write(workspace.path().join("a.md"), "# A").unwrap();

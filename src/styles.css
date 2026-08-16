@@ -18,3 +18,4 @@
 @import "./features/editor/editor.css";
 @import "./features/preview/preview.css";
 @import "./features/settings/settings.css";
+@import "./features/sync/cloud-sync.css";

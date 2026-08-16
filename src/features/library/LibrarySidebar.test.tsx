@@ -99,6 +99,22 @@ describe("LibrarySidebar folders", () => {
     expect(view.getByRole("menuitem", { name: "自定义外观" })).toBeInTheDocument();
   });
 
+  it("opens cloud sync from the drawer", async () => {
+    useAppStore.setState({
+      workspaceRoot: "/notes",
+      libraryPanelMode: "notes",
+      libraryStats: { ...emptyLibraryStats(), total: 1 },
+    });
+    const user = userEvent.setup();
+    const view = render(
+      <LibrarySidebar isDark={false} onCreateFolder={() => undefined} onCreateTag={() => undefined} />,
+    );
+
+    await user.click(view.getByRole("button", { name: "云同步" }));
+    expect(useAppStore.getState().libraryPanelMode).toBe("sync");
+    expect(view.getByRole("button", { name: "云同步" })).toHaveAttribute("aria-current", "page");
+  });
+
   it("opens the workspace index panel from the drawer", async () => {
     useAppStore.setState({
       workspaceRoot: "/notes",

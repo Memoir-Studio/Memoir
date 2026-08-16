@@ -11,8 +11,18 @@ import { indexInfoFromNotes, type WorkspaceIndexInfo } from "../domain/index-inf
 import type { LibraryPage, LibraryQuery, RawNoteFile, RenamedNote } from "../domain/notes";
 import { parseNote, queryNotesInMemory } from "../features/library/note-utils";
 import { DEFAULT_SETTINGS } from "../domain/settings";
+import {
+  defaultCloudSyncProfile,
+  mergeCloudSyncProfile,
+  type CloudSyncProfile,
+  type CloudSyncProfileInput,
+  type CloudSyncProbe,
+  type CloudSyncReport,
+  type CloudSyncRunResult,
+} from "../domain/cloud-sync";
 import type {
   AppGateways,
+  CloudSyncGateway,
   CreateNoteInput,
   PersistenceGateway,
   WorkspaceGateway,
@@ -272,12 +282,68 @@ export class MockPersistenceGateway implements PersistenceGateway {
   }
 }
 
+export class MockCloudSyncGateway implements CloudSyncGateway {
+  profiles = new Map<string, CloudSyncProfile>();
+  lastTest: CloudSyncProfileInput | null = null;
+  lastRun: { root: string; profile?: CloudSyncProfileInput } | null = null;
+  failTest = false;
+  failRun = false;
+  nextProbe: CloudSyncProbe = { ok: true, message: "Connected." };
+  nextReport: CloudSyncReport = {
+    uploaded: 1,
+    downloaded: 0,
+    deletedRemote: 0,
+    deletedLocal: 0,
+    skipped: 2,
+    conflicts: 0,
+    errors: [],
+    completedMs: 1_700_000_000_000,
+  };
+
+  async getProfile(workspaceRoot: string) {
+    return mergeCloudSyncProfile(this.profiles.get(workspaceRoot) ?? defaultCloudSyncProfile());
+  }
+
+  async saveProfile(workspaceRoot: string, profile: CloudSyncProfileInput) {
+    const current = await this.getProfile(workspaceRoot);
+    const next = mergeCloudSyncProfile({ ...current, ...profile });
+    this.profiles.set(workspaceRoot, next);
+    return next;
+  }
+
+  async testConnection(profile: CloudSyncProfileInput) {
+    this.lastTest = profile;
+    if (this.failTest) throw new Error("unauthorized");
+    return this.nextProbe;
+  }
+
+  async runSync(workspaceRoot: string, profile?: CloudSyncProfileInput): Promise<CloudSyncRunResult> {
+    this.lastRun = { root: workspaceRoot, profile };
+    if (this.failRun) throw new Error("sync failed");
+    if (profile) {
+      await this.saveProfile(workspaceRoot, profile);
+    }
+    const saved = await this.getProfile(workspaceRoot);
+    const next = mergeCloudSyncProfile({
+      ...saved,
+      lastSyncMs: this.nextReport.completedMs,
+      lastStatus: "ok",
+      lastError: null,
+      lastReport: this.nextReport,
+    });
+    this.profiles.set(workspaceRoot, next);
+    return { profile: next, report: this.nextReport };
+  }
+}
+
 export function createMockGateways(): AppGateways & {
   workspace: MockWorkspaceGateway;
   persistence: MockPersistenceGateway;
+  cloudSync: MockCloudSyncGateway;
 } {
   return {
     workspace: new MockWorkspaceGateway(),
     persistence: new MockPersistenceGateway(),
+    cloudSync: new MockCloudSyncGateway(),
   };
 }

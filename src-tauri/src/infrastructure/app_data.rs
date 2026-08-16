@@ -1,5 +1,8 @@
 use crate::{
-    domain::{AppError, AppResult, AppState, LegacyDraft, APP_STATE_VERSION},
+    domain::{
+        cloud_sync::{SyncSnapshot, CLOUD_SYNC_SNAPSHOT_VERSION},
+        AppError, AppResult, AppState, LegacyDraft, APP_STATE_VERSION,
+    },
     infrastructure::atomic::atomic_write,
 };
 use sha2::{Digest, Sha256};
@@ -142,6 +145,40 @@ impl AppDataRepository {
         found.sort();
         found.dedup();
         Ok(found)
+    }
+
+    pub fn load_sync_snapshot(&self, workspace_root: &str) -> AppResult<SyncSnapshot> {
+        let path = self.sync_snapshot_path(workspace_root);
+        if !path.exists() {
+            return Ok(SyncSnapshot {
+                version: CLOUD_SYNC_SNAPSHOT_VERSION,
+                files: Default::default(),
+            });
+        }
+        let bytes =
+            fs::read(&path).map_err(|error| AppError::io("Read sync snapshot", &path, error))?;
+        let mut snapshot: SyncSnapshot =
+            serde_json::from_slice(&bytes).map_err(AppError::serialization)?;
+        snapshot.version = CLOUD_SYNC_SNAPSHOT_VERSION;
+        Ok(snapshot)
+    }
+
+    pub fn save_sync_snapshot(
+        &self,
+        workspace_root: &str,
+        snapshot: &SyncSnapshot,
+    ) -> AppResult<()> {
+        let mut snapshot = snapshot.clone();
+        snapshot.version = CLOUD_SYNC_SNAPSHOT_VERSION;
+        let bytes = serde_json::to_vec_pretty(&snapshot).map_err(AppError::serialization)?;
+        atomic_write(&self.sync_snapshot_path(workspace_root), &bytes)
+    }
+
+    fn sync_snapshot_path(&self, workspace_root: &str) -> PathBuf {
+        self.root
+            .join("sync")
+            .join(stable_hash(workspace_root.as_bytes()))
+            .join("snapshot.json")
     }
 
     pub fn write_legacy_draft(&self, draft: &LegacyDraft) -> AppResult<()> {

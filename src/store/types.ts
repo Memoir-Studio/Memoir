@@ -8,6 +8,12 @@ import type {
   ScopedFilter,
 } from "../domain/notes";
 import type { AppSettings, ViewMode } from "../domain/settings";
+import type {
+  CloudSyncProbe,
+  CloudSyncProfile,
+  CloudSyncProfileInput,
+  CloudSyncRunResult,
+} from "../domain/cloud-sync";
 import type { SettingsSection } from "../features/settings/types";
 
 export type WorkspaceSlice = {
@@ -29,7 +35,7 @@ export type DocumentSlice = {
   isSaving: boolean;
 };
 
-export type LibraryPanelMode = "notes" | "outline" | "attachments" | "index";
+export type LibraryPanelMode = "notes" | "outline" | "attachments" | "index" | "sync";
 
 export type LibrarySlice = {
   query: string;
@@ -50,6 +56,7 @@ export type UiSlice = {
   isSidebarCollapsed: boolean;
   settingsOpen: boolean;
   settingsSection: SettingsSection;
+  cloudSyncProfile: CloudSyncProfile;
   mobilePanel: "editor" | "library" | "navigation";
 };
 
@@ -89,6 +96,9 @@ export type AppActions = {
   openSettings(section?: SettingsSection): void;
   closeSettings(): void;
   setSettingsSection(section: SettingsSection): void;
+  saveCloudSyncProfile(profile: CloudSyncProfileInput): Promise<void>;
+  testCloudSync(profile: CloudSyncProfileInput): Promise<CloudSyncProbe>;
+  runCloudSync(profile?: CloudSyncProfileInput): Promise<CloudSyncRunResult | null>;
   setMobilePanel(panel: UiSlice["mobilePanel"]): void;
   clearError(): void;
 };

@@ -1,10 +1,10 @@
 use crate::{
     domain::{
         attachment::ATTACHMENTS_DIR, AppError, AppSettings, AppState, AttachmentFile,
-        FolderAppearance, LegacyStatePayload, LibraryPage, LibraryQuery, MigrationResult, NoteFile,
-        RenamedNote, WorkspaceIndexInfo,
+        CloudSyncProbe, CloudSyncProfile, CloudSyncRunResult, FolderAppearance, LegacyStatePayload,
+        LibraryPage, LibraryQuery, MigrationResult, NoteFile, RenamedNote, WorkspaceIndexInfo,
     },
-    services::{AppStateService, WorkspaceService},
+    services::{AppStateService, CloudSyncService, WorkspaceService},
 };
 use std::path::PathBuf;
 use tauri::{AppHandle, Manager, State};
@@ -22,6 +22,7 @@ fn allow_workspace_media(app: &AppHandle, root: &str) {
 pub struct AppServices {
     pub workspace: WorkspaceService,
     pub app_state: AppStateService,
+    pub cloud_sync: CloudSyncService,
 }
 
 #[tauri::command]
@@ -292,6 +293,54 @@ pub fn delete_draft(
     services
         .app_state
         .delete_draft(&workspace_root, &relative_path)
+}
+
+#[tauri::command]
+pub fn get_cloud_sync_profile(
+    services: State<'_, AppServices>,
+    workspace_root: String,
+) -> Result<CloudSyncProfile, AppError> {
+    services.cloud_sync.profile(&workspace_root)
+}
+
+#[tauri::command]
+pub fn save_cloud_sync_profile(
+    services: State<'_, AppServices>,
+    workspace_root: String,
+    profile: CloudSyncProfile,
+) -> Result<CloudSyncProfile, AppError> {
+    services
+        .cloud_sync
+        .save_profile(&workspace_root, profile)
+}
+
+#[tauri::command]
+pub async fn test_cloud_sync(
+    services: State<'_, AppServices>,
+    profile: CloudSyncProfile,
+) -> Result<CloudSyncProbe, AppError> {
+    let cloud_sync = services.cloud_sync.clone();
+    tauri::async_runtime::spawn_blocking(move || cloud_sync.test_connection(profile))
+        .await
+        .map_err(|error| {
+            AppError::new(crate::domain::ErrorCode::Io, "Cloud connection test interrupted.")
+                .with_details(error.to_string())
+        })?
+}
+
+#[tauri::command]
+pub async fn run_cloud_sync(
+    services: State<'_, AppServices>,
+    workspace_root: String,
+    profile: Option<CloudSyncProfile>,
+) -> Result<CloudSyncRunResult, AppError> {
+    let cloud_sync = services.cloud_sync.clone();
+    tauri::async_runtime::spawn_blocking(move || cloud_sync.run_sync(&workspace_root, profile))
+        .await
+        .map_err(|error| {
+            AppError::new(crate::domain::ErrorCode::Io, "Cloud sync interrupted.")
+                .with_details(error.to_string())
+        })?
 }
 
 #[tauri::command]

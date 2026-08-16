@@ -19,8 +19,20 @@ import { indexInfoFromNotes, type WorkspaceIndexInfo } from "../domain/index-inf
 import type { LibraryPage, LibraryQuery, RawNoteFile, RenamedNote } from "../domain/notes";
 import { parseNote, queryNotesInMemory } from "../features/library/note-utils";
 import { DEFAULT_SETTINGS } from "../domain/settings";
+import {
+  defaultCloudSyncProfile,
+  mergeCloudSyncProfile,
+  type CloudSyncProfile,
+  type CloudSyncProfileInput,
+} from "../domain/cloud-sync";
 import { GatewayError } from "../domain/errors";
-import type { AppGateways, CreateNoteInput, PersistenceGateway, WorkspaceGateway } from "./contracts";
+import type {
+  AppGateways,
+  CloudSyncGateway,
+  CreateNoteInput,
+  PersistenceGateway,
+  WorkspaceGateway,
+} from "./contracts";
 
 const DEMO_ROOT = "demo://memoir";
 const DEMO_NOTES: Array<[string, string]> = [
@@ -411,6 +423,35 @@ export class BrowserPersistenceGateway implements PersistenceGateway {
   }
 }
 
+export class BrowserCloudSyncGateway implements CloudSyncGateway {
+  private profiles = new Map<string, CloudSyncProfile>();
+
+  async getProfile(workspaceRoot: string) {
+    return mergeCloudSyncProfile(this.profiles.get(workspaceRoot) ?? defaultCloudSyncProfile());
+  }
+
+  async saveProfile(workspaceRoot: string, profile: CloudSyncProfileInput) {
+    const current = await this.getProfile(workspaceRoot);
+    const next = mergeCloudSyncProfile({ ...current, ...profile });
+    this.profiles.set(workspaceRoot, next);
+    return next;
+  }
+
+  async testConnection(_profile: CloudSyncProfileInput): Promise<never> {
+    throw new GatewayError({
+      code: "io",
+      message: "Cloud sync is only available in the desktop app.",
+    });
+  }
+
+  async runSync(_workspaceRoot: string, _profile?: CloudSyncProfileInput): Promise<never> {
+    throw new GatewayError({
+      code: "io",
+      message: "Cloud sync is only available in the desktop app.",
+    });
+  }
+}
+
 function blobToBase64(file: Blob) {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
@@ -445,5 +486,6 @@ export function createBrowserGateways(): AppGateways {
   return {
     workspace: new BrowserWorkspaceGateway(),
     persistence: new BrowserPersistenceGateway(),
+    cloudSync: new BrowserCloudSyncGateway(),
   };
 }

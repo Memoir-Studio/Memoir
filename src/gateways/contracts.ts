@@ -10,6 +10,12 @@ import type {
   RenamedNote,
 } from "../domain/notes";
 import type { AppSettings } from "../domain/settings";
+import type {
+  CloudSyncProbe,
+  CloudSyncProfile,
+  CloudSyncProfileInput,
+  CloudSyncRunResult,
+} from "../domain/cloud-sync";
 
 export type CreateNoteInput = {
   root: string;
@@ -62,7 +68,15 @@ export interface PersistenceGateway {
   migrateLegacyState(payload: LegacyStatePayload): Promise<MigrationResult>;
 }
 
+export interface CloudSyncGateway {
+  getProfile(workspaceRoot: string): Promise<CloudSyncProfile>;
+  saveProfile(workspaceRoot: string, profile: CloudSyncProfileInput): Promise<CloudSyncProfile>;
+  testConnection(profile: CloudSyncProfileInput): Promise<CloudSyncProbe>;
+  runSync(workspaceRoot: string, profile?: CloudSyncProfileInput): Promise<CloudSyncRunResult>;
+}
+
 export type AppGateways = {
   workspace: WorkspaceGateway;
   persistence: PersistenceGateway;
+  cloudSync: CloudSyncGateway;
 };

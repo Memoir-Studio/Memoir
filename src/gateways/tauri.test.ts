@@ -183,6 +183,32 @@ describe("Tauri gateways", () => {
     expect(revealItemInDir).toHaveBeenCalledWith("/notes/one.md");
   });
 
+  it("sends cloud sync commands with camelCase DTOs", async () => {
+    const { TauriCloudSyncGateway } = await import("./tauri");
+    const profile = {
+      enabled: true,
+      provider: "webdav" as const,
+      remotePrefix: "Memoir",
+      webdav: { url: "https://dav.example/dav", username: "ada", password: "secret", insecureTls: false },
+    };
+    invoke.mockResolvedValueOnce({ ...profile, lastSyncMs: null, lastStatus: "idle", lastError: null, lastReport: null });
+    const gateway = new TauriCloudSyncGateway();
+    await gateway.saveProfile("/notes", profile);
+    expect(invoke).toHaveBeenCalledWith("save_cloud_sync_profile", {
+      workspaceRoot: "/notes",
+      profile,
+    });
+    invoke.mockResolvedValueOnce({ ok: true, message: "Connected." });
+    await expect(gateway.testConnection(profile)).resolves.toEqual({ ok: true, message: "Connected." });
+    expect(invoke).toHaveBeenCalledWith("test_cloud_sync", { profile });
+    invoke.mockResolvedValueOnce({
+      profile: { ...profile, lastStatus: "ok" },
+      report: { uploaded: 1, downloaded: 0, deletedRemote: 0, deletedLocal: 0, skipped: 0, conflicts: 0, errors: [], completedMs: 1 },
+    });
+    await gateway.runSync("/notes", profile);
+    expect(invoke).toHaveBeenCalledWith("run_cloud_sync", { workspaceRoot: "/notes", profile });
+  });
+
   it("asks draftsExist with camelCase arguments", async () => {
     const { TauriPersistenceGateway } = await import("./tauri");
     invoke.mockResolvedValue(["one.md"]);

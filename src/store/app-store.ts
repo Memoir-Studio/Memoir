@@ -19,6 +19,11 @@ import {
 } from "../domain/attachments";
 import { DEFAULT_SETTINGS, mergeSettings, type AppSettings } from "../domain/settings";
 import {
+  defaultCloudSyncProfile,
+  mergeCloudSyncProfile,
+  type CloudSyncProfileInput,
+} from "../domain/cloud-sync";
+import {
   folderAppearancesForWorkspace,
   normalizeFolderAppearance,
   normalizeFolderKey,
@@ -173,6 +178,19 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
       }, DRAFT_DEBOUNCE_MS);
     };
 
+    const loadCloudSyncProfile = async (root: string | null) => {
+      if (!root) {
+        set({ cloudSyncProfile: defaultCloudSyncProfile() });
+        return;
+      }
+      try {
+        const profile = await gateways.cloudSync.getProfile(root);
+        set({ cloudSyncProfile: mergeCloudSyncProfile(profile) });
+      } catch {
+        set({ cloudSyncProfile: defaultCloudSyncProfile() });
+      }
+    };
+
     const currentQuery = (state = get()): LibraryQuery =>
       libraryQueryFromFilters(
         state.query,
@@ -285,6 +303,7 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
       isSidebarCollapsed: false,
       settingsOpen: false,
       settingsSection: "appearance",
+      cloudSyncProfile: defaultCloudSyncProfile(),
       mobilePanel: "editor",
 
       async initialize() {
@@ -306,6 +325,7 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
               : {},
           });
           if (workspaceRoot) {
+            await loadCloudSyncProfile(workspaceRoot);
             await get().refreshWorkspace();
           }
           set({ initialized: true });
@@ -358,6 +378,7 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
             : [workspaceRoot];
           if (workspaceRoot === get().workspaceRoot) {
             set({ recentWorkspaces });
+            await loadCloudSyncProfile(workspaceRoot);
             await get().refreshWorkspace();
             return;
           }
@@ -379,6 +400,7 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
             scopedFilter: null,
             libraryPanelMode: "notes",
           });
+          await loadCloudSyncProfile(workspaceRoot);
           await get().refreshWorkspace();
         } catch (error) {
           set({
@@ -834,6 +856,48 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
       },
       setSettingsSection(settingsSection) {
         set({ settingsSection });
+      },
+      async saveCloudSyncProfile(profile: CloudSyncProfileInput) {
+        const root = get().workspaceRoot;
+        if (!root) return;
+        try {
+          const saved = await gateways.cloudSync.saveProfile(root, profile);
+          set({
+            cloudSyncProfile: mergeCloudSyncProfile(saved),
+            status: storeT(get().settings, "status.cloudSyncSaved"),
+          });
+        } catch (error) {
+          set({
+            error: storeT(get().settings, "errors.saveCloudSync", { message: toMessage(error) }),
+          });
+          throw error;
+        }
+      },
+      async testCloudSync(profile: CloudSyncProfileInput) {
+        return gateways.cloudSync.testConnection(profile);
+      },
+      async runCloudSync(profile?: CloudSyncProfileInput) {
+        const root = get().workspaceRoot;
+        if (!root) return null;
+        const unsaved = isOpenUnsavedNote(get());
+        const activePath = get().activePath;
+        try {
+          const result = await gateways.cloudSync.runSync(root, profile);
+          set({
+            cloudSyncProfile: mergeCloudSyncProfile(result.profile),
+            status: storeT(get().settings, "status.cloudSyncComplete"),
+          });
+          await get().refreshWorkspace();
+          if (!unsaved && activePath && get().activePath === activePath) {
+            await get().selectNote(activePath);
+          }
+          return result;
+        } catch (error) {
+          set({
+            error: storeT(get().settings, "errors.runCloudSync", { message: toMessage(error) }),
+          });
+          throw error;
+        }
       },
       setMobilePanel(mobilePanel) {
         set({ mobilePanel });

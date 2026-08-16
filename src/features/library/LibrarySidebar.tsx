@@ -1,5 +1,6 @@
 import {
   Clock3,
+  Cloud,
   Database,
   FileText,
   Folder,
@@ -299,6 +300,13 @@ export function LibrarySidebar({
             icon={<Database strokeWidth={1.8} />}
             label={t("nav.index")}
             onClick={() => setLibraryPanelMode("index")}
+          />
+          <NavButton
+            active={libraryPanelMode === "sync"}
+            collapsed={collapsed}
+            icon={<Cloud strokeWidth={1.8} />}
+            label={t("nav.cloudSync")}
+            onClick={() => setLibraryPanelMode("sync")}
           />
         </nav>
 
