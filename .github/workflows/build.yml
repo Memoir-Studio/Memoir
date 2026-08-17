@@ -126,10 +126,17 @@ jobs:
       - name: Install frontend dependencies
         run: bun install --frozen-lockfile
 
+      # Apple Silicon treats unsigned GitHub downloads as damaged.
+      # "-" is Tauri's ad-hoc identity; it does not notarize or skip Gatekeeper.
+      - name: Configure macOS ad-hoc signing
+        if: matrix.family == 'macos'
+        run: echo "APPLE_SIGNING_IDENTITY=-" >> "$GITHUB_ENV"
+
       - name: Build installers
         uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          APPLE_SIGNING_IDENTITY: ${{ matrix.family == 'macos' && '-' || '' }}
         with:
           tauriScript: bun tauri
           args: ${{ matrix.args }}
@@ -140,3 +147,12 @@ jobs:
           releaseBody: ${{ inputs.draft_release && 'See the assets to download this version and install.' || '' }}
           releaseDraft: ${{ inputs.draft_release }}
           prerelease: false
+
+      - name: Verify macOS ad-hoc signature
+        if: matrix.family == 'macos'
+        run: |
+          app="src-tauri/target/${{ matrix.rust_target }}/release/bundle/macos/memoir.app"
+          test -d "$app"
+          codesign --verify --verbose=2 "$app"
+          codesign -dv --verbose=2 "$app" 2>&1 | tee /tmp/codesign.txt
+          grep -q 'Signature=adhoc' /tmp/codesign.txt
