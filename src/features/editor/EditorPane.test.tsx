@@ -84,6 +84,25 @@ describe("EditorPane source chrome", () => {
     expect(view.container.querySelector(".editor-pane")).toHaveClass("bg-canvas");
   });
 
+  it("keeps ATX heading marks on the same line as the heading text", async () => {
+    const view = render(
+      <EditorPane
+        content="# 测试"
+        fileName="hello.md"
+        isDark={false}
+        onChange={() => undefined}
+        settings={DEFAULT_SETTINGS}
+      />,
+    );
+
+    await waitFor(() => {
+      const heading = view.container.querySelector(".cm-md-h1");
+      expect(heading).toBeTruthy();
+      const line = heading?.closest(".cm-line");
+      expect(line?.querySelector(".cm-md-mark")?.textContent).toContain("#");
+    });
+  });
+
   it("highlights markdown structure instead of rendering flat text", async () => {
     const view = render(
       <EditorPane

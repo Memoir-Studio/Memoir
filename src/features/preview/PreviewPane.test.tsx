@@ -119,6 +119,25 @@ describe("PreviewPane fenced code", () => {
   });
 });
 
+describe("PreviewPane layout", () => {
+  it("does not add a wide reading-column inset on the article", () => {
+    const view = render(
+      <PreviewPane
+        activePath="hello.md"
+        content={"# Title\n\nParagraph\n"}
+        note={{ ...note, relativePath: "hello.md", fileName: "hello.md", title: "Title" }}
+        onContentChange={() => undefined}
+        root="/notes"
+      />,
+    );
+
+    const article = view.container.querySelector("article.memoir-preview");
+    expect(article).toBeTruthy();
+    expect(article?.className.split(/\s+/)).not.toContain("px-9");
+    expect(article?.className.split(/\s+/)).not.toContain("pt-10");
+  });
+});
+
 describe("PreviewPane source lines", () => {
   it("tags rendered blocks with markdown source lines", () => {
     const view = render(

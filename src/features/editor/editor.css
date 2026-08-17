@@ -86,25 +86,20 @@
   letter-spacing: -0.028em;
 }
 
-.editor-pane .cm-md-h1 {
+/* Size the whole heading line so ATX marks like `#` scale with the title. */
+.editor-pane .cm-line:has(.cm-md-h1) {
   font-size: 1.72em;
   line-height: 1.28;
 }
 
-.editor-pane .cm-md-h2 {
+.editor-pane .cm-line:has(.cm-md-h2) {
   font-size: 1.36em;
   line-height: 1.32;
 }
 
-.editor-pane .cm-md-h3 {
+.editor-pane .cm-line:has(.cm-md-h3) {
   font-size: 1.12em;
   line-height: 1.4;
-}
-
-.editor-pane .cm-md-h4,
-.editor-pane .cm-md-h5,
-.editor-pane .cm-md-h6 {
-  font-size: 1em;
 }
 
 .editor-pane .cm-md-mark {
@@ -116,13 +111,6 @@
   color: color-mix(in srgb, var(--memoir-muted) 70%, var(--memoir-text));
   font-weight: 550;
   letter-spacing: 0.02em;
-}
-
-.editor-pane .cm-md-heading.cm-md-mark {
-  font-size: 0.62em;
-  font-weight: 550;
-  letter-spacing: 0;
-  vertical-align: 0.18em;
 }
 
 .editor-pane .cm-md-emphasis {

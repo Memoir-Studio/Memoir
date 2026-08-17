@@ -195,7 +195,7 @@ export function NotePreviewArticle({
   note,
   content,
   articleRef,
-  className = "memoir-preview prose prose-neutral px-9 pb-24 pt-10 dark:prose-invert",
+  className = "memoir-preview prose prose-neutral dark:prose-invert",
   compileDelay = 350,
   onContentChange,
 }: {
