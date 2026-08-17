@@ -11,6 +11,7 @@ import logoUrl from "../../assets/logo.svg";
 import { getGateways } from "../../gateways";
 import { useI18n } from "../../i18n/react";
 import type { MessageKey } from "../../i18n";
+import { APP_VERSION } from "../../platform/app-version";
 import type { SettingsSection } from "./types";
 
 export const GITHUB_REPO_URL = "https://github.com/Memoir-Studio/Memoir";
@@ -401,7 +402,7 @@ export default function SettingsDialog({
               <h3>Memoir</h3>
               <p>{t("settings.aboutBody")}</p>
               <div className="settings-about-meta">
-                <span>{t("settings.version", { version: "0.1.0" })}</span>
+                <span>{t("settings.version", { version: APP_VERSION })}</span>
                 <span>{t("settings.dataLocal")}</span>
               </div>
               <a

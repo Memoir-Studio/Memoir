@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
@@ -5,9 +8,24 @@ import react from "@vitejs/plugin-react";
 // @ts-expect-error process is a nodejs global
 const host = process.env.TAURI_DEV_HOST;
 
+function cargoPackageVersion() {
+  const cargoToml = readFileSync(
+    resolve(dirname(fileURLToPath(import.meta.url)), "src-tauri/Cargo.toml"),
+    "utf8",
+  );
+  const match = cargoToml.match(/^version\s*=\s*"([^"]+)"/m);
+  if (!match) {
+    throw new Error("Could not read package version from src-tauri/Cargo.toml");
+  }
+  return match[1];
+}
+
 // https://vite.dev/config/
 export default defineConfig(async () => ({
   plugins: [react(), tailwindcss()],
+  define: {
+    __APP_VERSION__: JSON.stringify(cargoPackageVersion()),
+  },
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //

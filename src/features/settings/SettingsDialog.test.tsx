@@ -6,6 +6,7 @@ import { DEFAULT_SETTINGS, type AppSettings } from "../../domain/settings";
 import { setGatewaysForTests } from "../../gateways";
 import { resolveLocale } from "../../i18n";
 import { I18nProvider } from "../../i18n/react";
+import { APP_VERSION } from "../../platform/app-version";
 import { createMockGateways } from "../../test/mock-gateways";
 import SettingsDialog, { GITHUB_REPO_URL } from "./SettingsDialog";
 
@@ -99,6 +100,22 @@ describe("SettingsDialog", () => {
     expect(view.getByRole("heading", { name: "Settings" })).toBeInTheDocument();
     expect(view.getByRole("button", { name: "Appearance" })).toBeInTheDocument();
     expect(view.getByRole("combobox", { name: "Language" })).toHaveTextContent("English");
+  });
+
+  it("shows the Cargo package version in the about section", () => {
+    const view = render(
+      <SettingsDialog
+        onClose={() => undefined}
+        onReset={() => undefined}
+        onSectionChange={() => undefined}
+        onSettingsChange={() => undefined}
+        open
+        section="about"
+        settings={DEFAULT_SETTINGS}
+      />,
+    );
+
+    expect(view.getByText(`版本 ${APP_VERSION}`)).toBeInTheDocument();
   });
 
   it("opens the GitHub repository from the about section", async () => {
