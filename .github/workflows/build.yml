@@ -148,11 +148,42 @@ jobs:
           releaseDraft: ${{ inputs.draft_release }}
           prerelease: false
 
+      # `--bundles dmg` signs memoir.app, packs the DMG, then deletes the
+      # intermediate .app. Check the signed copy users actually download.
       - name: Verify macOS ad-hoc signature
         if: matrix.family == 'macos'
         run: |
-          app="src-tauri/target/${{ matrix.rust_target }}/release/bundle/macos/memoir.app"
-          test -d "$app"
+          set -euo pipefail
+          bundle_dir="src-tauri/target/${{ matrix.rust_target }}/release/bundle"
+          shopt -s nullglob
+          dmgs=("$bundle_dir"/dmg/*.dmg)
+          if [ "${#dmgs[@]}" -ne 1 ]; then
+            echo "Expected exactly one DMG under $bundle_dir/dmg, found ${#dmgs[@]}"
+            ls -la "$bundle_dir" "$bundle_dir/dmg" || true
+            exit 1
+          fi
+          dmg="${dmgs[0]}"
+          echo "Attaching $dmg"
+          attach_output="$(hdiutil attach -nobrowse -readonly "$dmg")"
+          echo "$attach_output"
+          mount_point="$(echo "$attach_output" | sed -n 's/.*[[:space:]]\(\/Volumes\/.*\)$/\1/p' | tail -n 1)"
+          if [ -z "$mount_point" ]; then
+            echo "Failed to parse mount point from hdiutil output"
+            exit 1
+          fi
+          cleanup() { hdiutil detach "$mount_point" -quiet || hdiutil detach "$mount_point" -force || true; }
+          trap cleanup EXIT
+
+          app="$mount_point/memoir.app"
+          if [ ! -d "$app" ]; then
+            echo "memoir.app missing from DMG at $mount_point"
+            ls -la "$mount_point"
+            exit 1
+          fi
           codesign --verify --verbose=2 "$app"
           codesign -dv --verbose=2 "$app" 2>&1 | tee /tmp/codesign.txt
-          grep -q 'Signature=adhoc' /tmp/codesign.txt
+          if ! grep -q 'Signature=adhoc' /tmp/codesign.txt; then
+            echo "Expected Signature=adhoc"
+            cat /tmp/codesign.txt
+            exit 1
+          fi
