@@ -317,6 +317,7 @@ export const en = {
   "sync.syncing": "Syncing…",
   "sync.lastSync": "Last sync",
   "sync.lastSyncNever": "Not yet synced",
+  "sync.took": "Took {duration}",
   "sync.statusIdle": "Idle",
   "sync.statusOk": "Synced",
   "sync.statusError": "Sync failed",

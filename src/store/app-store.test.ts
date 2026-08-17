@@ -467,7 +467,7 @@ describe("app store actions", () => {
     expect(gateways.workspace.queryLibraryCount).toBeGreaterThan(queriesAfterOpen);
   });
 
-  it("saves and runs cloud sync through the gateway then refreshes", async () => {
+  it("saves and runs cloud sync through the gateway without a library walk", async () => {
     const gateways = createMockGateways();
     const store = createAppStore(gateways);
     await store.getState().openWorkspace("/workspace");
@@ -491,7 +491,66 @@ describe("app store actions", () => {
     expect(gateways.cloudSync.lastRun).toEqual({ root: "/workspace", profile: undefined });
     expect(store.getState().cloudSyncProfile.lastStatus).toBe("ok");
     expect(store.getState().cloudSyncProfile.lastReport?.uploaded).toBe(1);
+    expect(gateways.workspace.reconcileCount).toBe(reconciles);
+  });
+
+  it("refreshes the library only when sync writes local files", async () => {
+    const gateways = createMockGateways();
+    const store = createAppStore(gateways);
+    await store.getState().openWorkspace("/workspace");
+    await store.getState().saveCloudSyncProfile({
+      enabled: true,
+      provider: "webdav",
+      remotePrefix: "Memoir",
+      webdav: {
+        url: "https://dav.example/dav",
+        username: "ada",
+        password: "secret",
+        insecureTls: false,
+      },
+    });
+    const reconciles = gateways.workspace.reconcileCount;
+    gateways.cloudSync.nextReport = {
+      ...gateways.cloudSync.nextReport,
+      uploaded: 0,
+      downloaded: 1,
+      changedLocalPaths: ["one.md"],
+    };
+    await store.getState().runCloudSync();
     expect(gateways.workspace.reconcileCount).toBe(reconciles + 1);
+  });
+
+  it("queues one trailing cloud sync when another run is already in flight", async () => {
+    const gateways = createMockGateways();
+    let release!: () => void;
+    gateways.cloudSync.runHold = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const store = createAppStore(gateways);
+    await store.getState().openWorkspace("/workspace");
+    await store.getState().saveCloudSyncProfile({
+      enabled: true,
+      provider: "webdav",
+      remotePrefix: "Memoir",
+      webdav: {
+        url: "https://dav.example/dav",
+        username: "ada",
+        password: "secret",
+        insecureTls: false,
+      },
+    });
+
+    const first = store.getState().runCloudSync();
+    await Promise.resolve();
+    expect(gateways.cloudSync.runCalls).toBe(1);
+    await expect(store.getState().runCloudSync()).resolves.toBeNull();
+    expect(gateways.cloudSync.runCalls).toBe(1);
+    release();
+    await first;
+    for (let i = 0; i < 20 && gateways.cloudSync.runCalls < 2; i += 1) {
+      await Promise.resolve();
+    }
+    expect(gateways.cloudSync.runCalls).toBe(2);
   });
 
   it("lists drafts once for the current page instead of probing every path", async () => {

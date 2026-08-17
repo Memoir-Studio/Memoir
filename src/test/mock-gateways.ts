@@ -312,6 +312,8 @@ export class MockCloudSyncGateway implements CloudSyncGateway {
   failTest = false;
   failRun = false;
   nextProbe: CloudSyncProbe = { ok: true, message: "Connected." };
+  runHold: Promise<void> | null = null;
+  runCalls = 0;
   nextReport: CloudSyncReport = {
     uploaded: 1,
     downloaded: 0,
@@ -321,6 +323,8 @@ export class MockCloudSyncGateway implements CloudSyncGateway {
     conflicts: 0,
     errors: [],
     completedMs: 1_700_000_000_000,
+    durationMs: 8,
+    changedLocalPaths: [],
   };
 
   async getProfile(workspaceRoot: string) {
@@ -341,7 +345,9 @@ export class MockCloudSyncGateway implements CloudSyncGateway {
   }
 
   async runSync(workspaceRoot: string, profile?: CloudSyncProfileInput): Promise<CloudSyncRunResult> {
+    this.runCalls += 1;
     this.lastRun = { root: workspaceRoot, profile };
+    if (this.runHold) await this.runHold;
     if (this.failRun) throw new Error("sync failed");
     if (profile) {
       await this.saveProfile(workspaceRoot, profile);

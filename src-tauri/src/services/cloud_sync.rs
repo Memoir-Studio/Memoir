@@ -1,12 +1,13 @@
 use crate::{
     domain::{
-        cloud_sync::{
-            action_as_transfer, conflict_sidecar_path, is_conflict_sidecar, now_ms, plan_file,
-            sanitize_profile, snapshot_from_identities, validate_profile_for_connect,
-            CloudSyncFileError, CloudSyncProbe, CloudSyncProfile, CloudSyncReport,
-            CloudSyncRunResult, FileIdentity, SyncAction,
-        },
         attachment::is_attachment_relative,
+        cloud_sync::{
+            action_as_transfer, conflict_sidecar_path, is_conflict_sidecar, merge_local_dir_cache,
+            now_ms, plan_file, sanitize_profile, snapshot_from_identities,
+            validate_profile_for_connect, CloudSyncFileError, CloudSyncProbe, CloudSyncProfile,
+            CloudSyncReport, CloudSyncRunResult, FileIdentity, LocalDirCacheEntry, SyncAction,
+            SyncSnapshot,
+        },
         path::normalize_workspace_key,
         AppError, AppResult, ErrorCode,
     },
@@ -14,17 +15,24 @@ use crate::{
         app_data::AppDataRepository,
         cloud::{provider_from_profile, CloudProvider},
         filesystem::LocalFileSystem,
+        index::DirCacheRow,
     },
-    services::AppStateService,
+    services::{AppStateService, WorkspaceService},
 };
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::Path;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Mutex;
+use std::thread;
+
+const TRANSFER_PARALLELISM: usize = 4;
 
 #[derive(Debug, Clone)]
 pub struct CloudSyncService {
     filesystem: LocalFileSystem,
     app_state: AppStateService,
     app_data: AppDataRepository,
+    workspace: WorkspaceService,
 }
 
 impl CloudSyncService {
@@ -32,12 +40,24 @@ impl CloudSyncService {
         filesystem: LocalFileSystem,
         app_state: AppStateService,
         app_data: AppDataRepository,
+        workspace: WorkspaceService,
     ) -> Self {
         Self {
             filesystem,
             app_state,
             app_data,
+            workspace,
         }
+    }
+
+    #[cfg(test)]
+    fn test_workspace(&self) -> &WorkspaceService {
+        &self.workspace
+    }
+
+    #[cfg(test)]
+    fn test_filesystem(&self) -> &LocalFileSystem {
+        &self.filesystem
     }
 
     pub fn profile(&self, workspace_root: &str) -> AppResult<CloudSyncProfile> {
@@ -107,11 +127,12 @@ impl CloudSyncService {
         workspace_root: &str,
         provider: &dyn CloudProvider,
     ) -> AppResult<CloudSyncReport> {
+        let started_ms = now_ms();
         let workspace_key =
             normalize_workspace_key(workspace_root).unwrap_or_else(|_| workspace_root.to_string());
-        let local_files = self.filesystem.list_syncable_files(workspace_root)?;
-        let remote_files = provider.list()?;
         let snapshot = self.app_data.load_sync_snapshot(&workspace_key)?;
+        let (local_files, attachment_walk) = self.list_local_files(workspace_root, &snapshot)?;
+        let remote_files = provider.list()?;
         let local_map = index_files(local_files);
         let remote_map = index_files(remote_files);
         let mut paths = BTreeSet::new();
@@ -127,6 +148,8 @@ impl CloudSyncService {
 
         let mut report = CloudSyncReport::default();
         let mut next_snapshot = snapshot.clone();
+        let mut hashed_locals: HashMap<String, FileIdentity> = HashMap::new();
+        let mut transfers: Vec<TransferJob> = Vec::new();
 
         for path in ordered {
             if is_conflict_sidecar(&path) {
@@ -134,54 +157,238 @@ impl CloudSyncService {
             }
             let remote = remote_map.get(&path);
             let snap = snapshot.files.get(&path);
-            let hashed = enrich_local_hash(workspace_root, &self.filesystem, local_map.get(&path), snap);
-            let local = hashed.as_ref().or_else(|| local_map.get(&path));
+            if let Some(hashed) =
+                enrich_local_hash(workspace_root, &self.filesystem, local_map.get(&path), snap)
+            {
+                hashed_locals.insert(path.clone(), hashed);
+            }
+            let local = hashed_locals.get(&path).or_else(|| local_map.get(&path));
             let planned = plan_file(local, remote, snap);
             if matches!(planned, SyncAction::Conflict(_)) {
                 report.conflicts += 1;
+                if let Ok(Some(sidecar)) =
+                    self.keep_conflict_copy(workspace_root, provider, &path, planned, local, remote)
+                {
+                    report.changed_local_paths.push(sidecar);
+                    report.changed_local_paths.push(path.clone());
+                }
             }
             let action = action_as_transfer(planned);
-            if matches!(planned, SyncAction::Conflict(_)) {
-                let _ = self.keep_conflict_copy(
-                    workspace_root,
-                    provider,
-                    &path,
-                    planned,
-                    local,
-                    remote,
-                );
-            }
-            match self.apply_action(workspace_root, provider, &path, action, local, remote) {
-                Ok(ApplyResult::Skipped) => report.skipped += 1,
-                Ok(ApplyResult::Uploaded(entry)) => {
-                    report.uploaded += 1;
-                    next_snapshot.files.insert(path, entry);
-                }
-                Ok(ApplyResult::Downloaded(entry)) => {
-                    report.downloaded += 1;
-                    next_snapshot.files.insert(path, entry);
-                }
-                Ok(ApplyResult::DeletedRemote) => {
-                    report.deleted_remote += 1;
-                    next_snapshot.files.remove(&path);
-                }
-                Ok(ApplyResult::DeletedLocal) => {
-                    report.deleted_local += 1;
-                    next_snapshot.files.remove(&path);
-                }
-                Err(error) => {
-                    report.errors.push(CloudSyncFileError {
-                        path,
-                        message: error.message,
-                    });
+            match action {
+                SyncAction::Skip | SyncAction::Conflict(_) => report.skipped += 1,
+                SyncAction::Upload | SyncAction::Download => transfers.push(TransferJob {
+                    path,
+                    action,
+                    local: local.cloned(),
+                    remote: remote.cloned(),
+                }),
+                SyncAction::DeleteRemote | SyncAction::DeleteLocal => {
+                    match self.apply_action(workspace_root, provider, &path, action, local, remote)
+                    {
+                        Ok(ApplyResult::DeletedRemote) => {
+                            report.deleted_remote += 1;
+                            next_snapshot.files.remove(&path);
+                        }
+                        Ok(ApplyResult::DeletedLocal) => {
+                            report.deleted_local += 1;
+                            next_snapshot.files.remove(&path);
+                            report.changed_local_paths.push(path);
+                        }
+                        Ok(ApplyResult::Skipped) => report.skipped += 1,
+                        Ok(ApplyResult::Uploaded(entry)) => {
+                            report.uploaded += 1;
+                            next_snapshot.files.insert(path, entry);
+                        }
+                        Ok(ApplyResult::Downloaded(entry)) => {
+                            report.downloaded += 1;
+                            next_snapshot.files.insert(path.clone(), entry);
+                            report.changed_local_paths.push(path);
+                        }
+                        Err(error) => {
+                            report.errors.push(CloudSyncFileError {
+                                path,
+                                message: error.message,
+                            });
+                        }
+                    }
                 }
             }
         }
 
+        self.apply_transfers(
+            workspace_root,
+            provider,
+            transfers,
+            &mut report,
+            &mut next_snapshot,
+        )?;
+
+        next_snapshot.local_dirs = merge_local_dir_cache(
+            &snapshot.local_dirs,
+            &attachment_walk
+                .walked_dirs
+                .into_iter()
+                .map(|row| (row.relative_dir.clone(), dir_entry_from_row(&row)))
+                .collect::<Vec<_>>(),
+            &attachment_walk.reused_dirs,
+        );
         report.completed_ms = now_ms();
-        self.app_data
-            .save_sync_snapshot(&workspace_key, &next_snapshot)?;
+        report.duration_ms = report.completed_ms.saturating_sub(started_ms);
+        if next_snapshot != snapshot {
+            self.app_data
+                .save_sync_snapshot(&workspace_key, &next_snapshot)?;
+        }
         Ok(report)
+    }
+
+    fn list_local_files(
+        &self,
+        workspace_root: &str,
+        snapshot: &SyncSnapshot,
+    ) -> AppResult<(
+        Vec<FileIdentity>,
+        crate::infrastructure::filesystem::AttachmentWalk,
+    )> {
+        let mut files = self.workspace.list_sync_notes(workspace_root)?;
+        let cache = dir_cache_from_snapshot(snapshot);
+        let known = snapshot
+            .files
+            .keys()
+            .filter(|path| is_attachment_relative(Path::new(path)) && !is_conflict_sidecar(path))
+            .cloned()
+            .collect::<Vec<_>>();
+        let walk = self
+            .filesystem
+            .scan_attachments_cached(workspace_root, &cache, &known)?;
+        files.extend(walk.files.iter().cloned());
+        Ok((files, walk))
+    }
+
+    fn apply_transfers(
+        &self,
+        workspace_root: &str,
+        provider: &dyn CloudProvider,
+        jobs: Vec<TransferJob>,
+        report: &mut CloudSyncReport,
+        next_snapshot: &mut SyncSnapshot,
+    ) -> AppResult<()> {
+        if jobs.is_empty() {
+            return Ok(());
+        }
+        let attachment_jobs = jobs
+            .iter()
+            .filter(|job| sync_rank(&job.path) == 0)
+            .cloned()
+            .collect::<Vec<_>>();
+        let note_jobs = jobs
+            .into_iter()
+            .filter(|job| sync_rank(&job.path) == 1)
+            .collect::<Vec<_>>();
+        self.apply_transfer_rank(
+            workspace_root,
+            provider,
+            attachment_jobs,
+            report,
+            next_snapshot,
+        );
+        self.apply_transfer_rank(workspace_root, provider, note_jobs, report, next_snapshot);
+        Ok(())
+    }
+
+    fn apply_transfer_rank(
+        &self,
+        workspace_root: &str,
+        provider: &dyn CloudProvider,
+        jobs: Vec<TransferJob>,
+        report: &mut CloudSyncReport,
+        next_snapshot: &mut SyncSnapshot,
+    ) {
+        if jobs.is_empty() {
+            return;
+        }
+        if jobs.len() == 1 {
+            let job = &jobs[0];
+            self.record_transfer(
+                &job.path,
+                self.apply_action(
+                    workspace_root,
+                    provider,
+                    &job.path,
+                    job.action,
+                    job.local.as_ref(),
+                    job.remote.as_ref(),
+                ),
+                report,
+                next_snapshot,
+            );
+            return;
+        }
+
+        let workers = TRANSFER_PARALLELISM.min(jobs.len());
+        let next_index = AtomicUsize::new(0);
+        let outcomes = Mutex::new(Vec::new());
+        thread::scope(|scope| {
+            for _ in 0..workers {
+                scope.spawn(|| loop {
+                    let index = next_index.fetch_add(1, Ordering::Relaxed);
+                    if index >= jobs.len() {
+                        break;
+                    }
+                    let job = &jobs[index];
+                    let result = self.apply_action(
+                        workspace_root,
+                        provider,
+                        &job.path,
+                        job.action,
+                        job.local.as_ref(),
+                        job.remote.as_ref(),
+                    );
+                    outcomes
+                        .lock()
+                        .expect("transfer outcomes")
+                        .push((job.path.clone(), result));
+                });
+            }
+        });
+        for (path, result) in outcomes.into_inner().unwrap_or_default() {
+            self.record_transfer(&path, result, report, next_snapshot);
+        }
+    }
+
+    fn record_transfer(
+        &self,
+        path: &str,
+        result: AppResult<ApplyResult>,
+        report: &mut CloudSyncReport,
+        next_snapshot: &mut SyncSnapshot,
+    ) {
+        match result {
+            Ok(ApplyResult::Skipped) => report.skipped += 1,
+            Ok(ApplyResult::Uploaded(entry)) => {
+                report.uploaded += 1;
+                next_snapshot.files.insert(path.to_string(), entry);
+            }
+            Ok(ApplyResult::Downloaded(entry)) => {
+                report.downloaded += 1;
+                next_snapshot.files.insert(path.to_string(), entry);
+                report.changed_local_paths.push(path.to_string());
+            }
+            Ok(ApplyResult::DeletedRemote) => {
+                report.deleted_remote += 1;
+                next_snapshot.files.remove(path);
+            }
+            Ok(ApplyResult::DeletedLocal) => {
+                report.deleted_local += 1;
+                next_snapshot.files.remove(path);
+                report.changed_local_paths.push(path.to_string());
+            }
+            Err(error) => {
+                report.errors.push(CloudSyncFileError {
+                    path: path.to_string(),
+                    message: error.message,
+                });
+            }
+        }
     }
 
     fn apply_action(
@@ -201,7 +408,11 @@ impl CloudSyncService {
                 let local = self
                     .filesystem
                     .stat_sync_file(workspace_root, path)
-                    .or_else(|_| local.cloned().ok_or_else(|| AppError::not_found("Local file disappeared during upload.")))?;
+                    .or_else(|_| {
+                        local.cloned().ok_or_else(|| {
+                            AppError::not_found("Local file disappeared during upload.")
+                        })
+                    })?;
                 Ok(ApplyResult::Uploaded(snapshot_from_identities(
                     &local, &remote,
                 )))
@@ -241,9 +452,9 @@ impl CloudSyncService {
         planned: SyncAction,
         local: Option<&FileIdentity>,
         remote: Option<&FileIdentity>,
-    ) -> AppResult<()> {
+    ) -> AppResult<Option<String>> {
         if !is_attachment_relative(Path::new(path)) {
-            return Ok(());
+            return Ok(None);
         }
         let sidecar = unique_sidecar_path(workspace_root, &self.filesystem, path);
         match planned {
@@ -252,6 +463,7 @@ impl CloudSyncService {
                     let bytes = self.filesystem.read_sync_file(workspace_root, path)?;
                     self.filesystem
                         .write_sync_file(workspace_root, &sidecar, &bytes)?;
+                    return Ok(Some(sidecar));
                 }
             }
             SyncAction::Conflict(crate::domain::cloud_sync::ConflictWinner::Local) => {
@@ -259,12 +471,21 @@ impl CloudSyncService {
                     let bytes = provider.get(path)?;
                     self.filesystem
                         .write_sync_file(workspace_root, &sidecar, &bytes)?;
+                    return Ok(Some(sidecar));
                 }
             }
             _ => {}
         }
-        Ok(())
+        Ok(None)
     }
+}
+
+#[derive(Debug, Clone)]
+struct TransferJob {
+    path: String,
+    action: SyncAction,
+    local: Option<FileIdentity>,
+    remote: Option<FileIdentity>,
 }
 
 enum ApplyResult {
@@ -304,11 +525,39 @@ fn enrich_local_hash(
     if local.hash.is_some() || snap.local_hash.is_none() {
         return None;
     }
-    let hash = filesystem.hash_sync_file(workspace_root, &local.relative_path).ok()?;
+    let hash = filesystem
+        .hash_sync_file(workspace_root, &local.relative_path)
+        .ok()?;
     Some(FileIdentity {
         hash: Some(hash),
         ..local.clone()
     })
+}
+
+fn dir_entry_from_row(row: &DirCacheRow) -> LocalDirCacheEntry {
+    LocalDirCacheEntry {
+        modified_ms: row.modified_ms,
+        size: row.size,
+        entry_count: row.entry_count,
+    }
+}
+
+fn dir_cache_from_snapshot(snapshot: &SyncSnapshot) -> HashMap<String, DirCacheRow> {
+    snapshot
+        .local_dirs
+        .iter()
+        .map(|(name, entry)| {
+            (
+                name.clone(),
+                DirCacheRow {
+                    relative_dir: name.clone(),
+                    modified_ms: entry.modified_ms,
+                    size: entry.size,
+                    entry_count: entry.entry_count,
+                },
+            )
+        })
+        .collect()
 }
 
 fn unique_sidecar_path(workspace_root: &str, filesystem: &LocalFileSystem, path: &str) -> String {
@@ -318,7 +567,10 @@ fn unique_sidecar_path(workspace_root: &str, filesystem: &LocalFileSystem, path:
     }
     for index in 1..20 {
         let candidate = conflict_sidecar_path(path, now_ms() + index as u64);
-        if filesystem.stat_sync_file(workspace_root, &candidate).is_err() {
+        if filesystem
+            .stat_sync_file(workspace_root, &candidate)
+            .is_err()
+        {
             return candidate;
         }
     }
@@ -410,17 +662,86 @@ mod tests {
         }
     }
 
+    struct CountingProvider {
+        inner: MemoryProvider,
+        current: std::sync::atomic::AtomicUsize,
+        max: std::sync::atomic::AtomicUsize,
+    }
+
+    impl CountingProvider {
+        fn new() -> Self {
+            Self {
+                inner: MemoryProvider::new(),
+                current: std::sync::atomic::AtomicUsize::new(0),
+                max: std::sync::atomic::AtomicUsize::new(0),
+            }
+        }
+
+        fn max_in_flight(&self) -> usize {
+            self.max.load(std::sync::atomic::Ordering::Relaxed)
+        }
+    }
+
+    impl CloudProvider for CountingProvider {
+        fn id(&self) -> &'static str {
+            "counting"
+        }
+
+        fn probe(&self) -> AppResult<()> {
+            Ok(())
+        }
+
+        fn list(&self) -> AppResult<Vec<FileIdentity>> {
+            self.inner.list()
+        }
+
+        fn get(&self, relative_path: &str) -> AppResult<Vec<u8>> {
+            self.inner.get(relative_path)
+        }
+
+        fn put(&self, relative_path: &str, bytes: &[u8]) -> AppResult<FileIdentity> {
+            let now = self
+                .current
+                .fetch_add(1, std::sync::atomic::Ordering::SeqCst)
+                + 1;
+            self.max.fetch_max(now, std::sync::atomic::Ordering::SeqCst);
+            std::thread::sleep(std::time::Duration::from_millis(40));
+            let result = self.inner.put(relative_path, bytes);
+            self.current
+                .fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+            result
+        }
+
+        fn delete(&self, relative_path: &str) -> AppResult<()> {
+            self.inner.delete(relative_path)
+        }
+    }
+
+    fn snapshot_path(root: &std::path::Path) -> std::path::PathBuf {
+        let sync = root.join("app-data/sync");
+        for entry in std::fs::read_dir(&sync).unwrap() {
+            let path = entry.unwrap().path().join("snapshot.json");
+            if path.exists() {
+                return path;
+            }
+        }
+        panic!("sync snapshot was not written");
+    }
+
     fn setup() -> (tempfile::TempDir, CloudSyncService, String) {
         let dir = tempdir().unwrap();
-        let workspace = dir.path().join("notes");
-        fs::create_dir(&workspace).unwrap();
+        let notes = dir.path().join("notes");
+        fs::create_dir(&notes).unwrap();
         let app_data = AppDataRepository::new(dir.path().join("app-data"));
+        let filesystem = LocalFileSystem::new();
+        let workspace = WorkspaceService::new(filesystem.clone());
         let service = CloudSyncService::new(
-            LocalFileSystem::new(),
+            filesystem,
             AppStateService::new(app_data.clone()),
             app_data,
+            workspace,
         );
-        (dir, service, workspace.to_string_lossy().into())
+        (dir, service, notes.to_string_lossy().into())
     }
 
     #[test]
@@ -495,6 +816,68 @@ mod tests {
         assert_eq!(
             std::fs::read(std::path::Path::new(&root).join(path)).unwrap(),
             b"remote-newer-bytes!!"
+        );
+    }
+
+    #[test]
+    fn reuses_index_dir_cache_when_listing_notes_for_sync() {
+        let (_dir, service, root) = setup();
+        fs::create_dir_all(std::path::Path::new(&root).join("journal")).unwrap();
+        fs::write(std::path::Path::new(&root).join("root.md"), "# Root").unwrap();
+        fs::write(std::path::Path::new(&root).join("journal/day.md"), "# Day").unwrap();
+        service
+            .test_workspace()
+            .reconcile(&root, &crate::domain::LibraryQuery::default())
+            .unwrap();
+        service
+            .test_workspace()
+            .walk_dirs
+            .store(0, std::sync::atomic::Ordering::Relaxed);
+        service
+            .test_filesystem()
+            .walk_dirs
+            .store(0, std::sync::atomic::Ordering::Relaxed);
+
+        let provider = MemoryProvider::new();
+        let report = service.run_sync_with(&root, &provider).unwrap();
+        assert_eq!(report.uploaded, 2);
+        assert_eq!(
+            service
+                .test_workspace()
+                .walk_dirs
+                .load(std::sync::atomic::Ordering::Relaxed),
+            0
+        );
+    }
+
+    #[test]
+    fn skips_rewriting_an_unchanged_snapshot() {
+        let (dir, service, root) = setup();
+        fs::write(std::path::Path::new(&root).join("keep.md"), "# Keep").unwrap();
+        let provider = MemoryProvider::new();
+        service.run_sync_with(&root, &provider).unwrap();
+        let snapshot = snapshot_path(dir.path());
+        let first = std::fs::metadata(&snapshot).unwrap().modified().unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        let second = service.run_sync_with(&root, &provider).unwrap();
+        assert!(second.skipped >= 1);
+        assert_eq!(second.uploaded, 0);
+        let after = std::fs::metadata(&snapshot).unwrap().modified().unwrap();
+        assert_eq!(first, after);
+    }
+
+    #[test]
+    fn uploads_independent_files_in_parallel() {
+        let (_dir, service, root) = setup();
+        fs::write(std::path::Path::new(&root).join("a.md"), "# A").unwrap();
+        fs::write(std::path::Path::new(&root).join("b.md"), "# B").unwrap();
+        let provider = CountingProvider::new();
+        let report = service.run_sync_with(&root, &provider).unwrap();
+        assert_eq!(report.uploaded, 2);
+        assert!(
+            provider.max_in_flight() >= 2,
+            "expected overlapping uploads, max {}",
+            provider.max_in_flight()
         );
     }
 

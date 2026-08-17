@@ -20,6 +20,8 @@ import {
 } from "../domain/attachments";
 import { DEFAULT_SETTINGS, mergeSettings, type AppSettings } from "../domain/settings";
 import {
+  cloudSyncChangedActiveNote,
+  cloudSyncTouchedLocal,
   defaultCloudSyncProfile,
   mergeCloudSyncProfile,
   type CloudSyncProfileInput,
@@ -132,6 +134,7 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
   let querySeq = 0;
   let cloudSyncTimer: number | null = null;
   let cloudSyncInFlight = false;
+  let cloudSyncPending = false;
 
   const store = create<AppStore>((set, get) => {
     const persistPreferences = () => {
@@ -186,6 +189,10 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
     const scheduleCloudSync = (delayMs = CLOUD_SYNC_DEBOUNCE_MS) => {
       const state = get();
       if (!state.workspaceRoot || !state.cloudSyncProfile.enabled) return;
+      if (cloudSyncInFlight) {
+        cloudSyncPending = true;
+        return;
+      }
       if (cloudSyncTimer !== null) window.clearTimeout(cloudSyncTimer);
       cloudSyncTimer = window.setTimeout(() => {
         cloudSyncTimer = null;
@@ -195,15 +202,8 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
 
     const runScheduledCloudSync = async () => {
       const state = get();
-      if (!state.workspaceRoot || !state.cloudSyncProfile.enabled || cloudSyncInFlight) return;
-      cloudSyncInFlight = true;
-      try {
-        await get().runCloudSync();
-      } catch {
-        // Store already records the error.
-      } finally {
-        cloudSyncInFlight = false;
-      }
+      if (!state.workspaceRoot || !state.cloudSyncProfile.enabled) return;
+      await get().runCloudSync();
     };
 
     const loadCloudSyncProfile = async (root: string | null) => {
@@ -940,6 +940,11 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
       async runCloudSync(profile?: CloudSyncProfileInput) {
         const root = get().workspaceRoot;
         if (!root) return null;
+        if (cloudSyncInFlight) {
+          cloudSyncPending = true;
+          return null;
+        }
+        cloudSyncInFlight = true;
         const unsaved = isOpenUnsavedNote(get());
         const activePath = get().activePath;
         try {
@@ -948,8 +953,15 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
             cloudSyncProfile: mergeCloudSyncProfile(result.profile),
             status: storeT(get().settings, "status.cloudSyncComplete"),
           });
-          await get().refreshWorkspace();
-          if (!unsaved && activePath && get().activePath === activePath) {
+          if (cloudSyncTouchedLocal(result.report)) {
+            await get().refreshWorkspace();
+          }
+          if (
+            !unsaved &&
+            activePath &&
+            get().activePath === activePath &&
+            cloudSyncChangedActiveNote(result.report, activePath)
+          ) {
             await get().selectNote(activePath);
           }
           return result;
@@ -958,6 +970,12 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
             error: storeT(get().settings, "errors.runCloudSync", { message: toMessage(error) }),
           });
           throw error;
+        } finally {
+          cloudSyncInFlight = false;
+          if (cloudSyncPending) {
+            cloudSyncPending = false;
+            void get().runCloudSync();
+          }
         }
       },
       setMobilePanel(mobilePanel) {

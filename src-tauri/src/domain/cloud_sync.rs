@@ -1,10 +1,10 @@
 use crate::domain::{
     attachment::{is_attachment_relative, validate_attachment_extension},
-    path::{validate_relative_path, IGNORED_DIRS, is_supported_note},
+    path::{is_supported_note, validate_relative_path, IGNORED_DIRS},
     AppError, AppResult,
 };
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Component, Path};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -50,6 +50,10 @@ pub struct CloudSyncReport {
     pub errors: Vec<CloudSyncFileError>,
     #[serde(default)]
     pub completed_ms: u64,
+    #[serde(default)]
+    pub duration_ms: u64,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub changed_local_paths: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -117,11 +121,21 @@ pub struct FileIdentity {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "camelCase")]
+pub struct LocalDirCacheEntry {
+    pub modified_ms: i64,
+    pub size: i64,
+    pub entry_count: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "camelCase")]
 pub struct SyncSnapshot {
     #[serde(default = "default_snapshot_version")]
     pub version: u32,
     #[serde(default)]
     pub files: BTreeMap<String, SnapshotEntry>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub local_dirs: BTreeMap<String, LocalDirCacheEntry>,
 }
 
 fn default_snapshot_version() -> u32 {
@@ -296,6 +310,32 @@ fn is_hidden_or_ignored(name: &std::ffi::OsStr) -> bool {
         .unwrap_or(true)
 }
 
+pub fn merge_local_dir_cache(
+    previous: &BTreeMap<String, LocalDirCacheEntry>,
+    walked: &[(String, LocalDirCacheEntry)],
+    reused: &[String],
+) -> BTreeMap<String, LocalDirCacheEntry> {
+    let mut keep: BTreeSet<String> = walked.iter().map(|(name, _)| name.clone()).collect();
+    for dir in reused {
+        keep.insert(dir.clone());
+        for name in previous.keys() {
+            if dir.is_empty() || name == dir || name.starts_with(&format!("{dir}/")) {
+                keep.insert(name.clone());
+            }
+        }
+    }
+    let walked_map: BTreeMap<_, _> = walked.iter().cloned().collect();
+    let mut next = BTreeMap::new();
+    for name in keep {
+        if let Some(entry) = walked_map.get(&name) {
+            next.insert(name, entry.clone());
+        } else if let Some(entry) = previous.get(&name) {
+            next.insert(name, entry.clone());
+        }
+    }
+    next
+}
+
 pub fn snapshot_from_identities(local: &FileIdentity, remote: &FileIdentity) -> SnapshotEntry {
     SnapshotEntry {
         local_size: local.size,
@@ -417,20 +457,27 @@ mod tests {
         assert!(!is_syncable_relative(".memoir/index.sqlite"));
         assert!(!is_syncable_relative(".memoir-trash/note.md"));
         assert!(!is_syncable_relative("node_modules/pkg/readme.md"));
-        assert!(!is_syncable_relative(".memoir-attachments/2026-08/photo.png"));
+        assert!(!is_syncable_relative(
+            ".memoir-attachments/2026-08/photo.png"
+        ));
         assert!(!is_syncable_relative("notes.txt"));
         assert_eq!(
             conflict_sidecar_path("attachments/2026-08/photo.png", 42),
             "attachments/2026-08/photo.conflict-42.png"
         );
-        assert!(is_writable_sync_path("attachments/2026-08/photo.conflict-42.png"));
+        assert!(is_writable_sync_path(
+            "attachments/2026-08/photo.conflict-42.png"
+        ));
     }
 
     #[test]
     fn plans_first_sync_and_snapshot_follow_up() {
         let local = file("a.md", 10, 20);
         let remote = file("a.md", 10, 20);
-        assert_eq!(plan_file(Some(&local), Some(&remote), None), SyncAction::Skip);
+        assert_eq!(
+            plan_file(Some(&local), Some(&remote), None),
+            SyncAction::Skip
+        );
         assert_eq!(plan_file(Some(&local), None, None), SyncAction::Upload);
         assert_eq!(plan_file(None, Some(&remote), None), SyncAction::Download);
 
@@ -510,8 +557,44 @@ mod tests {
     }
 
     #[test]
+    fn merges_attachment_dir_cache_rows() {
+        let mut previous = BTreeMap::new();
+        previous.insert(
+            "attachments".into(),
+            LocalDirCacheEntry {
+                modified_ms: 1,
+                size: 2,
+                entry_count: 1,
+            },
+        );
+        previous.insert(
+            "attachments/2026-08".into(),
+            LocalDirCacheEntry {
+                modified_ms: 3,
+                size: 4,
+                entry_count: 2,
+            },
+        );
+        let walked = [(
+            "attachments/2026-09".into(),
+            LocalDirCacheEntry {
+                modified_ms: 5,
+                size: 6,
+                entry_count: 1,
+            },
+        )];
+        let merged = merge_local_dir_cache(&previous, &walked, &["attachments".into()]);
+        assert_eq!(merged["attachments"].modified_ms, 1);
+        assert_eq!(merged["attachments/2026-08"].entry_count, 2);
+        assert_eq!(merged["attachments/2026-09"].modified_ms, 5);
+    }
+
+    #[test]
     fn sanitizes_prefix_and_rejects_unknown_providers() {
-        assert_eq!(sanitize_remote_prefix(" /Memoir/notes/ ").unwrap(), "Memoir/notes");
+        assert_eq!(
+            sanitize_remote_prefix(" /Memoir/notes/ ").unwrap(),
+            "Memoir/notes"
+        );
         assert!(sanitize_remote_prefix("../outside").is_err());
         let err = sanitize_profile(CloudSyncProfile {
             provider: "s3".into(),

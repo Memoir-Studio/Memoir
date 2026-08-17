@@ -221,7 +221,7 @@ describe("Tauri gateways", () => {
     expect(invoke).toHaveBeenCalledWith("test_cloud_sync", { profile });
     invoke.mockResolvedValueOnce({
       profile: { ...profile, lastStatus: "ok" },
-      report: { uploaded: 1, downloaded: 0, deletedRemote: 0, deletedLocal: 0, skipped: 0, conflicts: 0, errors: [], completedMs: 1 },
+      report: { uploaded: 1, downloaded: 0, deletedRemote: 0, deletedLocal: 0, skipped: 0, conflicts: 0, errors: [], completedMs: 1, durationMs: 4, changedLocalPaths: [] },
     });
     await gateway.runSync("/notes", profile);
     expect(invoke).toHaveBeenCalledWith("run_cloud_sync", { workspaceRoot: "/notes", profile });

@@ -314,6 +314,7 @@ export const zh = {
   "sync.syncing": "正在同步…",
   "sync.lastSync": "上次同步",
   "sync.lastSyncNever": "尚未同步",
+  "sync.took": "用时 {duration}",
   "sync.statusIdle": "未同步",
   "sync.statusOk": "已同步",
   "sync.statusError": "同步失败",

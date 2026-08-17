@@ -2,8 +2,8 @@ use crate::{
     domain::{
         note_parse::{decode_utf8_prefix, parse_note, INDEX_READ_CAP, PARSE_ALGO_VERSION},
         path::normalize_root,
-        AppError, AppResult, AttachmentFile, ErrorCode, LibraryPage, LibraryQuery, NoteFile,
-        NoteIdentity, RenamedNote, WorkspaceIndexInfo,
+        AppError, AppResult, AttachmentFile, ErrorCode, FileIdentity, LibraryPage, LibraryQuery,
+        NoteFile, NoteIdentity, RenamedNote, WorkspaceIndexInfo,
     },
     infrastructure::{
         filesystem::{modified_ms, LocalFileSystem},
@@ -87,6 +87,33 @@ impl WorkspaceService {
         Ok(self.reconcile(root, &LibraryQuery::default())?.notes)
     }
 
+    pub fn list_sync_notes(&self, root: &str) -> AppResult<Vec<FileIdentity>> {
+        let (cache, known) = match normalize_root(root) {
+            Ok(root_path) => {
+                let mut guard = self.lock_index();
+                self.ensure_open(&mut guard, &root_path);
+                let open = guard.as_ref().expect("index handle");
+                let snapshot = select_identities(&open.conn).unwrap_or_default();
+                let cache = load_dir_cache(&open.conn).unwrap_or_default();
+                let known = snapshot.iter().map(identity_from_row).collect::<Vec<_>>();
+                (cache, known)
+            }
+            Err(_) => (HashMap::new(), Vec::new()),
+        };
+        let walk = self.filesystem.walk_workspace(root, &cache, &known)?;
+        Ok(walk
+            .notes
+            .into_iter()
+            .map(|note| FileIdentity {
+                relative_path: note.relative_path,
+                size: note.size,
+                modified_ms: note.modified_ms,
+                etag: None,
+                hash: None,
+            })
+            .collect())
+    }
+
     pub fn query_library(&self, root: &str, query: &LibraryQuery) -> AppResult<LibraryPage> {
         let root_path = normalize_root(root)?;
         let mut guard = self.lock_index();
@@ -139,8 +166,8 @@ impl WorkspaceService {
             match snapshot_by_path.get(&item.relative_path) {
                 None => dirty.push((item.clone(), None)),
                 Some(row) => {
-                    let identity_changed = row.modified_ms as u128 != item.modified_ms
-                        || row.size as u64 != item.size;
+                    let identity_changed =
+                        row.modified_ms as u128 != item.modified_ms || row.size as u64 != item.size;
                     let truncated_fits =
                         row.parse_truncated == 1 && item.size <= INDEX_READ_CAP as u64;
                     if force_reparse || identity_changed || truncated_fits {
@@ -482,12 +509,7 @@ fn commit_reconcile(
     if replace_dir_cache(&txn, walked_dirs, reused_dirs).is_err()
         || set_meta(&txn, "last_reconcile_ms", &index::now_ms().to_string()).is_err()
         || set_meta(&txn, "index_read_cap", &INDEX_READ_CAP.to_string()).is_err()
-        || set_meta(
-            &txn,
-            "parse_algo_version",
-            &PARSE_ALGO_VERSION.to_string(),
-        )
-        .is_err()
+        || set_meta(&txn, "parse_algo_version", &PARSE_ALGO_VERSION.to_string()).is_err()
     {
         return false;
     }
@@ -532,4 +554,3 @@ fn decode_base64(bytes_base64: &str, message: &str) -> AppResult<Vec<u8>> {
             .with_details(error.to_string())
     })
 }
-

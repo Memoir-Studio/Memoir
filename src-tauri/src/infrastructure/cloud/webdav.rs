@@ -3,12 +3,15 @@ use crate::domain::{
     cloud_sync::{is_syncable_relative, sanitize_remote_prefix, CloudSyncProfile, FileIdentity},
     AppError, AppResult, ErrorCode,
 };
+use percent_encoding::percent_decode_str;
 use quick_xml::events::Event;
 use quick_xml::Reader;
 use reqwest::blocking::{Client, RequestBuilder};
 use reqwest::header::{HeaderMap, HeaderValue, CONTENT_TYPE};
-use percent_encoding::percent_decode_str;
 use reqwest::Method;
+use std::collections::HashSet;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Mutex;
 use std::time::Duration;
 use url::Url;
 
@@ -22,12 +25,27 @@ const PROPFIND_BODY: &str = r#"<?xml version="1.0" encoding="utf-8" ?>
   </d:prop>
 </d:propfind>"#;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DepthMode {
+    Unknown,
+    Infinity,
+    Depth1,
+}
+
+#[derive(Debug)]
+struct WebDavSession {
+    collections: Mutex<HashSet<String>>,
+    depth_mode: Mutex<DepthMode>,
+    listed: AtomicBool,
+}
+
 #[derive(Debug, Clone)]
 pub struct WebDavProvider {
     client: Client,
     base: Url,
     username: String,
     password: String,
+    session: std::sync::Arc<WebDavSession>,
 }
 
 #[derive(Debug, Clone)]
@@ -59,6 +77,11 @@ impl WebDavProvider {
             base,
             username: profile.webdav.username.clone(),
             password: profile.webdav.password.clone(),
+            session: std::sync::Arc::new(WebDavSession {
+                collections: Mutex::new(HashSet::new()),
+                depth_mode: Mutex::new(DepthMode::Unknown),
+                listed: AtomicBool::new(false),
+            }),
         })
     }
 
@@ -78,18 +101,40 @@ impl WebDavProvider {
         join_remote(&self.base, relative_path)
     }
 
-    fn ensure_parents(&self, relative_path: &str) -> AppResult<()> {
-        let mut prefix = String::new();
-        let parts = relative_path.split('/').collect::<Vec<_>>();
-        for (index, part) in parts.iter().enumerate() {
-            if part.is_empty() || index + 1 == parts.len() {
+    fn remember_collection(&self, relative: &str) {
+        self.session
+            .collections
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .insert(relative.to_string());
+    }
+
+    fn knows_collection(&self, relative: &str) -> bool {
+        self.session
+            .collections
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .contains(relative)
+    }
+
+    fn remember_collections_from(&self, items: &[PropFindItem]) {
+        for item in items {
+            if !item.collection {
                 continue;
             }
-            if !prefix.is_empty() {
-                prefix.push('/');
+            if let Some(relative) = href_to_relative(&self.base, &item.href) {
+                self.remember_collection(&relative);
             }
-            prefix.push_str(part);
+        }
+    }
+
+    fn ensure_parents(&self, relative_path: &str) -> AppResult<()> {
+        for prefix in parent_collection_prefixes(relative_path) {
+            if self.knows_collection(&prefix) {
+                continue;
+            }
             self.mkcol(&join_remote(&self.base, &prefix)?)?;
+            self.remember_collection(&prefix);
         }
         Ok(())
     }
@@ -111,11 +156,11 @@ impl WebDavProvider {
         Err(map_status(status, "Create remote folder"))
     }
 
-    fn propfind(&self, url: &Url) -> AppResult<Vec<PropFindItem>> {
+    fn propfind(&self, url: &Url, depth: &str) -> AppResult<Vec<PropFindItem>> {
         let method = Method::from_bytes(b"PROPFIND").unwrap();
         let response = self
             .request(method, url)
-            .header("Depth", "1")
+            .header("Depth", depth)
             .body(PROPFIND_BODY)
             .send()
             .map_err(map_reqwest)?;
@@ -128,7 +173,8 @@ impl WebDavProvider {
     }
 
     fn list_recursive(&self, url: &Url, out: &mut Vec<FileIdentity>) -> AppResult<()> {
-        let items = self.propfind(url)?;
+        let items = self.propfind(url, "1")?;
+        self.remember_collections_from(&items);
         for item in items {
             let Some(relative) = href_to_relative(&self.base, &item.href) else {
                 continue;
@@ -155,8 +201,12 @@ impl WebDavProvider {
     }
 
     fn ensure_base_collection(&self) -> AppResult<()> {
-        match self.propfind(&self.base) {
-            Ok(_) => Ok(()),
+        match self.propfind(&self.base, "1") {
+            Ok(items) => {
+                self.remember_collections_from(&items);
+                self.remember_collection("");
+                Ok(())
+            }
             Err(error) if error.code == ErrorCode::NotFound => {
                 let mut built = self.base.clone();
                 let segments = collection_segments(&self.base);
@@ -171,7 +221,41 @@ impl WebDavProvider {
                     }
                     self.mkcol(&built)?;
                 }
-                self.propfind(&self.base).map(|_| ())
+                let items = self.propfind(&self.base, "1")?;
+                self.remember_collections_from(&items);
+                self.remember_collection("");
+                Ok(())
+            }
+            Err(error) => Err(error),
+        }
+    }
+
+    fn list_with_infinity(&self) -> AppResult<Option<Vec<FileIdentity>>> {
+        match self.propfind(&self.base, "infinity") {
+            Ok(items) if infinity_listing_usable(&self.base, &items) => {
+                *self
+                    .session
+                    .depth_mode
+                    .lock()
+                    .unwrap_or_else(|error| error.into_inner()) = DepthMode::Infinity;
+                self.remember_collections_from(&items);
+                Ok(Some(files_from_propfind(&self.base, &items)))
+            }
+            Ok(_) => {
+                *self
+                    .session
+                    .depth_mode
+                    .lock()
+                    .unwrap_or_else(|error| error.into_inner()) = DepthMode::Depth1;
+                Ok(None)
+            }
+            Err(error) if depth_infinity_unsupported(&error) => {
+                *self
+                    .session
+                    .depth_mode
+                    .lock()
+                    .unwrap_or_else(|error| error.into_inner()) = DepthMode::Depth1;
+                Ok(None)
             }
             Err(error) => Err(error),
         }
@@ -189,6 +273,17 @@ impl CloudProvider for WebDavProvider {
 
     fn list(&self) -> AppResult<Vec<FileIdentity>> {
         self.ensure_base_collection()?;
+        self.session.listed.store(true, Ordering::Relaxed);
+        let mode = *self
+            .session
+            .depth_mode
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        if mode != DepthMode::Depth1 {
+            if let Some(files) = self.list_with_infinity()? {
+                return Ok(files);
+            }
+        }
         let mut files = Vec::new();
         self.list_recursive(&self.base, &mut files)?;
         Ok(files)
@@ -204,11 +299,16 @@ impl CloudProvider for WebDavProvider {
         if !status.is_success() {
             return Err(map_status(status, "Download remote file"));
         }
-        response.bytes().map(|bytes| bytes.to_vec()).map_err(map_reqwest)
+        response
+            .bytes()
+            .map(|bytes| bytes.to_vec())
+            .map_err(map_reqwest)
     }
 
     fn put(&self, relative_path: &str, bytes: &[u8]) -> AppResult<FileIdentity> {
-        self.ensure_base_collection()?;
+        if !self.session.listed.load(Ordering::Relaxed) {
+            self.ensure_base_collection()?;
+        }
         self.ensure_parents(relative_path)?;
         let url = self.object_url(relative_path)?;
         let response = self
@@ -257,6 +357,70 @@ impl CloudProvider for WebDavProvider {
     }
 }
 
+pub(crate) fn parent_collection_prefixes(relative_path: &str) -> Vec<String> {
+    let mut prefix = String::new();
+    let mut out = Vec::new();
+    let parts = relative_path.split('/').collect::<Vec<_>>();
+    for (index, part) in parts.iter().enumerate() {
+        if part.is_empty() || index + 1 == parts.len() {
+            continue;
+        }
+        if !prefix.is_empty() {
+            prefix.push('/');
+        }
+        prefix.push_str(part);
+        out.push(prefix.clone());
+    }
+    out
+}
+
+fn files_from_propfind(base: &Url, items: &[PropFindItem]) -> Vec<FileIdentity> {
+    let mut files = Vec::new();
+    for item in items {
+        if item.collection {
+            continue;
+        }
+        let Some(relative) = href_to_relative(base, &item.href) else {
+            continue;
+        };
+        if !is_syncable_relative(&relative) {
+            continue;
+        }
+        files.push(FileIdentity {
+            relative_path: relative,
+            size: item.size,
+            modified_ms: item.modified_ms,
+            etag: item.etag.clone(),
+            hash: None,
+        });
+    }
+    files
+}
+
+fn infinity_listing_usable(base: &Url, items: &[PropFindItem]) -> bool {
+    let mut has_child_collection = false;
+    let mut has_nested_file = false;
+    for item in items {
+        let Some(relative) = href_to_relative(base, &item.href) else {
+            continue;
+        };
+        if item.collection {
+            if !relative.is_empty() {
+                has_child_collection = true;
+            }
+        } else if relative.contains('/') {
+            has_nested_file = true;
+        }
+    }
+    has_nested_file || !has_child_collection
+}
+
+fn depth_infinity_unsupported(error: &AppError) -> bool {
+    error.details.as_deref().is_some_and(|details| {
+        details == "HTTP 400" || details == "HTTP 403" || details == "HTTP 501"
+    })
+}
+
 pub fn parse_base_url(raw: &str, remote_prefix: &str) -> AppResult<Url> {
     let trimmed = raw.trim();
     let mut url = Url::parse(trimmed).map_err(|error| {
@@ -271,9 +435,9 @@ pub fn parse_base_url(raw: &str, remote_prefix: &str) -> AppResult<Url> {
         return Err(AppError::invalid_path("WebDAV URL is invalid."));
     }
     {
-        let mut segments = url.path_segments_mut().map_err(|_| {
-            AppError::invalid_path("WebDAV URL is invalid.")
-        })?;
+        let mut segments = url
+            .path_segments_mut()
+            .map_err(|_| AppError::invalid_path("WebDAV URL is invalid."))?;
         for segment in remote_prefix.split('/') {
             if segment.is_empty() {
                 continue;
@@ -344,11 +508,7 @@ fn decode_segments(url: &Url) -> Vec<String> {
         .map(|segments| {
             segments
                 .filter(|part| !part.is_empty())
-                .map(|part| {
-                    percent_decode_str(part)
-                        .decode_utf8_lossy()
-                        .into_owned()
-                })
+                .map(|part| percent_decode_str(part).decode_utf8_lossy().into_owned())
                 .collect()
         })
         .unwrap_or_default()
@@ -483,7 +643,10 @@ mod tests {
             href_to_relative(&base, "/dav/Memoir/notes/%E6%97%A5%E8%AE%B0/today.md").as_deref(),
             Some("日记/today.md")
         );
-        assert_eq!(href_to_relative(&base, "/dav/Memoir/notes/").as_deref(), Some(""));
+        assert_eq!(
+            href_to_relative(&base, "/dav/Memoir/notes/").as_deref(),
+            Some("")
+        );
         assert_eq!(href_to_relative(&base, "/other/today.md"), None);
     }
 
@@ -523,5 +686,80 @@ mod tests {
         assert!(parse_base_url("file:///tmp", "").is_err());
         let base = parse_base_url("https://dav.example/dav/", "").unwrap();
         assert!(join_remote(&base, "../secret.md").is_err());
+    }
+
+    #[test]
+    fn lists_parent_prefixes_and_skips_known_collections() {
+        assert_eq!(
+            parent_collection_prefixes("attachments/2026-08/photo.png"),
+            vec!["attachments".to_string(), "attachments/2026-08".to_string()]
+        );
+        assert!(parent_collection_prefixes("inbox.md").is_empty());
+    }
+
+    #[test]
+    fn uses_infinity_only_when_nested_files_or_no_child_collections_appear() {
+        let base = parse_base_url("https://dav.example/dav", "Memoir").unwrap();
+        let shallow = parse_multistatus(
+            r#"<?xml version="1.0"?>
+<d:multistatus xmlns:d="DAV:">
+  <d:response>
+    <d:href>/dav/Memoir/</d:href>
+    <d:propstat><d:prop><d:resourcetype><d:collection/></d:resourcetype></d:prop></d:propstat>
+  </d:response>
+  <d:response>
+    <d:href>/dav/Memoir/attachments/</d:href>
+    <d:propstat><d:prop><d:resourcetype><d:collection/></d:resourcetype></d:prop></d:propstat>
+  </d:response>
+  <d:response>
+    <d:href>/dav/Memoir/inbox.md</d:href>
+    <d:propstat><d:prop><d:getcontentlength>1</d:getcontentlength></d:prop></d:propstat>
+  </d:response>
+</d:multistatus>"#,
+        )
+        .unwrap();
+        assert!(!infinity_listing_usable(&base, &shallow));
+
+        let deep = parse_multistatus(
+            r#"<?xml version="1.0"?>
+<d:multistatus xmlns:d="DAV:">
+  <d:response>
+    <d:href>/dav/Memoir/attachments/</d:href>
+    <d:propstat><d:prop><d:resourcetype><d:collection/></d:resourcetype></d:prop></d:propstat>
+  </d:response>
+  <d:response>
+    <d:href>/dav/Memoir/attachments/2026-08/photo.png</d:href>
+    <d:propstat>
+      <d:prop>
+        <d:getcontentlength>4</d:getcontentlength>
+        <d:getetag>"p"</d:getetag>
+      </d:prop>
+    </d:propstat>
+  </d:response>
+  <d:response>
+    <d:href>/dav/Memoir/%E6%97%A5%E8%AE%B0/today.md</d:href>
+    <d:propstat><d:prop><d:getcontentlength>2</d:getcontentlength></d:prop></d:propstat>
+  </d:response>
+</d:multistatus>"#,
+        )
+        .unwrap();
+        assert!(infinity_listing_usable(&base, &deep));
+        let files = files_from_propfind(&base, &deep);
+        assert!(files
+            .iter()
+            .any(|file| file.relative_path == "attachments/2026-08/photo.png"));
+        assert!(files
+            .iter()
+            .any(|file| file.relative_path == "日记/today.md"));
+    }
+
+    #[test]
+    fn treats_common_webdav_rejections_as_infinity_fallback() {
+        let error =
+            AppError::new(ErrorCode::Io, "List remote folder failed.").with_details("HTTP 403");
+        assert!(depth_infinity_unsupported(&error));
+        let other =
+            AppError::new(ErrorCode::Io, "List remote folder failed.").with_details("HTTP 500");
+        assert!(!depth_infinity_unsupported(&other));
     }
 }

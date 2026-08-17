@@ -9,7 +9,7 @@ import {
   type CloudSyncProfile,
 } from "../../domain/cloud-sync";
 import { mapGatewayError } from "../../domain/errors";
-import { formatRelativeTime } from "../../i18n";
+import { formatRelativeTime, formatSyncDuration } from "../../i18n";
 import { useI18n } from "../../i18n/react";
 import { isTauriRuntime } from "../../platform/runtime";
 import { useAppStore } from "../../store/app-store";
@@ -203,6 +203,9 @@ export function CloudSyncPanel() {
                 </div>
                 <span>
                   {t("sync.lastSync")} · {lastSyncLabel}
+                  {profile.lastReport?.durationMs
+                    ? ` · ${t("sync.took", { duration: formatSyncDuration(profile.lastReport.durationMs) })}`
+                    : ""}
                 </span>
                 {profile.lastError && <span>{profile.lastError}</span>}
                 <p className="cloud-sync-row-description">

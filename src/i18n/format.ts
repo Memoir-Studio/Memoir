@@ -2,6 +2,14 @@ import type { AppLocale } from "../domain/settings";
 import { dateLocale } from "./locale";
 import { t, tc } from "./translate";
 
+export function formatSyncDuration(ms: number): string {
+  if (!Number.isFinite(ms) || ms < 0) return "";
+  if (ms < 1000) return `${Math.round(ms)}ms`;
+  const seconds = ms / 1000;
+  if (seconds < 10) return `${seconds.toFixed(1)}s`;
+  return `${Math.round(seconds)}s`;
+}
+
 export function formatRelativeTime(ms: number, locale: AppLocale, now = Date.now()): string {
   if (!ms) return t(locale, "time.unknown");
   const delta = now - ms;

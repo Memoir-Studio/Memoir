@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  cloudSyncChangedActiveNote,
+  cloudSyncTouchedLocal,
   defaultCloudSyncProfile,
   hasCloudSyncCredentials,
   mergeCloudSyncProfile,
@@ -45,6 +47,8 @@ describe("cloud sync profile", () => {
         skipped: 0,
         conflicts: 0,
         completedMs: 0,
+        durationMs: 12,
+        changedLocalPaths: ["a.md"],
         errors: [{ path: "a.md", message: "boom" }],
       },
     });
@@ -54,8 +58,13 @@ describe("cloud sync profile", () => {
     expect(merged.lastReport).toMatchObject({
       uploaded: 2,
       downloaded: 1,
+      durationMs: 12,
+      changedLocalPaths: ["a.md"],
       errors: [{ path: "a.md", message: "boom" }],
     });
+    expect(cloudSyncTouchedLocal(merged.lastReport!)).toBe(true);
+    expect(cloudSyncChangedActiveNote(merged.lastReport!, "a.md")).toBe(true);
+    expect(cloudSyncChangedActiveNote(merged.lastReport!, "other.md")).toBe(false);
     expect(hasCloudSyncCredentials(merged)).toBe(false);
     expect(
       hasCloudSyncCredentials({

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatRelativeTime } from "./format";
+import { formatRelativeTime, formatSyncDuration } from "./format";
 import { detectSystemLocale, htmlLang, resolveLocale } from "./locale";
 import { en } from "./en";
 import { zh } from "./zh";
@@ -43,5 +43,11 @@ describe("i18n", () => {
     expect(formatRelativeTime(now - 120_000, "en", now)).toBe("2 minutes ago");
     expect(formatRelativeTime(now - 60_000, "en", now)).toBe("1 minute ago");
     expect(formatRelativeTime(now - 120_000, "zh", now)).toBe("2分钟前");
+  });
+
+  it("formats short sync durations", () => {
+    expect(formatSyncDuration(12)).toBe("12ms");
+    expect(formatSyncDuration(1500)).toBe("1.5s");
+    expect(formatSyncDuration(12_400)).toBe("12s");
   });
 });

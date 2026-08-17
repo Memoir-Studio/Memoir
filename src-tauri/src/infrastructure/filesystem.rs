@@ -5,10 +5,7 @@ use crate::{
             resolve_attachment_extension, sanitize_attachment_file_name, unique_file_name,
             ATTACHMENTS_DIR, MAX_ATTACHMENT_BYTES,
         },
-        cloud_sync::{
-            is_conflict_sidecar, is_note_relative, is_writable_sync_path,
-            FileIdentity,
-        },
+        cloud_sync::{is_conflict_sidecar, is_note_relative, is_writable_sync_path, FileIdentity},
         folder_of,
         path::{
             create_parent_dirs, is_supported_note, normalize_root, resolve_existing_attachment,
@@ -18,10 +15,7 @@ use crate::{
         },
         AppError, AppResult, AttachmentFile, NoteIdentity,
     },
-    infrastructure::{
-        atomic::atomic_write,
-        index::DirCacheRow,
-    },
+    infrastructure::{atomic::atomic_write, index::DirCacheRow},
 };
 use std::{
     collections::HashMap,
@@ -37,6 +31,7 @@ use std::{
 #[derive(Debug, Clone)]
 pub struct LocalFileSystem {
     pub walk_dirs: Arc<AtomicUsize>,
+    pub attachment_walk_dirs: Arc<AtomicUsize>,
 }
 
 impl Default for LocalFileSystem {
@@ -49,6 +44,7 @@ impl LocalFileSystem {
     pub fn new() -> Self {
         Self {
             walk_dirs: Arc::new(AtomicUsize::new(0)),
+            attachment_walk_dirs: Arc::new(AtomicUsize::new(0)),
         }
     }
 
@@ -202,11 +198,9 @@ impl LocalFileSystem {
         if !source.exists() {
             return Err(AppError::not_found("Source file does not exist."));
         }
-        let bytes =
-            fs::read(&source).map_err(|error| AppError::io("Read source attachment", &source, error))?;
-        let file_name = source
-            .file_name()
-            .and_then(|value| value.to_str());
+        let bytes = fs::read(&source)
+            .map_err(|error| AppError::io("Read source attachment", &source, error))?;
+        let file_name = source.file_name().and_then(|value| value.to_str());
         write_attachment_bytes(root, &bytes, file_name, None)
     }
 
@@ -215,33 +209,46 @@ impl LocalFileSystem {
         move_to_workspace_trash(&root, &attachment_path, "deleted-attachment")
     }
 
-    pub fn list_syncable_files(&self, root: &str) -> AppResult<Vec<FileIdentity>> {
-        let notes = self.walk_workspace(root, &HashMap::new(), &[])?;
-        let attachments = self.scan_attachments(root)?;
-        let mut files = notes
-            .notes
-            .into_iter()
-            .map(|note| FileIdentity {
-                relative_path: note.relative_path,
-                size: note.size,
-                modified_ms: note.modified_ms,
-                etag: None,
-                hash: None,
-            })
-            .collect::<Vec<_>>();
-        files.extend(attachments.into_iter().filter_map(|attachment| {
-            if is_conflict_sidecar(&attachment.relative_path) {
-                return None;
-            }
-            Some(FileIdentity {
-                relative_path: attachment.relative_path,
-                size: attachment.size,
-                modified_ms: attachment.modified_ms,
-                etag: None,
-                hash: None,
-            })
-        }));
-        Ok(files)
+    pub fn scan_attachments_cached(
+        &self,
+        root: &str,
+        cache: &HashMap<String, DirCacheRow>,
+        known_paths: &[String],
+    ) -> AppResult<AttachmentWalk> {
+        let root = normalize_root(root)?;
+        let attachments_dir = root.join(ATTACHMENTS_DIR);
+        let mut walk = AttachmentWalk::default();
+        if !attachments_dir.exists() {
+            return Ok(walk);
+        }
+        let metadata = fs::symlink_metadata(&attachments_dir).map_err(|error| {
+            AppError::io("Inspect attachments directory", &attachments_dir, error)
+        })?;
+        if metadata.file_type().is_symlink() {
+            return Err(AppError::invalid_path(
+                "Attachments directory cannot be a symbolic link.",
+            ));
+        }
+        if !metadata.is_dir() {
+            return Err(AppError::invalid_path(
+                "Attachments path is not a directory.",
+            ));
+        }
+        collect_attachments_cached(
+            &root,
+            &attachments_dir,
+            cache,
+            known_paths,
+            &mut walk,
+            &self.attachment_walk_dirs,
+        )?;
+        walk.files.sort_by(|left, right| {
+            right
+                .modified_ms
+                .cmp(&left.modified_ms)
+                .then_with(|| left.relative_path.cmp(&right.relative_path))
+        });
+        Ok(walk)
     }
 
     pub fn stat_sync_file(&self, root: &str, relative_path: &str) -> AppResult<FileIdentity> {
@@ -265,8 +272,7 @@ impl LocalFileSystem {
         relative_path: &str,
         bytes: &[u8],
     ) -> AppResult<FileIdentity> {
-        if (is_attachment_relative(Path::new(relative_path))
-            || is_conflict_sidecar(relative_path))
+        if (is_attachment_relative(Path::new(relative_path)) || is_conflict_sidecar(relative_path))
             && bytes.len() > MAX_ATTACHMENT_BYTES
         {
             return Err(AppError::attachment_too_large());
@@ -292,7 +298,11 @@ impl LocalFileSystem {
     }
 }
 
-fn resolve_sync_path(root: &str, relative_path: &str, existing: bool) -> AppResult<(PathBuf, PathBuf)> {
+fn resolve_sync_path(
+    root: &str,
+    relative_path: &str,
+    existing: bool,
+) -> AppResult<(PathBuf, PathBuf)> {
     if !is_writable_sync_path(relative_path) {
         return Err(AppError::invalid_path(
             "Cloud sync only writes notes and image attachments.",
@@ -374,6 +384,142 @@ fn write_attachment_bytes(
     attachment_file_from_path(&root_path, &target)
 }
 
+fn collect_attachments_cached(
+    root: &Path,
+    current: &Path,
+    cache: &HashMap<String, DirCacheRow>,
+    known_paths: &[String],
+    walk: &mut AttachmentWalk,
+    walk_dirs: &AtomicUsize,
+) -> AppResult<()> {
+    let dir_key = relative_dir(root, current);
+    let dir_meta = match fs::symlink_metadata(current) {
+        Ok(metadata) => metadata,
+        Err(_) => return Ok(()),
+    };
+    if dir_meta.file_type().is_symlink() || !dir_meta.is_dir() {
+        return Ok(());
+    }
+    let dir_mtime = i64::try_from(modified_ms(dir_meta.modified())).unwrap_or(i64::MAX);
+    let dir_size = i64::try_from(dir_meta.len()).unwrap_or(i64::MAX);
+    if let Some(cached) = cache.get(&dir_key) {
+        if cached.modified_ms == dir_mtime && cached.size == dir_size {
+            walk.reused_dirs.push(dir_key.clone());
+            stat_known_attachments(root, &dir_key, known_paths, walk);
+            visit_cached_attachment_children(root, &dir_key, cache, known_paths, walk, walk_dirs)?;
+            return Ok(());
+        }
+    }
+
+    walk_dirs.fetch_add(1, Ordering::Relaxed);
+    let entries =
+        fs::read_dir(current).map_err(|error| AppError::io("Read attachments", current, error))?;
+    let mut entry_count = 0_i64;
+    for entry in entries {
+        let entry = entry.map_err(|error| {
+            AppError::new(
+                crate::domain::ErrorCode::Io,
+                "Unable to read attachment entry.",
+            )
+            .with_details(error.to_string())
+        })?;
+        entry_count += 1;
+        let path = entry.path();
+        let metadata = fs::symlink_metadata(&path)
+            .map_err(|error| AppError::io("Inspect attachment entry", &path, error))?;
+        if metadata.file_type().is_symlink() {
+            continue;
+        }
+        if metadata.is_dir() {
+            if !should_skip_dir(&path) {
+                collect_attachments_cached(root, &path, cache, known_paths, walk, walk_dirs)?;
+            }
+            continue;
+        }
+        if let Some(identity) = syncable_attachment_identity(root, &path, &metadata) {
+            walk.files.push(identity);
+        }
+    }
+    walk.walked_dirs.push(DirCacheRow {
+        relative_dir: dir_key,
+        modified_ms: dir_mtime,
+        size: dir_size,
+        entry_count,
+    });
+    Ok(())
+}
+
+fn stat_known_attachments(
+    root: &Path,
+    dir_key: &str,
+    known_paths: &[String],
+    walk: &mut AttachmentWalk,
+) {
+    for relative_path in known_paths {
+        if crate::domain::folder_of(relative_path) != dir_key {
+            continue;
+        }
+        let path = root.join(relative_path);
+        let Ok(metadata) = fs::symlink_metadata(&path) else {
+            continue;
+        };
+        if let Some(identity) = syncable_attachment_identity(root, &path, &metadata) {
+            walk.files.push(identity);
+        }
+    }
+}
+
+fn visit_cached_attachment_children(
+    root: &Path,
+    dir_key: &str,
+    cache: &HashMap<String, DirCacheRow>,
+    known_paths: &[String],
+    walk: &mut AttachmentWalk,
+    walk_dirs: &AtomicUsize,
+) -> AppResult<()> {
+    let children = cache
+        .keys()
+        .filter(|child| is_direct_child_dir(dir_key, child))
+        .cloned()
+        .collect::<Vec<_>>();
+    for child in children {
+        let path = root.join(&child);
+        if should_skip_dir(&path) {
+            continue;
+        }
+        collect_attachments_cached(root, &path, cache, known_paths, walk, walk_dirs)?;
+    }
+    Ok(())
+}
+
+fn syncable_attachment_identity(
+    root: &Path,
+    path: &Path,
+    metadata: &fs::Metadata,
+) -> Option<FileIdentity> {
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
+        return None;
+    }
+    let file_name = path.file_name().and_then(|value| value.to_str())?;
+    if file_name.starts_with('.') {
+        return None;
+    }
+    let relative_path = to_relative_path(root, path).ok()?;
+    if is_conflict_sidecar(&relative_path) {
+        return None;
+    }
+    if crate::domain::attachment::validate_attachment_extension(path).is_err() {
+        return None;
+    }
+    Some(FileIdentity {
+        relative_path,
+        size: metadata.len(),
+        modified_ms: modified_ms(metadata.modified()),
+        etag: None,
+        hash: None,
+    })
+}
+
 fn collect_attachment_tree(
     root: &Path,
     attachments_dir: &Path,
@@ -443,8 +589,8 @@ fn collect_attachments(
 }
 
 fn attachment_file_from_path(root: &Path, path: &Path) -> AppResult<AttachmentFile> {
-    let metadata =
-        fs::metadata(path).map_err(|error| AppError::io("Inspect saved attachment", path, error))?;
+    let metadata = fs::metadata(path)
+        .map_err(|error| AppError::io("Inspect saved attachment", path, error))?;
     attachment_file_from_metadata(root, path, &metadata)
 }
 
@@ -474,7 +620,11 @@ fn attachment_file_from_metadata(
     })
 }
 
-fn move_to_workspace_trash(root: &Path, file_path: &Path, fallback_name: &str) -> AppResult<String> {
+fn move_to_workspace_trash(
+    root: &Path,
+    file_path: &Path,
+    fallback_name: &str,
+) -> AppResult<String> {
     let trash = root.join(".memoir-trash");
     if trash.exists() {
         let metadata = fs::symlink_metadata(&trash)
@@ -508,6 +658,13 @@ fn move_to_workspace_trash(root: &Path, file_path: &Path, fallback_name: &str) -
 #[derive(Debug, Default, Clone)]
 pub struct WorkspaceWalk {
     pub notes: Vec<NoteIdentity>,
+    pub walked_dirs: Vec<DirCacheRow>,
+    pub reused_dirs: Vec<String>,
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct AttachmentWalk {
+    pub files: Vec<FileIdentity>,
     pub walked_dirs: Vec<DirCacheRow>,
     pub reused_dirs: Vec<String>,
 }
@@ -771,4 +928,54 @@ fn unique_trash_path(trash: &Path, timestamp: u64, file_name: &str) -> PathBuf {
         }
     }
     trash.join(format!("{timestamp}-overflow-{file_name}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::Ordering;
+    use tempfile::tempdir;
+
+    #[test]
+    fn attachment_dir_cache_skips_read_dir_until_the_folder_changes() {
+        let dir = tempdir().unwrap();
+        let root = dir.path();
+        let month = root.join("attachments/2026-08");
+        fs::create_dir_all(&month).unwrap();
+        fs::write(month.join("photo.png"), [1, 2, 3, 4]).unwrap();
+
+        let filesystem = LocalFileSystem::new();
+        let first = filesystem
+            .scan_attachments_cached(root.to_str().unwrap(), &HashMap::new(), &[])
+            .unwrap();
+        assert_eq!(first.files.len(), 1);
+        assert!(filesystem.attachment_walk_dirs.load(Ordering::Relaxed) >= 2);
+
+        let cache: HashMap<_, _> = first
+            .walked_dirs
+            .iter()
+            .cloned()
+            .map(|row| (row.relative_dir.clone(), row))
+            .collect();
+        let known = first
+            .files
+            .iter()
+            .map(|file| file.relative_path.clone())
+            .collect::<Vec<_>>();
+        filesystem.attachment_walk_dirs.store(0, Ordering::Relaxed);
+        let reused = filesystem
+            .scan_attachments_cached(root.to_str().unwrap(), &cache, &known)
+            .unwrap();
+        assert_eq!(reused.files.len(), 1);
+        assert_eq!(filesystem.attachment_walk_dirs.load(Ordering::Relaxed), 0);
+        assert!(reused.reused_dirs.contains(&"attachments".to_string()));
+
+        fs::write(month.join("other.png"), [5, 6, 7, 8]).unwrap();
+        filesystem.attachment_walk_dirs.store(0, Ordering::Relaxed);
+        let changed = filesystem
+            .scan_attachments_cached(root.to_str().unwrap(), &cache, &known)
+            .unwrap();
+        assert_eq!(changed.files.len(), 2);
+        assert!(filesystem.attachment_walk_dirs.load(Ordering::Relaxed) > 0);
+    }
 }

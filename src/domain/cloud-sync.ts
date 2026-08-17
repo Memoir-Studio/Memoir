@@ -24,6 +24,8 @@ export type CloudSyncReport = {
   conflicts: number;
   errors: CloudSyncFileError[];
   completedMs: number;
+  durationMs: number;
+  changedLocalPaths: string[];
 };
 
 export type CloudSyncProfile = {
@@ -127,7 +129,22 @@ export function mergeCloudSyncReport(report?: Partial<CloudSyncReport> | null): 
     conflicts: asFiniteNumber(report.conflicts) ?? 0,
     errors,
     completedMs: asFiniteNumber(report.completedMs) ?? 0,
+    durationMs: asFiniteNumber(report.durationMs) ?? 0,
+    changedLocalPaths: Array.isArray(report.changedLocalPaths)
+      ? report.changedLocalPaths.map((item) => asTrimmedString(item)).filter(Boolean)
+      : [],
   };
+}
+
+export function cloudSyncTouchedLocal(report: CloudSyncReport): boolean {
+  return report.downloaded > 0 || report.deletedLocal > 0 || report.conflicts > 0;
+}
+
+export function cloudSyncChangedActiveNote(
+  report: CloudSyncReport,
+  activePath: string | null,
+): boolean {
+  return Boolean(activePath && report.changedLocalPaths.includes(activePath));
 }
 
 export function mergeCloudSyncProfile(

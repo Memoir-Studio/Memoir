@@ -126,6 +126,8 @@ describe("CloudSyncPanel", () => {
           conflicts: 0,
           errors: [],
           completedMs: Date.now(),
+          durationMs: 420,
+          changedLocalPaths: [],
         },
       },
       runCloudSync,

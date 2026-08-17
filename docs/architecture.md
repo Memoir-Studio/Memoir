@@ -146,7 +146,7 @@ app-data/
 - `cloudSync` — per-workspace provider settings (WebDAV URL and credentials stay here, not in the vault)
 - `window` — logical width, height, maximized
 
-A last-sync snapshot lives at `sync/<workspace sha256>/snapshot.json` so two-way sync can detect local/remote edits and deletes. Notes and image attachments are replicated; `.memoir/`, trash, and drafts are not. Attachments sync before notes. Conflicts keep the newer mtime (local wins ties); the losing attachment is kept as a local `*.conflict-*` file. Enabled workspaces also sync after open and after save.
+A last-sync snapshot lives at `sync/<workspace sha256>/snapshot.json` so two-way sync can detect local/remote edits and deletes. It also stores attachment directory stats so a repeat sync can skip `read_dir` when those folders have not changed. Notes and image attachments are replicated; `.memoir/`, trash, and drafts are not. Attachments sync before notes. Conflicts keep the newer mtime (local wins ties); the losing attachment is kept as a local `*.conflict-*` file. Enabled workspaces also sync after open and after save. A run that did not change local files does not walk the library again.
 
 Drafts are separate files so typing does not rewrite the whole state file. State and draft writes create a sibling temp file, `sync`, then `rename`.
 

@@ -8,11 +8,7 @@ use crate::{
 use sha2::{Digest, Sha256};
 #[cfg(test)]
 use std::path::Path;
-use std::{
-    collections::HashSet,
-    fs,
-    path::PathBuf,
-};
+use std::{collections::HashSet, fs, path::PathBuf};
 
 #[derive(Debug, Clone)]
 pub struct AppDataRepository {
@@ -153,6 +149,7 @@ impl AppDataRepository {
             return Ok(SyncSnapshot {
                 version: CLOUD_SYNC_SNAPSHOT_VERSION,
                 files: Default::default(),
+                local_dirs: Default::default(),
             });
         }
         let bytes =
