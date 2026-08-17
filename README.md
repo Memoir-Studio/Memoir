@@ -149,3 +149,7 @@ Issues and pull requests are welcome.
 4. Run the three commands in [Development](#development).
 
 Please do not add cloud sync, telemetry, or a second persistence path without an issue first.
+
+## Friend Links
+
+- [Linux.do](https://linux.do/)
