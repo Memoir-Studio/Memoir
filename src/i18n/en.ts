@@ -106,6 +106,8 @@ export const en = {
 
   "outline.label": "Outline",
   "outline.empty": "This note has no headings.",
+  "outline.expand": "Expand “{title}”",
+  "outline.collapse": "Collapse “{title}”",
 
   "menu.actions": "Actions for {title}",
   "menu.open": "Open",

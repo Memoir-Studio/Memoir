@@ -103,6 +103,8 @@ export const zh = {
 
   "outline.label": "大纲",
   "outline.empty": "当前笔记没有标题。",
+  "outline.expand": "展开“{title}”",
+  "outline.collapse": "折叠“{title}”",
 
   "menu.actions": "{title} 的操作",
   "menu.open": "打开",

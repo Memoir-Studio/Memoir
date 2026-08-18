@@ -1,24 +1,17 @@
-import { AlignLeft } from "lucide-react";
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { ChevronRight } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { cn } from "../../components/ui";
 import type { HeadingItem } from "../../domain/notes";
 import { useI18n } from "../../i18n/react";
-
-const MAX_INDENT_LEVEL = 4;
-const BASE_INSET = 14;
-const INSET_STEP = 18;
-
-function headingInset(depth: number) {
-  return BASE_INSET + Math.min(Math.max(depth, 1) - 1, MAX_INDENT_LEVEL) * INSET_STEP;
-}
-
-function minHeadingDepth(headings: HeadingItem[]) {
-  return headings.reduce((min, heading) => Math.min(min, heading.depth), 6);
-}
-
-function outlineLevel(depth: number, minDepth: number) {
-  return Math.max(1, depth - minDepth + 1);
-}
+import {
+  buildOutlineTree,
+  flattenVisibleOutline,
+  headingInset,
+  pruneCollapsedHeadingIds,
+  visibleOutlineHighlightId,
+  writeCollapsedHeadingIds,
+} from "./outline-tree";
+import { scrollHeadingInPreview } from "./scroll-heading";
 
 function prefersReducedMotion() {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -33,8 +26,20 @@ export function NoteOutline({
 }) {
   const { t } = useI18n();
   const [activeId, setActiveId] = useState<string | null>(headings[0]?.id ?? null);
+  const [collapsedIds, setCollapsedIds] = useState(() =>
+    pruneCollapsedHeadingIds(documentKey, headings),
+  );
   const ignoreObserverRef = useRef(false);
   const ignoreTimerRef = useRef<number | null>(null);
+  const tree = useMemo(() => buildOutlineTree(headings), [headings]);
+  const visibleNodes = useMemo(
+    () => flattenVisibleOutline(tree, collapsedIds),
+    [collapsedIds, tree],
+  );
+  const highlightId = useMemo(
+    () => visibleOutlineHighlightId(tree, collapsedIds, activeId),
+    [activeId, collapsedIds, tree],
+  );
 
   useEffect(() => {
     setActiveId(headings[0]?.id ?? null);
@@ -47,6 +52,10 @@ export function NoteOutline({
         : (headings[0]?.id ?? null),
     );
   }, [headings]);
+
+  useEffect(() => {
+    setCollapsedIds(pruneCollapsedHeadingIds(documentKey, headings));
+  }, [documentKey, headings]);
 
   useEffect(() => {
     if (typeof IntersectionObserver === "undefined") return;
@@ -78,12 +87,15 @@ export function NoteOutline({
     };
   }, []);
 
+  const preventFocusScroll = (event: { preventDefault(): void }) => {
+    event.preventDefault();
+  };
+
   const activate = (id: string) => {
     setActiveId(id);
     ignoreObserverRef.current = true;
-    document.getElementById(id)?.scrollIntoView({
+    scrollHeadingInPreview(id, {
       behavior: prefersReducedMotion() ? "auto" : "smooth",
-      block: "start",
     });
     if (ignoreTimerRef.current !== null) window.clearTimeout(ignoreTimerRef.current);
     ignoreTimerRef.current = window.setTimeout(() => {
@@ -92,35 +104,68 @@ export function NoteOutline({
     }, 480);
   };
 
-  const rootDepth = minHeadingDepth(headings);
+  const toggleCollapsed = (id: string) => {
+    setCollapsedIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      writeCollapsedHeadingIds(documentKey, next);
+      return next;
+    });
+  };
 
   return (
     <nav
       aria-label={t("outline.label")}
       className="outline-list memoir-fade-in flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-auto"
     >
-      <div className="outline-caption">
-        <AlignLeft aria-hidden className="outline-caption-icon" strokeWidth={1.75} />
-        <span>{t("outline.label")}</span>
-      </div>
       <div className="outline-items">
-        {headings.map((heading) => {
-          const current = heading.id === activeId;
-          const level = outlineLevel(heading.depth, rootDepth);
+        {visibleNodes.map((node) => {
+          const current = node.heading.id === highlightId;
+          const hasChildren = node.children.length > 0;
+          const collapsed = hasChildren && collapsedIds.has(node.heading.id);
           return (
-            <button
-              aria-current={current ? "location" : undefined}
+            <div
               className={cn("outline-item", current && "is-active")}
-              data-depth={level}
-              key={heading.id}
-              onClick={() => activate(heading.id)}
-              style={{ "--outline-inset": `${headingInset(level)}px` } as CSSProperties}
-              title={heading.text}
-              type="button"
+              data-depth={node.level}
+              key={node.heading.id}
+              style={{ "--outline-inset": `${headingInset(node.level)}px` } as CSSProperties}
             >
-              <span aria-hidden className="outline-item-mark" />
-              <span className="outline-item-text">{heading.text}</span>
-            </button>
+              {hasChildren ? (
+                <button
+                  aria-expanded={!collapsed}
+                  aria-label={
+                    collapsed
+                      ? t("outline.expand", { title: node.heading.text })
+                      : t("outline.collapse", { title: node.heading.text })
+                  }
+                  className="outline-item-toggle"
+                  onClick={() => toggleCollapsed(node.heading.id)}
+                  onMouseDown={preventFocusScroll}
+                  type="button"
+                >
+                  <ChevronRight
+                    aria-hidden
+                    className={cn("outline-item-chevron", !collapsed && "is-open")}
+                    strokeWidth={2}
+                  />
+                </button>
+              ) : (
+                <span aria-hidden className="outline-item-toggle-spacer" />
+              )}
+              <button
+                aria-current={current ? "location" : undefined}
+                className={cn("outline-item-label", current && "is-active")}
+                data-depth={node.level}
+                onClick={() => activate(node.heading.id)}
+                onMouseDown={preventFocusScroll}
+                title={node.heading.text}
+                type="button"
+              >
+                <span aria-hidden className="outline-item-mark" />
+                <span className="outline-item-text">{node.heading.text}</span>
+              </button>
+            </div>
           );
         })}
         {!headings.length && (

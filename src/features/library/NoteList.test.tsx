@@ -6,6 +6,7 @@ import { useAppStore } from "../../store/app-store";
 import { createMockGateways } from "../../test/mock-gateways";
 import { exportNotePdf } from "../export/export-note-pdf";
 import { NoteList } from "./NoteList";
+import { resetCollapsedHeadingIds } from "./outline-tree";
 
 vi.mock("../export/export-note-pdf", () => ({
   exportNotePdf: vi.fn(),
@@ -13,6 +14,7 @@ vi.mock("../export/export-note-pdf", () => ({
 
 afterEach(() => {
   cleanup();
+  resetCollapsedHeadingIds();
   setGatewaysForTests(null);
   useAppStore.setState({
     workspaceRoot: null,
@@ -135,11 +137,19 @@ describe("NoteList", () => {
     await user.click(view.getByRole("button", { name: "大纲" }));
 
     expect(view.getByRole("navigation", { name: "大纲" })).toBeInTheDocument();
-    expect(view.getByRole("button", { name: "Alpha Guide" })).toHaveAttribute(
+    expect(view.getByRole("button", { name: /^Alpha Guide$/ })).toHaveAttribute(
       "aria-current",
       "location",
     );
-    expect(view.getByRole("button", { name: "Install" })).toHaveAttribute("data-depth", "3");
+    expect(view.getByRole("button", { name: /^Install$/ })).toHaveAttribute("data-depth", "3");
+
+    await user.click(view.getByRole("button", { name: "折叠“Setup”" }));
+    expect(view.queryByRole("button", { name: /^Install$/ })).not.toBeInTheDocument();
+
+    await user.click(view.getByRole("button", { name: "笔记" }));
+    await user.click(view.getByRole("button", { name: "大纲" }));
+    expect(view.queryByRole("button", { name: /^Install$/ })).not.toBeInTheDocument();
+    expect(view.getByRole("button", { name: "展开“Setup”" })).toBeInTheDocument();
   });
 
   it("shows the attachment library from the sidebar, not a duplicate header tab", () => {

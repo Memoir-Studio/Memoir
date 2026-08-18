@@ -26,7 +26,7 @@
 
 .workspace-shell {
   height: 100%;
-  overflow: hidden;
+  overflow: clip;
   border: 1px solid color-mix(in srgb, var(--memoir-text) 8%, var(--memoir-border));
   border-radius: 16px;
   background: var(--memoir-canvas);

@@ -128,6 +128,8 @@ input:focus-visible,
   .folder-emoji-button,
   .note-card,
   .outline-item,
+  .outline-item-label,
+  .outline-item-chevron,
   .view-switcher button {
     transition: none;
   }
