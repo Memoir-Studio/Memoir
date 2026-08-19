@@ -9,6 +9,7 @@ import { mapGatewayError } from "../../domain/errors";
 import { useI18n } from "../../i18n/react";
 import { useAppStore } from "../../store/app-store";
 import { revealWorkspaceItem } from "../workspace/workspace-utils";
+import { noteDisplayName } from "./note-utils";
 
 export type NoteMenuTarget = {
   x: number;
@@ -54,7 +55,7 @@ export function NoteContextMenu({
 
   return (
     <ContextMenu
-      label={t("menu.actions", { title: note.title })}
+      label={t("menu.actions", { title: noteDisplayName(note) })}
       onClose={onClose}
       open
       x={target.x}

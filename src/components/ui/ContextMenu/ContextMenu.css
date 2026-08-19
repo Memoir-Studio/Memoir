@@ -46,6 +46,10 @@
   outline: none;
 }
 
+.memoir-context-menu-item.is-checked {
+  font-weight: 600;
+}
+
 .memoir-context-menu-item.is-danger {
   color: var(--memoir-danger);
 }

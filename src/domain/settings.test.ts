@@ -55,4 +55,23 @@ describe("settings merge", () => {
       }).general.closeBehavior,
     ).toBe("tray");
   });
+
+  it("defaults and sanitizes note sort", () => {
+    expect(mergeSettings(null).general.noteSort).toBe("name");
+    expect(mergeSettings(null).general.noteSortDirection).toBe("asc");
+    expect(
+      mergeSettings({
+        general: { ...DEFAULT_SETTINGS.general, noteSort: "modified", noteSortDirection: "desc" },
+      }).general,
+    ).toMatchObject({ noteSort: "modified", noteSortDirection: "desc" });
+    expect(
+      mergeSettings({
+        general: {
+          ...DEFAULT_SETTINGS.general,
+          noteSort: "size" as AppSettings["general"]["noteSort"],
+          noteSortDirection: "sideways" as AppSettings["general"]["noteSortDirection"],
+        },
+      }).general,
+    ).toMatchObject({ noteSort: "name", noteSortDirection: "asc" });
+  });
 });

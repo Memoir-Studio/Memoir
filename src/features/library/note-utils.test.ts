@@ -8,11 +8,15 @@ import {
   extractTitle,
   filterNotes,
   folderName,
+  noteBelongsToFolder,
+  noteDisplayName,
   queryNotesInMemory,
   isRootFolder,
   noteStats,
   parseNote,
   parseTagTokens,
+  resolveNoteRenamePath,
+  sortLibraryNotes,
 } from "./note-utils";
 import type { NoteMeta } from "../../domain/notes";
 
@@ -138,6 +142,30 @@ title: Two Sum
     expect(filterNotes(notes, "", "all", { type: "folder", value: "" }, 100)).toEqual([
       notes[1],
     ]);
+    expect(noteBelongsToFolder("work/nested/gamma.md", "work")).toBe(true);
+    expect(noteBelongsToFolder("workshop/gamma.md", "work")).toBe(false);
+    expect(
+      filterNotes(
+        [
+          ...notes,
+          {
+            relativePath: "work/nested/gamma.md",
+            fileName: "gamma.md",
+            extension: "md",
+            modifiedMs: 2,
+            size: 4,
+            title: "Gamma",
+            tags: [],
+            excerpt: "",
+            favorite: false,
+          },
+        ],
+        "",
+        "all",
+        { type: "folder", value: "work" },
+        100,
+      ).map((note) => note.relativePath),
+    ).toEqual(["work/alpha.md", "work/nested/gamma.md"]);
     expect(filterNotes(notes, "", "all", { type: "tag", value: "WORK" }, 100)).toEqual([
       notes[0],
     ]);
@@ -168,5 +196,41 @@ title: Two Sum
     expect(folderName("work/alpha.md")).toBe("work");
     expect(isRootFolder(folderName("beta.mdx"))).toBe(true);
     expect(isRootFolder(folderName("work/alpha.md"))).toBe(false);
+  });
+
+  it("lists notes by file name and keeps rename on the same path", () => {
+    expect(noteDisplayName(notes[0]!)).toBe("alpha");
+    expect(noteDisplayName(notes[1]!)).toBe("beta");
+    expect(resolveNoteRenamePath("work/alpha.md", "gamma")).toBe("work/gamma.md");
+    expect(resolveNoteRenamePath("work/alpha.md", "gamma.mdx")).toBe("work/gamma.mdx");
+    expect(resolveNoteRenamePath("work/alpha.md", "inbox/gamma.md")).toBe("inbox/gamma.md");
+    expect(
+      sortLibraryNotes(
+        [
+          { fileName: "10.md", relativePath: "lessons/10.md", modifiedMs: 3, title: "Ten" },
+          { fileName: "2.md", relativePath: "lessons/2.md", modifiedMs: 1, title: "Two" },
+          { fileName: "beta.mdx", relativePath: "beta.mdx", modifiedMs: 2, title: "Beta" },
+        ],
+        { field: "name", direction: "asc" },
+      ).map((note) => note.relativePath),
+    ).toEqual(["beta.mdx", "lessons/2.md", "lessons/10.md"]);
+    expect(
+      sortLibraryNotes(
+        [
+          { fileName: "10.md", relativePath: "lessons/10.md", modifiedMs: 3, title: "Ten" },
+          { fileName: "2.md", relativePath: "lessons/2.md", modifiedMs: 1, title: "Two" },
+        ],
+        { field: "modified", direction: "desc" },
+      ).map((note) => note.relativePath),
+    ).toEqual(["lessons/10.md", "lessons/2.md"]);
+    expect(
+      sortLibraryNotes(
+        [
+          { fileName: "a.md", relativePath: "a.md", modifiedMs: 1, title: "Zebra" },
+          { fileName: "b.md", relativePath: "b.md", modifiedMs: 2, title: "Apple" },
+        ],
+        { field: "title", direction: "asc" },
+      ).map((note) => note.relativePath),
+    ).toEqual(["b.md", "a.md"]);
   });
 });

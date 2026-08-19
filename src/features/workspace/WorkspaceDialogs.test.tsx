@@ -214,7 +214,7 @@ describe("WorkspaceDialogs", () => {
     );
 
     await user.click(view.getByRole("button", { name: "打开重命名" }));
-    const field = view.getByLabelText("相对路径");
+    const field = view.getByLabelText("文件名");
     await user.clear(field);
     await user.type(field, "beta.md{Enter}");
 
@@ -222,6 +222,36 @@ describe("WorkspaceDialogs", () => {
     await waitFor(() => {
       expect(view.queryByRole("dialog", { name: "重命名笔记" })).not.toBeInTheDocument();
     });
+  });
+
+  it("keeps the folder when renaming only the file name", async () => {
+    const renameNote = vi.fn().mockResolvedValue(undefined);
+    useAppStore.setState({
+      activePath: "工作/alpha.md",
+      renameNote,
+    });
+    function ClickHarness() {
+      const { openRename } = useWorkspaceDialogs();
+      return (
+        <button onClick={() => openRename("工作/alpha.md")} type="button">
+          打开目录重命名
+        </button>
+      );
+    }
+    const user = userEvent.setup();
+    const view = render(
+      <WorkspaceDialogsProvider>
+        <ClickHarness />
+      </WorkspaceDialogsProvider>,
+    );
+
+    await user.click(view.getByRole("button", { name: "打开目录重命名" }));
+    const field = view.getByLabelText("文件名");
+    expect(field).toHaveValue("alpha.md");
+    await user.clear(field);
+    await user.type(field, "gamma{Enter}");
+
+    expect(renameNote).toHaveBeenCalledWith("工作/alpha.md", "工作/gamma.md");
   });
 
   it("deletes a note when Enter is pressed in the confirm dialog", async () => {

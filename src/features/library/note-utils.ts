@@ -1,5 +1,6 @@
 import GithubSlugger from "github-slugger";
 import matter from "gray-matter";
+import type { NoteSortDirection, NoteSortField } from "../../domain/settings";
 import {
   normalizeTag,
   type HeadingItem,
@@ -18,8 +19,31 @@ export function stripFrontmatter(content: string) {
   return content.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, "");
 }
 
-function fileNameTitle(fallback: string) {
+export function fileNameTitle(fallback: string) {
   return fallback.replace(/\.(md|mdx)$/i, "").trim();
+}
+
+export function noteDisplayName(note: Pick<NoteMeta, "fileName" | "relativePath">) {
+  return (
+    fileNameTitle(note.fileName) ||
+    fileNameTitle(note.relativePath.split("/").pop() || "") ||
+    "Untitled"
+  );
+}
+
+export function noteExtension(relativePath: string) {
+  const match = relativePath.match(/\.(md|mdx)$/i);
+  return match ? match[0] : "";
+}
+
+export function resolveNoteRenamePath(from: string, input: string) {
+  const trimmed = input.trim().replace(/\\/g, "/");
+  if (!trimmed) return from;
+  if (trimmed.includes("/")) return trimmed.replace(/^\/+/, "");
+  const folder = folderName(from);
+  const extension = noteExtension(from);
+  const fileName = noteExtension(trimmed) ? trimmed : `${trimmed}${extension}`;
+  return folder ? `${folder}/${fileName}` : fileName;
 }
 
 function frontmatterTitle(data: Record<string, unknown>) {
@@ -121,6 +145,49 @@ export function isRootFolder(name: string) {
   return name === "";
 }
 
+export function noteBelongsToFolder(relativePath: string, folder: string) {
+  const noteFolder = folderName(relativePath);
+  if (isRootFolder(folder)) return isRootFolder(noteFolder);
+  return noteFolder === folder || noteFolder.startsWith(`${folder}/`);
+}
+
+const NOTE_SORT_OPTIONS: Intl.CollatorOptions = { numeric: true, sensitivity: "base" };
+
+export function compareNotesByFileName(
+  left: Pick<NoteMeta, "fileName" | "relativePath">,
+  right: Pick<NoteMeta, "fileName" | "relativePath">,
+  locales?: string | string[],
+) {
+  return (
+    left.relativePath.localeCompare(right.relativePath, locales, NOTE_SORT_OPTIONS) ||
+    left.fileName.localeCompare(right.fileName, locales, NOTE_SORT_OPTIONS)
+  );
+}
+
+export type NoteSort = {
+  field: NoteSortField;
+  direction: NoteSortDirection;
+};
+
+export const DEFAULT_NOTE_SORT: NoteSort = { field: "name", direction: "asc" };
+
+export function sortLibraryNotes<
+  T extends Pick<NoteMeta, "fileName" | "relativePath" | "modifiedMs" | "title">,
+>(notes: T[], sort: NoteSort = DEFAULT_NOTE_SORT, locales?: string | string[]) {
+  const next = [...notes];
+  const direction = sort.direction === "desc" ? -1 : 1;
+  next.sort((left, right) => {
+    const compared =
+      sort.field === "modified"
+        ? left.modifiedMs - right.modifiedMs
+        : sort.field === "title"
+          ? left.title.localeCompare(right.title, locales, NOTE_SORT_OPTIONS)
+          : compareNotesByFileName(left, right, locales);
+    return (compared || compareNotesByFileName(left, right, locales)) * direction;
+  });
+  return next;
+}
+
 export function uniqueSorted(values: string[], locales?: string | string[]) {
   return [...new Set(values)].sort((left, right) => left.localeCompare(right, locales));
 }
@@ -159,7 +226,7 @@ export function filterNotes(
     if (navFilter === "recent" && now - note.modifiedMs > 7 * 86_400_000) return false;
     if (navFilter === "favorites" && !note.favorite) return false;
     if (navFilter === "uncategorized" && note.tags.length > 0) return false;
-    if (scopedFilter?.type === "folder" && folderName(note.relativePath) !== scopedFilter.value) {
+    if (scopedFilter?.type === "folder" && !noteBelongsToFolder(note.relativePath, scopedFilter.value)) {
       return false;
     }
     if (
@@ -169,7 +236,7 @@ export function filterNotes(
       return false;
     }
     if (!normalizedQuery) return true;
-    return [note.title, note.excerpt, note.relativePath, ...note.tags]
+    return [note.title, note.fileName, note.excerpt, note.relativePath, ...note.tags]
       .join(" ")
       .toLowerCase()
       .includes(normalizedQuery);
@@ -241,7 +308,9 @@ export function queryNotesInMemory(
     : query.tag != null
       ? { type: "tag", value: query.tag }
       : null;
-  const filtered = filterNotes(metas, query.q, query.nav, scoped, query.nowMs ?? Date.now());
+  const filtered = sortLibraryNotes(
+    filterNotes(metas, query.q, query.nav, scoped, query.nowMs ?? Date.now()),
+  );
   return {
     notes: filtered.map(({ favorite: _favorite, dirty: _dirty, ...raw }) => raw),
     stats: libraryStatsFromNotes(metas, favoritePaths, query.nowMs ?? Date.now()),

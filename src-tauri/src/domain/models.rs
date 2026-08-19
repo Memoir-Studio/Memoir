@@ -199,16 +199,30 @@ impl Default for EditorSettings {
 pub struct GeneralSettings {
     #[serde(default = "default_close_behavior")]
     pub close_behavior: String,
+    #[serde(default = "default_note_sort")]
+    pub note_sort: String,
+    #[serde(default = "default_note_sort_direction")]
+    pub note_sort_direction: String,
 }
 
 fn default_close_behavior() -> String {
     "tray".into()
 }
 
+fn default_note_sort() -> String {
+    "name".into()
+}
+
+fn default_note_sort_direction() -> String {
+    "asc".into()
+}
+
 impl Default for GeneralSettings {
     fn default() -> Self {
         Self {
             close_behavior: default_close_behavior(),
+            note_sort: default_note_sort(),
+            note_sort_direction: default_note_sort_direction(),
         }
     }
 }

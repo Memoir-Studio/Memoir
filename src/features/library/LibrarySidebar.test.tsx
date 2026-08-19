@@ -62,7 +62,7 @@ describe("LibrarySidebar folders", () => {
     expect(view.getByText("📔")).toBeInTheDocument();
     expect(view.getByText("日记")).toBeInTheDocument();
 
-    await user.click(view.getByRole("button", { name: "自定义外观" }));
+    await user.click(view.getByRole("button", { name: "自定义“日记”的外观" }));
     expect(view.getByRole("dialog", { name: "自定义文件夹" })).toBeInTheDocument();
     expect(view.getByText("为“日记”选择图标和颜色")).toBeInTheDocument();
   });
@@ -165,5 +165,36 @@ describe("LibrarySidebar folders", () => {
     expect(view.getByRole("button", { name: "diary 2" })).toBeInTheDocument();
     expect(view.getByText("3")).toBeInTheDocument();
     expect(view.getByRole("button", { name: "最近编辑 2" })).toBeInTheDocument();
+  });
+
+  it("nests child folders beside the workspace root, not inside it", async () => {
+    useAppStore.setState({
+      workspaceRoot: "/notes",
+      libraryStats: {
+        ...emptyLibraryStats(),
+        total: 4,
+        folders: [
+          { folder: "", count: 1 },
+          { folder: "lessons/week1", count: 3 },
+        ],
+      },
+    });
+    const user = userEvent.setup();
+    const view = render(
+      <LibrarySidebar isDark={false} onCreateFolder={() => undefined} onCreateTag={() => undefined} />,
+    );
+
+    expect(view.getByRole("button", { name: "根目录" })).toBeInTheDocument();
+    expect(view.queryByRole("button", { name: "折叠“根目录”" })).not.toBeInTheDocument();
+    expect(view.getByRole("button", { name: "lessons" })).toBeInTheDocument();
+    expect(view.getByRole("button", { name: "week1" })).toBeInTheDocument();
+    expect(view.getAllByText("3")).toHaveLength(2);
+
+    await user.click(view.getByRole("button", { name: "折叠“lessons”" }));
+    expect(view.queryByRole("button", { name: "week1" })).not.toBeInTheDocument();
+
+    await user.click(view.getByRole("button", { name: "展开“lessons”" }));
+    await user.click(view.getByRole("button", { name: "lessons" }));
+    expect(useAppStore.getState().scopedFilter).toEqual({ type: "folder", value: "lessons" });
   });
 });

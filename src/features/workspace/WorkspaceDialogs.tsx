@@ -19,7 +19,7 @@ import { addUniqueTags, parseTagTokens } from "../../domain/notes";
 import { dateLocale } from "../../i18n";
 import { useI18n } from "../../i18n/react";
 import { useAppStore } from "../../store/app-store";
-import { folderName, uniqueSorted } from "../library/note-utils";
+import { folderName, noteDisplayName, resolveNoteRenamePath, uniqueSorted } from "../library/note-utils";
 
 type FormDialog =
   | {
@@ -30,8 +30,17 @@ type FormDialog =
       tags: string[];
       tagQuery: string;
     }
-  | { type: "rename"; from: string; path: string }
+  | { type: "rename"; from: string; name: string }
   | null;
+
+function deleteNoteTitle(
+  notes: Array<{ relativePath: string; fileName: string }>,
+  deleteTarget: string | null,
+  fallback: string,
+) {
+  const note = notes.find((item) => item.relativePath === deleteTarget);
+  return (note ? noteDisplayName(note) : "") || deleteTarget || fallback;
+}
 
 type WorkspaceDialogActions = {
   openCreate: (extension?: "md" | "mdx", folder?: string, tag?: string) => void;
@@ -101,7 +110,10 @@ export function WorkspaceDialogsProvider({ children }: { children: ReactNode }) 
       },
       openRename: (path) => {
         const target = typeof path === "string" && path ? path : activePath;
-        if (target) setFormDialog({ type: "rename", from: target, path: target });
+        if (target) {
+          const fileName = target.split("/").pop() || target;
+          setFormDialog({ type: "rename", from: target, name: fileName });
+        }
       },
       openDelete: (path) => {
         const target = typeof path === "string" && path ? path : activePath;
@@ -126,7 +138,7 @@ export function WorkspaceDialogsProvider({ children }: { children: ReactNode }) 
         tags: tags.length ? tags : undefined,
       });
     } else {
-      await renameNote(formDialog.from, formDialog.path);
+      await renameNote(formDialog.from, resolveNoteRenamePath(formDialog.from, formDialog.name));
     }
     closeForm();
   };
@@ -191,13 +203,13 @@ export function WorkspaceDialogsProvider({ children }: { children: ReactNode }) 
         ) : (
           formDialog && (
             <label className="memoir-field-label">
-              {t("dialog.relativePath")}
+              {t("dialog.fileName")}
               <Input
                 autoFocus
                 onChange={(event) =>
-                  setFormDialog({ ...formDialog, path: event.target.value })
+                  setFormDialog({ ...formDialog, name: event.target.value })
                 }
-                value={formDialog.path}
+                value={formDialog.name}
               />
             </label>
           )
@@ -206,10 +218,7 @@ export function WorkspaceDialogsProvider({ children }: { children: ReactNode }) 
       <AlertDialog
         confirmLabel={t("dialog.moveToTrash")}
         description={t("dialog.deleteConfirm", {
-          title:
-            notes.find((note) => note.relativePath === deleteTarget)?.title ||
-            deleteTarget ||
-            t("dialog.currentNote"),
+          title: deleteNoteTitle(notes, deleteTarget, t("dialog.currentNote")),
         })}
         onClose={() => setDeleteTarget(null)}
         onConfirm={() => {

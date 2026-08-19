@@ -11,11 +11,20 @@ import {
   Upload,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { IconButton, Input, Surface, Tag, cn } from "../../components/ui";
+import {
+  ContextMenu,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  IconButton,
+  Input,
+  Surface,
+  Tag,
+  cn,
+} from "../../components/ui";
 import { isTauriRuntime } from "../../platform/runtime";
 import { useAppStore } from "../../store/app-store";
 import { handleWindowDragMouseDown } from "../window/window-drag";
-import { formatRelativeTime } from "../../i18n";
+import { dateLocale, formatRelativeTime } from "../../i18n";
 import type { AppLocale } from "../../i18n/locale";
 import { useI18n } from "../../i18n/react";
 import { AttachmentLibrary } from "../attachments/AttachmentLibrary";
@@ -23,7 +32,8 @@ import { CloudSyncPanel } from "../sync/CloudSyncPanel";
 import { IndexInspector } from "./IndexInspector";
 import { NoteContextMenu, type NoteMenuTarget } from "./NoteContextMenu";
 import { NoteOutline } from "./NoteOutline";
-import { extractHeadings, parseNote } from "./note-utils";
+import type { NoteSortDirection, NoteSortField } from "../../domain/settings";
+import { extractHeadings, noteDisplayName, parseNote, sortLibraryNotes } from "./note-utils";
 import type { NoteMeta } from "../../domain/notes";
 
 export const NOTE_LIST_VIRTUAL_THRESHOLD = 80;
@@ -51,13 +61,36 @@ export function NoteList({
   const mode = useAppStore((state) => state.libraryPanelMode);
   const isLoading = useAppStore((state) => state.isLoading);
   const density = useAppStore((state) => state.settings.appearance.density);
+  const settings = useAppStore((state) => state.settings);
   const setQuery = useAppStore((state) => state.setQuery);
   const setMode = useAppStore((state) => state.setLibraryPanelMode);
+  const setSettings = useAppStore((state) => state.setSettings);
   const selectNote = useAppStore((state) => state.selectNote);
   const importAttachments = useAppStore((state) => state.importAttachments);
   const { t, tc, locale } = useI18n();
   const [menuTarget, setMenuTarget] = useState<NoteMenuTarget | null>(null);
-  const filteredNotes = notes;
+  const [sortMenu, setSortMenu] = useState<{ x: number; y: number } | null>(null);
+  const noteSort = settings.general.noteSort;
+  const noteSortDirection = settings.general.noteSortDirection;
+  const filteredNotes = useMemo(
+    () =>
+      sortLibraryNotes(
+        notes,
+        { field: noteSort, direction: noteSortDirection },
+        dateLocale(locale),
+      ),
+    [locale, noteSort, noteSortDirection, notes],
+  );
+  const applyNoteSort = (field: NoteSortField, direction: NoteSortDirection) => {
+    setSettings({
+      ...settings,
+      general: {
+        ...settings.general,
+        noteSort: field,
+        noteSortDirection: direction,
+      },
+    });
+  };
   const activeNote = notes.find((note) => note.relativePath === activePath);
   const untitled = t("editor.untitledFallback");
   const headings = useMemo(
@@ -140,7 +173,18 @@ export function NoteList({
             {isLoading ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
             ) : (
-              <ArrowDownWideNarrow className="h-3.5 w-3.5" />
+              <IconButton
+                aria-expanded={Boolean(sortMenu)}
+                aria-haspopup="menu"
+                className="h-7 w-7"
+                label={t("library.sort")}
+                onClick={(event) => {
+                  const rect = event.currentTarget.getBoundingClientRect();
+                  setSortMenu({ x: rect.right - 8, y: rect.bottom + 4 });
+                }}
+              >
+                <ArrowDownWideNarrow className="h-3.5 w-3.5" />
+              </IconButton>
             )}
           </div>
           <NoteCardWindow
@@ -159,6 +203,42 @@ export function NoteList({
       ) : (
         <NoteOutline documentKey={activePath} headings={headings} />
       )}
+      <ContextMenu
+        label={t("library.sort")}
+        onClose={() => setSortMenu(null)}
+        open={Boolean(sortMenu)}
+        x={sortMenu?.x ?? 0}
+        y={sortMenu?.y ?? 0}
+      >
+        <ContextMenuItem
+          checked={noteSort === "name"}
+          label={t("library.sortByName")}
+          onSelect={() => applyNoteSort("name", noteSort === "name" ? noteSortDirection : "asc")}
+        />
+        <ContextMenuItem
+          checked={noteSort === "modified"}
+          label={t("library.sortByModified")}
+          onSelect={() =>
+            applyNoteSort("modified", noteSort === "modified" ? noteSortDirection : "desc")
+          }
+        />
+        <ContextMenuItem
+          checked={noteSort === "title"}
+          label={t("library.sortByTitle")}
+          onSelect={() => applyNoteSort("title", noteSort === "title" ? noteSortDirection : "asc")}
+        />
+        <ContextMenuSeparator />
+        <ContextMenuItem
+          checked={noteSortDirection === "asc"}
+          label={t("library.sortAsc")}
+          onSelect={() => applyNoteSort(noteSort, "asc")}
+        />
+        <ContextMenuItem
+          checked={noteSortDirection === "desc"}
+          label={t("library.sortDesc")}
+          onSelect={() => applyNoteSort(noteSort, "desc")}
+        />
+      </ContextMenu>
       <NoteContextMenu
         onClose={() => setMenuTarget(null)}
         onDelete={onDelete}
@@ -282,7 +362,7 @@ function NoteCard({
     <Surface
       aria-expanded={menuOpen}
       aria-haspopup="menu"
-      aria-label={note.title}
+      aria-label={noteDisplayName(note)}
       className={cn(
         "note-card group cursor-pointer rounded-lg border-transparent bg-transparent shadow-none",
         density === "compact" ? "px-3 py-2.5" : "px-3 py-3",
@@ -326,7 +406,7 @@ function NoteCard({
         ) : (
           <FileText className="h-3.5 w-3.5 text-accent" />
         )}
-        <h3 className="truncate text-[13px] font-semibold text-text">{note.title}</h3>
+        <h3 className="truncate text-[13px] font-semibold text-text">{noteDisplayName(note)}</h3>
         {note.favorite && <Star className="h-3.5 w-3.5 fill-accent text-accent" />}
       </div>
       <p className="mt-1.5 line-clamp-2 text-[11px] leading-[1.65] text-muted">

@@ -113,6 +113,44 @@
   position: relative;
 }
 
+.sidebar-folder-item.is-tree {
+  padding-left: calc(8px + (var(--folder-depth, 0) * 10px));
+}
+
+.sidebar-folder-toggle,
+.sidebar-folder-toggle-spacer {
+  display: grid;
+  width: 14px;
+  height: 14px;
+  flex: none;
+  place-items: center;
+}
+
+.sidebar-folder-toggle {
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: color-mix(in srgb, var(--memoir-muted) 88%, var(--memoir-text));
+  padding: 0;
+}
+
+.sidebar-folder-toggle:hover,
+.sidebar-folder-toggle:focus-visible {
+  color: var(--memoir-text);
+  background: color-mix(in srgb, var(--memoir-elevated) 80%, transparent);
+}
+
+.sidebar-folder-chevron {
+  width: 12px;
+  height: 12px;
+  transition: transform 150ms var(--memoir-ease);
+}
+
+.sidebar-folder-toggle[aria-expanded="true"] .sidebar-folder-chevron,
+.sidebar-folder-chevron.is-open {
+  transform: rotate(90deg);
+}
+
 .sidebar-folder-customize {
   position: absolute;
   top: 50%;

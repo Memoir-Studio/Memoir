@@ -142,6 +142,97 @@ export function collectFolderPaths(
   return [...unique].sort((left, right) => left.localeCompare(right, locales));
 }
 
+export function parentFolder(folder: string): string {
+  const key = normalizeFolderKey(folder);
+  const index = key.lastIndexOf("/");
+  return index === -1 ? "" : key.slice(0, index);
+}
+
+export function folderSegment(folder: string): string {
+  const key = normalizeFolderKey(folder);
+  const index = key.lastIndexOf("/");
+  return index === -1 ? key : key.slice(index + 1);
+}
+
+export type FolderTreeNode = {
+  folder: string;
+  name: string;
+  count: number;
+  directCount: number;
+  children: FolderTreeNode[];
+};
+
+export function buildFolderTree(
+  stats: Array<{ folder: string; count: number }>,
+  locales?: string | string[],
+): FolderTreeNode[] {
+  const direct = new Map<string, number>();
+  for (const item of stats) {
+    const folder = normalizeFolderKey(item.folder);
+    direct.set(folder, (direct.get(folder) ?? 0) + item.count);
+  }
+
+  const paths = new Set<string>();
+  for (const folder of direct.keys()) {
+    if (folder) paths.add(folder);
+    for (const ancestor of expandFolderAncestors(folder)) paths.add(ancestor);
+  }
+
+  const nodes = new Map<string, FolderTreeNode>();
+  const ensure = (folder: string) => {
+    let node = nodes.get(folder);
+    if (!node) {
+      node = {
+        folder,
+        name: folderSegment(folder),
+        count: 0,
+        directCount: direct.get(folder) ?? 0,
+        children: [],
+      };
+      nodes.set(folder, node);
+    }
+    return node;
+  };
+
+  for (const folder of paths) ensure(folder);
+
+  const top: FolderTreeNode[] = [];
+  for (const folder of paths) {
+    const node = ensure(folder);
+    const parentKey = parentFolder(folder);
+    if (!parentKey) {
+      top.push(node);
+      continue;
+    }
+    ensure(parentKey).children.push(node);
+  }
+
+  const rollup = (node: FolderTreeNode): number => {
+    node.children.sort((left, right) =>
+      left.name.localeCompare(right.name, locales, { numeric: true }),
+    );
+    let total = node.directCount;
+    for (const child of node.children) total += rollup(child);
+    node.count = total;
+    return total;
+  };
+
+  for (const node of top) rollup(node);
+  top.sort((left, right) => left.name.localeCompare(right.name, locales, { numeric: true }));
+
+  const rootCount = direct.get("") ?? 0;
+  if (rootCount > 0) {
+    top.unshift({
+      folder: "",
+      name: "",
+      count: rootCount,
+      directCount: rootCount,
+      children: [],
+    });
+  }
+  return top;
+}
+
 export function normalizeFolderAppearance(value: unknown): FolderAppearance | undefined {
   if (!value || typeof value !== "object") return undefined;
   const raw = value as { emoji?: unknown; color?: unknown };

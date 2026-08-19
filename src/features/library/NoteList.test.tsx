@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { DEFAULT_SETTINGS } from "../../domain/settings";
 import { setGatewaysForTests } from "../../gateways";
 import { useAppStore } from "../../store/app-store";
 import { createMockGateways } from "../../test/mock-gateways";
@@ -37,6 +38,7 @@ afterEach(() => {
     scopedFilter: null,
     libraryPanelMode: "notes",
     attachments: [],
+    settings: DEFAULT_SETTINGS,
   });
 });
 
@@ -71,9 +73,68 @@ describe("NoteList", () => {
     );
 
     expect(view.queryByText("Alpha Guide")).not.toBeInTheDocument();
-    expect(view.getByText("Beta Notes")).toBeInTheDocument();
+    expect(view.getByText("beta")).toBeInTheDocument();
     expect(view.getByText("1 篇")).toBeInTheDocument();
     expect(view.getByRole("searchbox", { name: "筛选笔记" })).toHaveValue("beta");
+  });
+
+  it("sorts notes from the list toolbar", async () => {
+    useAppStore.setState({
+      notes: [
+        {
+          relativePath: "zebra.md",
+          fileName: "zebra.md",
+          extension: "md",
+          modifiedMs: 1,
+          size: 10,
+          title: "Apple",
+          tags: [],
+          excerpt: "old",
+          favorite: false,
+        },
+        {
+          relativePath: "alpha.md",
+          fileName: "alpha.md",
+          extension: "md",
+          modifiedMs: 3,
+          size: 10,
+          title: "Zebra",
+          tags: [],
+          excerpt: "new",
+          favorite: false,
+        },
+      ],
+    });
+    const user = userEvent.setup();
+    const view = render(
+      <NoteList
+        onCreate={() => undefined}
+        onDelete={() => undefined}
+        onRename={() => undefined}
+      />,
+    );
+
+    const cards = () =>
+      [...view.container.querySelectorAll("[data-note-card]")].map((card) =>
+        card.getAttribute("data-note-card"),
+      );
+    expect(cards()).toEqual(["alpha.md", "zebra.md"]);
+
+    await user.click(view.getByRole("button", { name: "排序" }));
+    await user.click(view.getByRole("menuitemradio", { name: "修改时间" }));
+    expect(useAppStore.getState().settings.general).toMatchObject({
+      noteSort: "modified",
+      noteSortDirection: "desc",
+    });
+    expect(cards()).toEqual(["alpha.md", "zebra.md"]);
+
+    await user.click(view.getByRole("button", { name: "排序" }));
+    await user.click(view.getByRole("menuitemradio", { name: "升序" }));
+    expect(cards()).toEqual(["zebra.md", "alpha.md"]);
+
+    await user.click(view.getByRole("button", { name: "排序" }));
+    await user.click(view.getByRole("menuitemradio", { name: "标题" }));
+    expect(cards()).toEqual(["zebra.md", "alpha.md"]);
   });
 
   it("mounts only the virtual window when the page is long", () => {
@@ -100,8 +161,8 @@ describe("NoteList", () => {
     const cards = view.container.querySelectorAll("[data-note-card]");
     expect(cards.length).toBeGreaterThan(0);
     expect(cards.length).toBeLessThan(120);
-    expect(view.queryByText("Note 0")).toBeInTheDocument();
-    expect(view.queryByText("Note 119")).not.toBeInTheDocument();
+    expect(view.queryByText("n0")).toBeInTheDocument();
+    expect(view.queryByText("n119")).not.toBeInTheDocument();
   });
 
   it("shows the current note outline when switching panels", async () => {
@@ -257,11 +318,11 @@ describe("NoteList", () => {
     const view = render(
       <NoteList onCreate={() => undefined} onDelete={onDelete} onRename={onRename} />,
     );
-    const card = view.getByRole("button", { name: "Alpha Guide" });
+    const card = view.getByRole("button", { name: "alpha" });
 
     fireEvent.contextMenu(card, { clientX: 24, clientY: 48 });
 
-    expect(view.getByRole("menu", { name: "Alpha Guide 的操作" })).toBeInTheDocument();
+    expect(view.getByRole("menu", { name: "alpha 的操作" })).toBeInTheDocument();
     expect(card).toHaveAttribute("aria-expanded", "true");
 
     await user.click(view.getByRole("menuitem", { name: "收藏" }));
@@ -304,7 +365,7 @@ describe("NoteList", () => {
       <NoteList onCreate={() => undefined} onDelete={() => undefined} onRename={() => undefined} />,
     );
 
-    fireEvent.contextMenu(view.getByRole("button", { name: "Alpha Guide" }), {
+    fireEvent.contextMenu(view.getByRole("button", { name: "alpha" }), {
       clientX: 24,
       clientY: 48,
     });
@@ -334,7 +395,7 @@ describe("NoteList", () => {
       <NoteList onCreate={() => undefined} onDelete={() => undefined} onRename={() => undefined} />,
     );
 
-    fireEvent.contextMenu(view.getByRole("button", { name: "Alpha Guide" }), {
+    fireEvent.contextMenu(view.getByRole("button", { name: "alpha" }), {
       clientX: 24,
       clientY: 48,
     });

@@ -8,6 +8,8 @@ export type ViewMode = "edit" | "split" | "preview";
 export type AppLocale = "zh" | "en";
 export type LocalePreference = "system" | AppLocale;
 export type CloseBehavior = "tray" | "quit";
+export type NoteSortField = "name" | "modified" | "title";
+export type NoteSortDirection = "asc" | "desc";
 
 export const MIN_UI_SCALE = 0.8;
 export const MAX_UI_SCALE = 2;
@@ -34,6 +36,8 @@ export type AppSettings = {
   };
   general: {
     closeBehavior: CloseBehavior;
+    noteSort: NoteSortField;
+    noteSortDirection: NoteSortDirection;
   };
 };
 
@@ -58,6 +62,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   },
   general: {
     closeBehavior: "tray",
+    noteSort: "name",
+    noteSortDirection: "asc",
   },
 };
 
@@ -76,7 +82,21 @@ export function isCloseBehavior(value: unknown): value is CloseBehavior {
   return value === "tray" || value === "quit";
 }
 
-export function mergeSettings(settings?: Partial<AppSettings> | null): AppSettings {
+export function isNoteSortField(value: unknown): value is NoteSortField {
+  return value === "name" || value === "modified" || value === "title";
+}
+
+export function isNoteSortDirection(value: unknown): value is NoteSortDirection {
+  return value === "asc" || value === "desc";
+}
+
+export function mergeSettings(
+  settings?: {
+    appearance?: Partial<AppSettings["appearance"]>;
+    editor?: Partial<AppSettings["editor"]>;
+    general?: Partial<AppSettings["general"]>;
+  } | null,
+): AppSettings {
   const appearance = {
     ...DEFAULT_SETTINGS.appearance,
     ...settings?.appearance,
@@ -102,6 +122,12 @@ export function mergeSettings(settings?: Partial<AppSettings> | null): AppSettin
       closeBehavior: isCloseBehavior(general.closeBehavior)
         ? general.closeBehavior
         : DEFAULT_SETTINGS.general.closeBehavior,
+      noteSort: isNoteSortField(general.noteSort)
+        ? general.noteSort
+        : DEFAULT_SETTINGS.general.noteSort,
+      noteSortDirection: isNoteSortDirection(general.noteSortDirection)
+        ? general.noteSortDirection
+        : DEFAULT_SETTINGS.general.noteSortDirection,
     },
   };
 }

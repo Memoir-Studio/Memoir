@@ -32,7 +32,11 @@ pub fn query_library(conn: &Connection, query: &LibraryQuery) -> rusqlite::Resul
     Ok(LibraryPage { notes, stats })
 }
 
-fn query_notes(conn: &Connection, query: &LibraryQuery, now: i64) -> rusqlite::Result<Vec<NoteFile>> {
+fn query_notes(
+    conn: &Connection,
+    query: &LibraryQuery,
+    now: i64,
+) -> rusqlite::Result<Vec<NoteFile>> {
     let mut sql = String::from(
         "
         SELECT n.id, n.relative_path, n.file_name, n.extension, n.modified_ms, n.size,
@@ -71,12 +75,20 @@ fn query_notes(conn: &Connection, query: &LibraryQuery, now: i64) -> rusqlite::R
     }
 
     if let Some(folder) = query.folder.as_ref() {
-        sql.push_str(" AND n.folder = ?");
-        binds.push(folder.clone().into());
+        if folder.is_empty() {
+            sql.push_str(" AND n.folder = ?");
+            binds.push(folder.clone().into());
+        } else {
+            sql.push_str(" AND (n.folder = ? OR n.folder LIKE ? ESCAPE '\\')");
+            binds.push(folder.clone().into());
+            binds.push(like_folder_prefix(folder).into());
+        }
     }
 
     if let Some(tag) = query.tag.as_ref() {
-        sql.push_str(" AND EXISTS (SELECT 1 FROM note_tags t WHERE t.note_id = n.id AND t.tag_norm = ?)");
+        sql.push_str(
+            " AND EXISTS (SELECT 1 FROM note_tags t WHERE t.note_id = n.id AND t.tag_norm = ?)",
+        );
         binds.push(normalize_tag(tag).into());
     }
 
@@ -98,7 +110,11 @@ fn query_notes(conn: &Connection, query: &LibraryQuery, now: i64) -> rusqlite::R
         }
     }
 
-    sql.push_str(" ORDER BY n.modified_ms DESC, n.relative_path ASC");
+    if matches!(query.nav, LibraryNav::Recent) {
+        sql.push_str(" ORDER BY n.modified_ms DESC, n.relative_path ASC");
+    } else {
+        sql.push_str(" ORDER BY n.relative_path COLLATE NOCASE ASC");
+    }
 
     let mut statement = conn.prepare(&sql)?;
     let rows = statement.query_map(params_from_iter(binds), |row| {
@@ -156,7 +172,11 @@ fn attach_tags(conn: &Connection, ids: &[i64], notes: &mut [NoteFile]) -> rusqli
     Ok(())
 }
 
-fn collect_stats(conn: &Connection, favorite_paths: &[String], now: i64) -> rusqlite::Result<LibraryStats> {
+fn collect_stats(
+    conn: &Connection,
+    favorite_paths: &[String],
+    now: i64,
+) -> rusqlite::Result<LibraryStats> {
     let total = count_sql(conn, "SELECT COUNT(*) FROM notes");
     let recent = conn
         .query_row(
@@ -183,16 +203,17 @@ fn collect_stats(conn: &Connection, favorite_paths: &[String], now: i64) -> rusq
         sql.push(')');
         let mut statement = conn.prepare(&sql)?;
         statement
-            .query_row(params_from_iter(favorite_paths.iter()), |row| row.get::<_, i64>(0))
+            .query_row(params_from_iter(favorite_paths.iter()), |row| {
+                row.get::<_, i64>(0)
+            })
             .unwrap_or(0)
             .max(0) as u64
     };
 
     let mut folders = Vec::new();
     {
-        let mut statement = conn.prepare(
-            "SELECT folder, COUNT(*) FROM notes GROUP BY folder ORDER BY folder ASC",
-        )?;
+        let mut statement =
+            conn.prepare("SELECT folder, COUNT(*) FROM notes GROUP BY folder ORDER BY folder ASC")?;
         let rows = statement.query_map([], |row| {
             Ok(FolderStat {
                 folder: row.get(0)?,
@@ -256,11 +277,18 @@ fn fts_match_query(q: &str) -> Option<String> {
 }
 
 fn like_contains(q: &str) -> String {
-    let escaped = q
+    format!("%{}%", like_escape(q))
+}
+
+fn like_folder_prefix(folder: &str) -> String {
+    format!("{}/%", like_escape(folder))
+}
+
+fn like_escape(value: &str) -> String {
+    value
         .replace('\\', "\\\\")
         .replace('%', "\\%")
-        .replace('_', "\\_");
-    format!("%{escaped}%")
+        .replace('_', "\\_")
 }
 
 fn count_sql(conn: &Connection, sql: &str) -> u64 {
@@ -368,6 +396,14 @@ mod tests {
                 "写一点今天的事",
                 vec!["日记".to_string()],
             ),
+            (
+                "work/nested/gamma.md",
+                "gamma.md",
+                80_i64,
+                "Gamma",
+                "Nested note",
+                vec!["nested".to_string()],
+            ),
         ];
         for (path, name, mtime, title, excerpt, tags) in rows {
             let row = note_row(
@@ -392,9 +428,21 @@ mod tests {
         seed(&index.conn);
 
         let all = query_library(&index.conn, &LibraryQuery::default()).unwrap();
-        assert_eq!(all.stats.total, 3);
+        assert_eq!(all.stats.total, 4);
         assert_eq!(all.stats.uncategorized, 1);
-        assert_eq!(all.notes.len(), 3);
+        assert_eq!(all.notes.len(), 4);
+        assert_eq!(
+            all.notes
+                .iter()
+                .map(|note| note.relative_path.as_str())
+                .collect::<Vec<_>>(),
+            vec![
+                "beta.mdx",
+                "work/alpha.md",
+                "work/nested/gamma.md",
+                "日记/today.md"
+            ]
+        );
 
         let project = query_library(
             &index.conn,
@@ -406,7 +454,11 @@ mod tests {
         )
         .unwrap();
         assert_eq!(
-            project.notes.iter().map(|n| n.relative_path.as_str()).collect::<Vec<_>>(),
+            project
+                .notes
+                .iter()
+                .map(|n| n.relative_path.as_str())
+                .collect::<Vec<_>>(),
             vec!["work/alpha.md"]
         );
         assert!(query_uses_fts("project"));
@@ -432,8 +484,15 @@ mod tests {
             },
         )
         .unwrap();
-        assert_eq!(folder.notes.len(), 1);
-        assert_eq!(folder.notes[0].relative_path, "work/alpha.md");
+        assert_eq!(folder.notes.len(), 2);
+        assert_eq!(
+            folder
+                .notes
+                .iter()
+                .map(|note| note.relative_path.as_str())
+                .collect::<Vec<_>>(),
+            vec!["work/alpha.md", "work/nested/gamma.md"]
+        );
 
         let root_folder = query_library(
             &index.conn,
@@ -481,8 +540,21 @@ mod tests {
             },
         )
         .unwrap();
-        assert_eq!(recent.notes.len(), 3);
-        assert_eq!(recent.stats.recent, 3);
+        assert_eq!(recent.notes.len(), 4);
+        assert_eq!(recent.stats.recent, 4);
+        assert_eq!(
+            recent
+                .notes
+                .iter()
+                .map(|note| note.relative_path.as_str())
+                .collect::<Vec<_>>(),
+            vec![
+                "work/alpha.md",
+                "work/nested/gamma.md",
+                "日记/today.md",
+                "beta.mdx"
+            ]
+        );
 
         let cjk = query_library(
             &index.conn,

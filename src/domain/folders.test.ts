@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildFolderTree,
   collectFolderPaths,
   expandFolderAncestors,
   extractEmoji,
   folderAppearancesForWorkspace,
+  folderSegment,
   isFolderColor,
   normalizeFolderAppearance,
   normalizeFolderKey,
+  parentFolder,
 } from "./folders";
 
 describe("folder appearance", () => {
@@ -36,6 +39,29 @@ describe("folder appearance", () => {
       "工作",
       "工作/项目",
       "日记",
+    ]);
+    expect(parentFolder("工作/项目")).toBe("工作");
+    expect(parentFolder("日记")).toBe("");
+    expect(folderSegment("工作/项目")).toBe("项目");
+    expect(folderSegment("")).toBe("");
+    const tree = buildFolderTree(
+      [
+        { folder: "", count: 2 },
+        { folder: "lessons/week1", count: 3 },
+        { folder: "日记", count: 1 },
+      ],
+      "en",
+    );
+    expect(tree.map((node) => node.folder)).toEqual(["", "lessons", "日记"]);
+    expect(tree[0]).toMatchObject({ folder: "", count: 2, children: [] });
+    expect(tree[1]).toMatchObject({
+      folder: "lessons",
+      name: "lessons",
+      count: 3,
+      directCount: 0,
+    });
+    expect(tree[1]?.children).toEqual([
+      expect.objectContaining({ folder: "lessons/week1", name: "week1", count: 3, directCount: 3 }),
     ]);
   });
 

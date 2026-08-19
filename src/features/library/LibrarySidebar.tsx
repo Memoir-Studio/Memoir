@@ -1,4 +1,5 @@
 import {
+  ChevronRight,
   Clock3,
   Cloud,
   Database,
@@ -16,9 +17,14 @@ import {
   Sun,
   Tag as TagIcon,
 } from "lucide-react";
-import { useState, type MouseEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type CSSProperties, type MouseEvent, type ReactNode } from "react";
 import { IconButton, cn } from "../../components/ui";
-import type { FolderAppearance } from "../../domain/folders";
+import {
+  buildFolderTree,
+  expandFolderAncestors,
+  type FolderAppearance,
+  type FolderTreeNode,
+} from "../../domain/folders";
 import { isTauriRuntime } from "../../platform/runtime";
 import { useAppStore } from "../../store/app-store";
 import { handleWindowDragMouseDown } from "../window/window-drag";
@@ -92,14 +98,34 @@ function FolderGlyph({
   return <Icon strokeWidth={1.8} />;
 }
 
+function flattenFolderTree(
+  roots: FolderTreeNode[],
+  collapsedFolders: ReadonlySet<string>,
+  sidebarCollapsed: boolean,
+) {
+  const visible: Array<{ node: FolderTreeNode; depth: number }> = [];
+  const walk = (node: FolderTreeNode, depth: number) => {
+    visible.push({ node, depth });
+    if (sidebarCollapsed) return;
+    if (!node.children.length || collapsedFolders.has(node.folder)) return;
+    for (const child of node.children) walk(child, depth + 1);
+  };
+  for (const node of roots) walk(node, 0);
+  return visible;
+}
+
 function FolderNavItem({
   folder,
   label,
   count,
   active,
   collapsed,
+  depth,
+  expanded,
+  hasChildren,
   appearance,
   onSelect,
+  onToggle,
   onCustomize,
   onContextMenu,
 }: {
@@ -108,8 +134,12 @@ function FolderNavItem({
   count: number;
   active: boolean;
   collapsed: boolean;
+  depth: number;
+  expanded: boolean;
+  hasChildren: boolean;
   appearance?: FolderAppearance;
   onSelect: () => void;
+  onToggle: () => void;
   onCustomize: () => void;
   onContextMenu: (event: MouseEvent) => void;
 }) {
@@ -117,26 +147,45 @@ function FolderNavItem({
   return (
     <div
       className={cn(
-        "sidebar-nav-item sidebar-folder-item grid w-full items-center gap-1 rounded-lg px-2.5",
+        "sidebar-nav-item sidebar-folder-item grid w-full items-center rounded-lg",
         collapsed
           ? "min-[761px]:grid-cols-1 min-[761px]:justify-items-center min-[761px]:gap-0 min-[761px]:px-0"
-          : "grid-cols-[minmax(0,1fr)_auto]",
+          : "is-tree grid-cols-[14px_minmax(0,1fr)_auto] gap-1 px-2",
         active && "is-active",
       )}
       data-folder-color={appearance?.color}
+      style={collapsed ? undefined : ({ "--folder-depth": depth } as CSSProperties)}
     >
+      {!collapsed &&
+        (hasChildren ? (
+          <button
+            aria-expanded={expanded}
+            aria-label={expanded ? t("folder.collapse", { name: label }) : t("folder.expand", { name: label })}
+            className="sidebar-folder-toggle"
+            onClick={onToggle}
+            type="button"
+          >
+            <ChevronRight
+              aria-hidden
+              className={cn("sidebar-folder-chevron", expanded && "is-open")}
+              strokeWidth={2}
+            />
+          </button>
+        ) : (
+          <span aria-hidden className="sidebar-folder-toggle-spacer" />
+        ))}
       <button
         aria-current={active ? "page" : undefined}
         aria-label={collapsed ? label : undefined}
         className={cn(
-          "sidebar-nav-main grid min-w-0 items-center gap-2 text-left",
+          "sidebar-nav-main grid min-w-0 items-center text-left",
           collapsed
             ? "min-[761px]:grid-cols-1 min-[761px]:justify-items-center"
-            : "grid-cols-[16px_minmax(0,1fr)]",
+            : "grid-cols-[16px_minmax(0,1fr)] gap-1.5",
         )}
         onClick={onSelect}
         onContextMenu={onContextMenu}
-        title={label}
+        title={folder || label}
         type="button"
       >
         <span className="sidebar-nav-icon" aria-hidden="true">
@@ -147,7 +196,7 @@ function FolderNavItem({
       {!collapsed && (
         <>
           <button
-            aria-label={t("folder.customize")}
+            aria-label={t("folder.customizeNamed", { name: label })}
             className="sidebar-folder-customize"
             onClick={onCustomize}
             title={t("folder.customize")}
@@ -190,18 +239,48 @@ export function LibrarySidebar({
   const openSettings = useAppStore((state) => state.openSettings);
   const { t, locale } = useI18n();
   const compareLocale = dateLocale(locale);
-  const folders = [...libraryStats.folders]
-    .map((item) => item.folder)
-    .sort((left, right) => left.localeCompare(right, compareLocale));
+  const folderTree = useMemo(
+    () => buildFolderTree(libraryStats.folders, compareLocale),
+    [compareLocale, libraryStats.folders],
+  );
+  const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(() => new Set());
   const tags = [...libraryStats.tags].sort((left, right) =>
     left.tag.localeCompare(right.tag, compareLocale),
   );
   const [menuTarget, setMenuTarget] = useState<FolderMenuTarget | null>(null);
   const [appearanceFolder, setAppearanceFolder] = useState<string | null>(null);
 
-  const folderLabel = (folder: string) =>
-    isRootFolder(folder) ? t("library.rootFolder") : folder;
+  useEffect(() => {
+    if (scopedFilter?.type !== "folder") return;
+    const ancestors = expandFolderAncestors(scopedFilter.value).filter(
+      (folder) => folder !== scopedFilter.value,
+    );
+    setCollapsedFolders((current) => {
+      let changed = false;
+      const next = new Set(current);
+      for (const ancestor of ancestors) {
+        if (next.delete(ancestor)) changed = true;
+      }
+      return changed ? next : current;
+    });
+  }, [scopedFilter]);
+
+  const visibleFolders = useMemo(
+    () => flattenFolderTree(folderTree, collapsedFolders, collapsed),
+    [collapsed, collapsedFolders, folderTree],
+  );
+
+  const folderLabel = (folder: string, name = folder) =>
+    isRootFolder(folder) ? t("library.rootFolder") : name || folder;
   const notesNavActive = libraryPanelMode === "notes" || libraryPanelMode === "outline";
+  const toggleFolder = (folder: string) => {
+    setCollapsedFolders((current) => {
+      const next = new Set(current);
+      if (next.has(folder)) next.delete(folder);
+      else next.add(folder);
+      return next;
+    });
+  };
 
   return (
     <aside
@@ -319,32 +398,39 @@ export function LibrarySidebar({
             </button>
             </div>
           )}
-          {folders.slice(0, 8).map((folder) => (
-            <FolderNavItem
-              active={
-                notesNavActive &&
-                scopedFilter?.type === "folder" &&
-                scopedFilter.value === folder
-              }
-              appearance={folderAppearances[folder]}
-              collapsed={collapsed}
-              count={libraryStats.folders.find((item) => item.folder === folder)?.count ?? 0}
-              folder={folder}
-              key={folder || "__root__"}
-              label={folderLabel(folder)}
-              onContextMenu={(event) => {
-                event.preventDefault();
-                setMenuTarget({
-                  x: event.clientX,
-                  y: event.clientY,
-                  folder,
-                  label: folderLabel(folder),
-                });
-              }}
-              onCustomize={() => setAppearanceFolder(folder)}
-              onSelect={() => setScopedFilter({ type: "folder", value: folder })}
-            />
-          ))}
+          {visibleFolders.map(({ node, depth }) => {
+            const label = folderLabel(node.folder, node.name);
+            return (
+              <FolderNavItem
+                active={
+                  notesNavActive &&
+                  scopedFilter?.type === "folder" &&
+                  scopedFilter.value === node.folder
+                }
+                appearance={folderAppearances[node.folder]}
+                collapsed={collapsed}
+                count={node.count}
+                depth={depth}
+                expanded={!collapsedFolders.has(node.folder)}
+                folder={node.folder}
+                hasChildren={node.children.length > 0}
+                key={node.folder || "__root__"}
+                label={label}
+                onContextMenu={(event) => {
+                  event.preventDefault();
+                  setMenuTarget({
+                    x: event.clientX,
+                    y: event.clientY,
+                    folder: node.folder,
+                    label,
+                  });
+                }}
+                onCustomize={() => setAppearanceFolder(node.folder)}
+                onSelect={() => setScopedFilter({ type: "folder", value: node.folder })}
+                onToggle={() => toggleFolder(node.folder)}
+              />
+            );
+          })}
         </section>
 
         <section className="sidebar-group px-2.5 pb-2 pt-2.5">

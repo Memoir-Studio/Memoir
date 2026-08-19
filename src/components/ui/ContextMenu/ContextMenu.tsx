@@ -1,3 +1,4 @@
+import { Check } from "lucide-react";
 import {
   createContext,
   useContext,
@@ -139,18 +140,21 @@ export function ContextMenuItem({
   label,
   danger,
   disabled,
+  checked,
   onSelect,
 }: {
   icon?: ReactNode;
   label: string;
   danger?: boolean;
   disabled?: boolean;
+  checked?: boolean;
   onSelect: () => void;
 }) {
   const onClose = useContext(ContextMenuCloseContext);
   return (
     <button
-      className={cn("memoir-context-menu-item", danger && "is-danger")}
+      aria-checked={checked}
+      className={cn("memoir-context-menu-item", danger && "is-danger", checked && "is-checked")}
       disabled={disabled}
       onClick={(event) => {
         event.preventDefault();
@@ -162,11 +166,11 @@ export function ContextMenuItem({
         onSelect();
         onClose?.();
       }}
-      role="menuitem"
+      role={checked === undefined ? "menuitem" : "menuitemradio"}
       type="button"
     >
       <span className="memoir-context-menu-icon" aria-hidden="true">
-        {icon}
+        {checked ? <Check /> : icon}
       </span>
       <span className="min-w-0 truncate">{label}</span>
     </button>
@@ -179,6 +183,10 @@ export function ContextMenuSeparator() {
 
 function menuItems(menu: HTMLElement | null) {
   return menu
-    ? [...menu.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not(:disabled)')]
+    ? [
+        ...menu.querySelectorAll<HTMLButtonElement>(
+          '[role="menuitem"]:not(:disabled), [role="menuitemradio"]:not(:disabled)',
+        ),
+      ]
     : [];
 }
