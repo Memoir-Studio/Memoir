@@ -2,6 +2,7 @@ import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { openPath, openUrl, revealItemInDir } from "@tauri-apps/plugin-opener";
 import type { AppState, LegacyStatePayload, MigrationResult } from "../domain/app-state";
+import type { WorkspaceLayoutState } from "../domain/layout";
 import type { AppUpdateCheck } from "../domain/app-update";
 import type { AttachmentFile, SaveAttachmentInput } from "../domain/attachments";
 import { ATTACHMENT_EXTENSIONS } from "../domain/attachments";
@@ -165,11 +166,13 @@ export class TauriPersistenceGateway implements PersistenceGateway {
     preferences: AppSettings,
     lastWorkspace: string | null,
     sidebarCollapsed: boolean,
+    layout?: WorkspaceLayoutState,
   ) {
     return call<AppState>("save_preferences", {
       preferences,
       lastWorkspace,
       sidebarCollapsed,
+      layout,
     });
   }
 

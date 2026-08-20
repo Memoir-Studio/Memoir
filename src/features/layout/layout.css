@@ -1,0 +1,58 @@
+.layout-resize-handle {
+  position: absolute;
+  top: 0;
+  right: -4px;
+  z-index: 28;
+  width: 8px;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.layout-resize-handle::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 3px;
+  width: 2px;
+  border-radius: 1px;
+  background: transparent;
+  transition: background 120ms var(--memoir-ease);
+}
+
+.layout-resize-handle:hover::after,
+.layout-resize-handle:focus-visible::after,
+.layout-resize-handle.is-active::after {
+  background: color-mix(in srgb, var(--memoir-accent) 58%, transparent);
+}
+
+.layout-resize-handle:focus-visible {
+  outline: none;
+}
+
+body.is-layout-resizing,
+body.is-layout-resizing * {
+  cursor: col-resize !important;
+  user-select: none !important;
+}
+
+body.is-layout-resizing .workspace-shell {
+  transition: none;
+}
+
+@media (max-width: 760px) {
+  .layout-resize-handle {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .layout-resize-handle::after {
+    transition: none;
+  }
+}

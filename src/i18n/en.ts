@@ -24,6 +24,10 @@ export const en = {
     "Legacy data could not be migrated; the original data was kept and will retry next launch: {message}",
   "app.closeDrawer": "Close sidebar drawer",
 
+  "layout.resizeSidebar": "Resize navigation",
+  "layout.resizeLibrary": "Resize notes list",
+  "layout.resizeEditor": "Resize editor",
+
   "nav.navigation": "Navigate",
   "nav.notes": "Notes",
   "nav.editor": "Edit",

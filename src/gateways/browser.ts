@@ -1,6 +1,7 @@
 import type { AppState, LegacyStatePayload } from "../domain/app-state";
 import type { AppUpdateCheck } from "../domain/app-update";
 import { APP_STATE_VERSION } from "../domain/app-state";
+import { DEFAULT_WORKSPACE_LAYOUT, mergeLayout, type WorkspaceLayoutState } from "../domain/layout";
 import type { AttachmentFile, SaveAttachmentInput } from "../domain/attachments";
 import {
   attachmentRelativePath,
@@ -111,6 +112,7 @@ function createDefaultState(): AppState {
     recentWorkspaces: [],
     lastWorkspace: null,
     sidebarCollapsed: false,
+    layout: DEFAULT_WORKSPACE_LAYOUT,
     favorites: {},
     folderAppearances: {},
   };
@@ -364,12 +366,14 @@ export class BrowserPersistenceGateway implements PersistenceGateway {
     preferences: AppState["preferences"],
     lastWorkspace: string | null,
     sidebarCollapsed: boolean,
+    layout?: WorkspaceLayoutState,
   ) {
     this.state = {
       ...this.state,
       preferences,
       lastWorkspace,
       sidebarCollapsed,
+      layout: layout ? mergeLayout(layout) : this.state.layout ?? DEFAULT_WORKSPACE_LAYOUT,
       recentWorkspaces:
         lastWorkspace === DEMO_ROOT
           ? [DEMO_ROOT, ...this.state.recentWorkspaces.filter((root) => root !== DEMO_ROOT)]

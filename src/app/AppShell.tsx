@@ -1,7 +1,19 @@
 import { FolderOpen, Library, Menu, Pencil } from "lucide-react";
 import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Button, StatusNotice } from "../components/ui";
+import {
+  COLLAPSED_SIDEBAR_WIDTH,
+  DEFAULT_LIBRARY_WIDTH,
+  DEFAULT_SIDEBAR_WIDTH,
+  MAX_LIBRARY_WIDTH,
+  MAX_SIDEBAR_WIDTH,
+  MIN_EDITOR_WIDTH,
+  MIN_LIBRARY_WIDTH,
+  MIN_SIDEBAR_WIDTH,
+  fitLayoutColumns,
+} from "../domain/layout";
 import type { EditorHandle } from "../features/editor/EditorPane";
+import { LayoutResizeHandle } from "../features/layout/LayoutResizeHandle";
 import { LibrarySidebar } from "../features/library/LibrarySidebar";
 import { NoteList } from "../features/library/NoteList";
 import { AppUpdateNotice } from "../features/update/AppUpdateNotice";
@@ -55,6 +67,8 @@ function WorkspaceLayout({
   onDismissMigrationError: () => void;
 }) {
   const isSidebarCollapsed = useAppStore((state) => state.isSidebarCollapsed);
+  const layout = useAppStore((state) => state.layout);
+  const setLayout = useAppStore((state) => state.setLayout);
   const settings = useAppStore((state) => state.settings);
   const error = useAppStore((state) => state.error);
   const clearError = useAppStore((state) => state.clearError);
@@ -69,39 +83,94 @@ function WorkspaceLayout({
   const { openCreate, openDelete, openRename } = useWorkspaceDialogs();
   const { t } = useI18n();
   const editorRef = useRef<EditorHandle>(null);
+  const shellRef = useRef<HTMLElement>(null);
+  const [containerWidth, setContainerWidth] = useState(0);
   const panelClass = (panel: "navigation" | "library" | "editor") =>
     mobilePanel === panel
       ? "max-[760px]:fixed max-[760px]:bottom-0 max-[760px]:left-0 max-[760px]:top-12 max-[760px]:z-20 max-[760px]:flex max-[760px]:w-[min(86vw,320px)] max-[760px]:shadow-2xl"
       : "max-[760px]:hidden";
+  const columns = fitLayoutColumns({
+    sidebarWidth: layout.sidebarWidth,
+    libraryWidth: layout.libraryWidth,
+    collapsed: isSidebarCollapsed,
+    containerWidth,
+  });
+  const sidebarDragMax =
+    containerWidth > 0
+      ? Math.min(
+          MAX_SIDEBAR_WIDTH,
+          Math.max(MIN_SIDEBAR_WIDTH, containerWidth - columns.library - MIN_EDITOR_WIDTH),
+        )
+      : MAX_SIDEBAR_WIDTH;
+  const libraryDragMax =
+    containerWidth > 0
+      ? Math.min(
+          MAX_LIBRARY_WIDTH,
+          Math.max(
+            MIN_LIBRARY_WIDTH,
+            containerWidth -
+              (isSidebarCollapsed ? COLLAPSED_SIDEBAR_WIDTH : columns.sidebar) -
+              MIN_EDITOR_WIDTH,
+          ),
+        )
+      : MAX_LIBRARY_WIDTH;
+
+  useLayoutEffect(() => {
+    const shell = shellRef.current;
+    if (!shell || typeof ResizeObserver === "undefined") return;
+    const update = () => setContainerWidth(shell.clientWidth);
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(shell);
+    return () => observer.disconnect();
+  }, []);
 
   return (
     <WindowFrame controlsHidden={isSidebarCollapsed}>
       <main
-        className={`workspace-shell relative grid min-h-0 grid-rows-[minmax(0,1fr)] text-text ${
-          isSidebarCollapsed
-            ? "grid-cols-[52px_280px_minmax(0,1fr)]"
-            : "grid-cols-[164px_280px_minmax(0,1fr)]"
-        } ${
-          isSidebarCollapsed
-            ? "min-[761px]:max-[980px]:grid-cols-[52px_256px_minmax(0,1fr)]"
-            : "min-[761px]:max-[980px]:grid-cols-[164px_256px_minmax(0,1fr)]"
-        } max-[760px]:block max-[760px]:h-auto max-[760px]:min-h-screen max-[760px]:pt-12`}
+        className="workspace-shell relative grid min-h-0 grid-rows-[minmax(0,1fr)] text-text max-[760px]:block max-[760px]:h-auto max-[760px]:min-h-screen max-[760px]:pt-12"
         data-background={settings.appearance.background}
         data-density={settings.appearance.density}
+        ref={shellRef}
+        style={{
+          gridTemplateColumns: `${columns.sidebar}px ${columns.library}px minmax(0, 1fr)`,
+        }}
       >
-        <LibrarySidebar
-          className={panelClass("navigation")}
-          isDark={isDark}
-          onCreateFolder={() => openCreate()}
-          onCreateTag={() => openCreate("mdx", "", t("create.newTag"))}
-        />
-        <NoteList
-          className={panelClass("library")}
-          onCreate={() => openCreate()}
-          onDelete={openDelete}
-          onInsertAttachment={(markdown) => editorRef.current?.insertText(markdown)}
-          onRename={openRename}
-        />
+        <div className="relative h-full min-h-0 min-w-0 max-[760px]:contents">
+          <LibrarySidebar
+            className={panelClass("navigation")}
+            isDark={isDark}
+            onCreateFolder={() => openCreate()}
+            onCreateTag={() => openCreate("mdx", "", t("create.newTag"))}
+          />
+          {!isSidebarCollapsed && (
+            <LayoutResizeHandle
+              defaultValue={DEFAULT_SIDEBAR_WIDTH}
+              label={t("layout.resizeSidebar")}
+              max={sidebarDragMax}
+              min={Math.min(MIN_SIDEBAR_WIDTH, columns.sidebar)}
+              onChange={(sidebarWidth) => setLayout({ sidebarWidth })}
+              value={columns.sidebar}
+            />
+          )}
+        </div>
+        <div className="relative h-full min-h-0 min-w-0 max-[760px]:contents">
+          <NoteList
+            className={panelClass("library")}
+            onCreate={() => openCreate()}
+            onDelete={openDelete}
+            onInsertAttachment={(markdown) => editorRef.current?.insertText(markdown)}
+            onRename={openRename}
+          />
+          <LayoutResizeHandle
+            defaultValue={DEFAULT_LIBRARY_WIDTH}
+            label={t("layout.resizeLibrary")}
+            max={libraryDragMax}
+            min={Math.min(MIN_LIBRARY_WIDTH, columns.library)}
+            onChange={(libraryWidth) => setLayout({ libraryWidth })}
+            value={columns.library}
+          />
+        </div>
         <Suspense
           fallback={
             <section className="grid min-h-0 min-w-0 place-items-center bg-canvas text-sm text-muted">

@@ -107,6 +107,25 @@ describe("app store actions", () => {
     expect(gateways.persistence.state.folderAppearances["/workspace"]).toBeUndefined();
   });
 
+  it("persists layout widths with preferences", async () => {
+    const gateways = createMockGateways();
+    const store = createAppStore(gateways);
+    await store.getState().initialize();
+    store.getState().setLayout({ sidebarWidth: 200, libraryWidth: 320, editorSplit: 0.4 });
+    expect(store.getState().layout).toEqual({
+      sidebarWidth: 200,
+      libraryWidth: 320,
+      editorSplit: 0.4,
+    });
+    vi.advanceTimersByTime(400);
+    await Promise.resolve();
+    expect(gateways.persistence.state.layout).toEqual({
+      sidebarWidth: 200,
+      libraryWidth: 320,
+      editorSplit: 0.4,
+    });
+  });
+
   it("renames, favorites and deletes a note that is not active", async () => {
     const gateways = createMockGateways();
     const store = createAppStore(gateways);

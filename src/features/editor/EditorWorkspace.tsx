@@ -19,10 +19,16 @@ import {
   Strikethrough,
   Trash2,
 } from "lucide-react";
-import { forwardRef, lazy, Suspense, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import { forwardRef, lazy, Suspense, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { IconButton, cn } from "../../components/ui";
 import { fileDropTargetFromPoint, watchNativeFileDrop } from "../../platform/file-drop";
 import { isTauriRuntime } from "../../platform/runtime";
+import {
+  DEFAULT_EDITOR_SPLIT,
+  MAX_EDITOR_SPLIT,
+  MIN_EDITOR_SPLIT,
+} from "../../domain/layout";
+import { LayoutResizeHandle } from "../layout/LayoutResizeHandle";
 import { useAppStore } from "../../store/app-store";
 import { useI18n } from "../../i18n/react";
 import { parseNote } from "../library/note-utils";
@@ -88,6 +94,8 @@ export const EditorWorkspace = forwardRef<EditorHandle, {
   const savedContent = useAppStore((state) => state.savedContent);
   const settings = useAppStore((state) => state.settings);
   const viewMode = useAppStore((state) => state.viewMode);
+  const editorSplit = useAppStore((state) => state.layout.editorSplit);
+  const setLayout = useAppStore((state) => state.setLayout);
   const isSaving = useAppStore((state) => state.isSaving);
   const setContent = useAppStore((state) => state.setContent);
   const setViewMode = useAppStore((state) => state.setViewMode);
@@ -97,6 +105,8 @@ export const EditorWorkspace = forwardRef<EditorHandle, {
   const importDroppedImages = useAppStore((state) => state.importDroppedImages);
   const importAttachments = useAppStore((state) => state.importAttachments);
   const { t } = useI18n();
+  const splitRef = useRef<HTMLDivElement>(null);
+  const [splitWidth, setSplitWidth] = useState(0);
   const [isExporting, setIsExporting] = useState(false);
   const [nativeDropActive, setNativeDropActive] = useState(false);
   const [editorMenu, setEditorMenu] = useState<EditorMenuTarget | null>(null);
@@ -108,6 +118,20 @@ export const EditorWorkspace = forwardRef<EditorHandle, {
     [activeNote?.fileName, content, hasDocument, untitled],
   );
   const isDirty = hasDocument && content !== savedContent;
+
+  useLayoutEffect(() => {
+    if (viewMode !== "split" || !hasDocument) {
+      setSplitWidth(0);
+      return;
+    }
+    const split = splitRef.current;
+    if (!split || typeof ResizeObserver === "undefined") return;
+    const update = () => setSplitWidth(split.clientWidth);
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(split);
+    return () => observer.disconnect();
+  }, [hasDocument, viewMode]);
 
   const lockForeignScroll = useCallback(() => {
     ignoreScrollRef.current = true;
@@ -317,7 +341,7 @@ export const EditorWorkspace = forwardRef<EditorHandle, {
   return (
     <section
       className={cn(
-        "editor-workspace grid min-h-0 min-w-0 grid-rows-[56px_42px_minmax(0,1fr)] bg-canvas",
+        "editor-workspace grid h-full min-h-0 min-w-0 grid-rows-[56px_42px_minmax(0,1fr)] bg-canvas",
         className,
       )}
     >
@@ -426,25 +450,50 @@ export const EditorWorkspace = forwardRef<EditorHandle, {
         <div
           className={cn(
             "grid min-h-0 min-w-0 overflow-hidden",
-            viewMode === "split" && "grid-cols-2 max-[760px]:grid-cols-1",
+            viewMode === "split" && "editor-workspace-split",
             viewMode !== "split" && "grid-cols-1",
           )}
+          ref={splitRef}
+          style={
+            viewMode === "split"
+              ? {
+                  ["--editor-split" as string]: `${editorSplit}fr`,
+                  ["--editor-split-rest" as string]: `${1 - editorSplit}fr`,
+                }
+              : undefined
+          }
         >
           {viewMode !== "preview" && (
-            <Suspense fallback={<PaneFallback label={t("editor.loadingEditor")} />}>
-              <EditorPane
-                content={content}
-                fileName={activeNote?.fileName || untitled}
-                isDark={isDark}
-                onChange={setContent}
-                highlightDrop={nativeDropActive}
-                onContextMenu={openEditorMenu}
-                onPasteImages={savePastedImages}
-                onScroll={() => syncScroll("editor")}
-                ref={editorRef}
-                settings={settings}
-              />
-            </Suspense>
+            <div className="relative grid h-full min-h-0 min-w-0">
+              <Suspense fallback={<PaneFallback label={t("editor.loadingEditor")} />}>
+                <EditorPane
+                  content={content}
+                  fileName={activeNote?.fileName || untitled}
+                  isDark={isDark}
+                  onChange={setContent}
+                  highlightDrop={nativeDropActive}
+                  onContextMenu={openEditorMenu}
+                  onPasteImages={savePastedImages}
+                  onScroll={() => syncScroll("editor")}
+                  ref={editorRef}
+                  settings={settings}
+                />
+              </Suspense>
+              {viewMode === "split" && (
+                <LayoutResizeHandle
+                  defaultValue={splitWidth * DEFAULT_EDITOR_SPLIT}
+                  disabled={splitWidth <= 0}
+                  label={t("layout.resizeEditor")}
+                  max={splitWidth * MAX_EDITOR_SPLIT}
+                  min={splitWidth * MIN_EDITOR_SPLIT}
+                  onChange={(editorPx) => {
+                    if (splitWidth <= 0) return;
+                    setLayout({ editorSplit: editorPx / splitWidth });
+                  }}
+                  value={splitWidth * editorSplit}
+                />
+              )}
+            </div>
           )}
           {viewMode !== "edit" && (
             <Suspense fallback={<PaneFallback label={t("editor.loadingPreview")} />}>

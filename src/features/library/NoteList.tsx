@@ -101,7 +101,7 @@ export function NoteList({
   return (
     <section
       className={cn(
-        "note-list-panel flex min-h-0 min-w-0 w-full flex-col border-r border-border bg-panel",
+        "note-list-panel flex h-full min-h-0 min-w-0 w-full flex-col border-r border-border bg-panel",
         className,
       )}
     >

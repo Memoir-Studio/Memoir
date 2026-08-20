@@ -285,7 +285,7 @@ export function LibrarySidebar({
   return (
     <aside
       className={cn(
-        "library-sidebar flex min-h-0 flex-col border-r border-border bg-panel max-[760px]:border-r-0",
+        "library-sidebar flex h-full min-h-0 flex-col border-r border-border bg-panel max-[760px]:border-r-0",
         collapsed && "min-[761px]:w-[52px] min-[761px]:overflow-hidden",
         className,
       )}

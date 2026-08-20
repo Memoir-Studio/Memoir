@@ -3,7 +3,7 @@ use crate::{
         attachment::ATTACHMENTS_DIR, AppError, AppSettings, AppState, AppUpdateCheck,
         AttachmentFile, CloudSyncProbe, CloudSyncProfile, CloudSyncRunResult, FolderAppearance,
         LegacyStatePayload, LibraryPage, LibraryQuery, MigrationResult, NoteFile, RenamedNote,
-        WorkspaceIndexInfo,
+        WorkspaceIndexInfo, WorkspaceLayout,
     },
     infrastructure::github_releases,
     services::{AppStateService, CloudSyncService, WorkspaceService},
@@ -41,8 +41,11 @@ pub async fn reconcile_workspace(
     tauri::async_runtime::spawn_blocking(move || workspace.reconcile(&root, &query))
         .await
         .map_err(|error| {
-            AppError::new(crate::domain::ErrorCode::Io, "Workspace reconcile interrupted.")
-                .with_details(error.to_string())
+            AppError::new(
+                crate::domain::ErrorCode::Io,
+                "Workspace reconcile interrupted.",
+            )
+            .with_details(error.to_string())
         })?
 }
 
@@ -267,11 +270,13 @@ pub fn save_preferences(
     preferences: AppSettings,
     last_workspace: Option<String>,
     sidebar_collapsed: bool,
+    layout: Option<WorkspaceLayout>,
 ) -> Result<AppState, AppError> {
     let state = services.app_state.save_preferences(
         preferences,
         last_workspace,
         sidebar_collapsed,
+        layout,
     )?;
     crate::tray::sync_from_preferences(&app, &state.preferences, close_policy.as_ref());
     Ok(state)
@@ -349,9 +354,7 @@ pub fn save_cloud_sync_profile(
     workspace_root: String,
     profile: CloudSyncProfile,
 ) -> Result<CloudSyncProfile, AppError> {
-    services
-        .cloud_sync
-        .save_profile(&workspace_root, profile)
+    services.cloud_sync.save_profile(&workspace_root, profile)
 }
 
 #[tauri::command]
@@ -363,8 +366,11 @@ pub async fn test_cloud_sync(
     tauri::async_runtime::spawn_blocking(move || cloud_sync.test_connection(profile))
         .await
         .map_err(|error| {
-            AppError::new(crate::domain::ErrorCode::Io, "Cloud connection test interrupted.")
-                .with_details(error.to_string())
+            AppError::new(
+                crate::domain::ErrorCode::Io,
+                "Cloud connection test interrupted.",
+            )
+            .with_details(error.to_string())
         })?
 }
 

@@ -454,7 +454,7 @@ export const EditorPane = forwardRef<EditorHandle, EditorPaneProps>(function Edi
     <section
       aria-label={t("editor.markdownEditor")}
       className={cn(
-        "editor-pane relative min-h-0 min-w-0 overflow-hidden border-r border-border bg-canvas max-[760px]:min-h-[calc(100vh-138px)] max-[760px]:border-r-0",
+        "editor-pane relative h-full min-h-0 min-w-0 overflow-hidden border-r border-border bg-canvas max-[760px]:min-h-[calc(100vh-138px)] max-[760px]:border-r-0",
         showDrop && "is-file-drop",
       )}
       onDragEnter={(event) => {

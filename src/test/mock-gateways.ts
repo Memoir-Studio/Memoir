@@ -12,6 +12,7 @@ import {
 import { indexInfoFromNotes, type WorkspaceIndexInfo } from "../domain/index-info";
 import type { LibraryPage, LibraryQuery, RawNoteFile, RenamedNote } from "../domain/notes";
 import { parseNote, queryNotesInMemory } from "../features/library/note-utils";
+import { DEFAULT_WORKSPACE_LAYOUT, mergeLayout, type WorkspaceLayoutState } from "../domain/layout";
 import { DEFAULT_SETTINGS } from "../domain/settings";
 import {
   defaultCloudSyncProfile,
@@ -228,6 +229,7 @@ export class MockPersistenceGateway implements PersistenceGateway {
     recentWorkspaces: [],
     lastWorkspace: null,
     sidebarCollapsed: false,
+    layout: DEFAULT_WORKSPACE_LAYOUT,
     favorites: {},
     folderAppearances: {},
   };
@@ -251,6 +253,7 @@ export class MockPersistenceGateway implements PersistenceGateway {
     preferences: AppState["preferences"],
     lastWorkspace: string | null,
     sidebarCollapsed: boolean,
+    layout?: WorkspaceLayoutState,
   ) {
     let recentWorkspaces = this.state.recentWorkspaces;
     if (lastWorkspace) {
@@ -264,6 +267,7 @@ export class MockPersistenceGateway implements PersistenceGateway {
       preferences,
       lastWorkspace,
       sidebarCollapsed,
+      layout: layout ? mergeLayout(layout) : this.state.layout ?? DEFAULT_WORKSPACE_LAYOUT,
       recentWorkspaces,
     };
     return structuredClone(this.state);

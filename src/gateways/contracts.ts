@@ -1,4 +1,5 @@
 import type { AppState, LegacyStatePayload, MigrationResult } from "../domain/app-state";
+import type { WorkspaceLayoutState } from "../domain/layout";
 import type { AppUpdateCheck } from "../domain/app-update";
 import type { AttachmentFile, SaveAttachmentInput } from "../domain/attachments";
 import type { FolderAppearance } from "../domain/folders";
@@ -56,6 +57,7 @@ export interface PersistenceGateway {
     preferences: AppSettings,
     lastWorkspace: string | null,
     sidebarCollapsed: boolean,
+    layout?: WorkspaceLayoutState,
   ): Promise<AppState>;
   setFavorite(workspaceRoot: string, relativePath: string, favorite: boolean): Promise<AppState>;
   setFolderAppearance(

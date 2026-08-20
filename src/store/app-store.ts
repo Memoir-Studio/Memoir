@@ -18,6 +18,7 @@ import {
   type AttachmentFile,
   type SaveAttachmentInput,
 } from "../domain/attachments";
+import { DEFAULT_WORKSPACE_LAYOUT, mergeLayout } from "../domain/layout";
 import { DEFAULT_SETTINGS, mergeSettings, type AppSettings } from "../domain/settings";
 import {
   cloudSyncChangedActiveNote,
@@ -147,6 +148,7 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
             state.settings,
             state.workspaceRoot,
             state.isSidebarCollapsed,
+            state.layout,
           );
         } catch (error) {
           set({
@@ -329,6 +331,7 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
       error: "",
       viewMode: DEFAULT_SETTINGS.editor.defaultView,
       isSidebarCollapsed: false,
+      layout: DEFAULT_WORKSPACE_LAYOUT,
       settingsOpen: false,
       settingsSection: "appearance",
       cloudSyncProfile: defaultCloudSyncProfile(),
@@ -345,6 +348,7 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
             workspaceRoot,
             recentWorkspaces: appState.recentWorkspaces,
             isSidebarCollapsed: appState.sidebarCollapsed,
+            layout: mergeLayout(appState.layout),
             favoritePaths: workspaceRoot
               ? [...favoriteSet(appState.favorites, workspaceRoot)]
               : [],
@@ -400,6 +404,7 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
             get().settings,
             selectedRoot,
             get().isSidebarCollapsed,
+            get().layout,
           );
           const workspaceRoot = persistedState.lastWorkspace || selectedRoot;
           const recentWorkspaces = persistedState.recentWorkspaces.length
@@ -899,6 +904,19 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
       },
       setSidebarCollapsed(isSidebarCollapsed) {
         set({ isSidebarCollapsed });
+        persistPreferences();
+      },
+      setLayout(partial) {
+        const layout = mergeLayout({ ...get().layout, ...partial });
+        const current = get().layout;
+        if (
+          layout.sidebarWidth === current.sidebarWidth &&
+          layout.libraryWidth === current.libraryWidth &&
+          layout.editorSplit === current.editorSplit
+        ) {
+          return;
+        }
+        set({ layout });
         persistPreferences();
       },
       setSettings(settings) {

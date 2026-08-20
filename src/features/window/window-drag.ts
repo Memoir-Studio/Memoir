@@ -11,6 +11,7 @@ const INTERACTIVE_SELECTOR = [
   "[contenteditable='true']",
   "[role='button']",
   "[role='switch']",
+  "[role='separator']",
   "[data-window-drag='ignore']",
 ].join(",");
 

@@ -322,6 +322,67 @@ pub struct FolderAppearance {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
+pub struct WorkspaceLayout {
+    #[serde(default = "default_sidebar_width")]
+    pub sidebar_width: u32,
+    #[serde(default = "default_library_width")]
+    pub library_width: u32,
+    #[serde(default = "default_editor_split")]
+    pub editor_split: f32,
+}
+
+fn default_sidebar_width() -> u32 {
+    164
+}
+
+fn default_library_width() -> u32 {
+    280
+}
+
+fn default_editor_split() -> f32 {
+    0.5
+}
+
+const MIN_SIDEBAR_WIDTH: u32 = 148;
+const MAX_SIDEBAR_WIDTH: u32 = 360;
+const MIN_LIBRARY_WIDTH: u32 = 200;
+const MAX_LIBRARY_WIDTH: u32 = 520;
+const MIN_EDITOR_SPLIT: f32 = 0.28;
+const MAX_EDITOR_SPLIT: f32 = 0.72;
+
+impl Default for WorkspaceLayout {
+    fn default() -> Self {
+        Self {
+            sidebar_width: default_sidebar_width(),
+            library_width: default_library_width(),
+            editor_split: default_editor_split(),
+        }
+    }
+}
+
+impl WorkspaceLayout {
+    pub fn sanitized(self) -> Self {
+        Self {
+            sidebar_width: self
+                .sidebar_width
+                .clamp(MIN_SIDEBAR_WIDTH, MAX_SIDEBAR_WIDTH),
+            library_width: self
+                .library_width
+                .clamp(MIN_LIBRARY_WIDTH, MAX_LIBRARY_WIDTH),
+            editor_split: sanitize_editor_split(self.editor_split),
+        }
+    }
+}
+
+fn sanitize_editor_split(value: f32) -> f32 {
+    if !value.is_finite() {
+        return default_editor_split();
+    }
+    value.clamp(MIN_EDITOR_SPLIT, MAX_EDITOR_SPLIT)
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct AppState {
     #[serde(default = "default_version")]
     pub version: u32,
@@ -333,6 +394,8 @@ pub struct AppState {
     pub last_workspace: Option<String>,
     #[serde(default)]
     pub sidebar_collapsed: bool,
+    #[serde(default)]
+    pub layout: WorkspaceLayout,
     #[serde(default)]
     pub favorites: BTreeMap<String, Vec<String>>,
     #[serde(default)]
@@ -357,6 +420,7 @@ impl Default for AppState {
             recent_workspaces: Vec::new(),
             last_workspace: None,
             sidebar_collapsed: false,
+            layout: WorkspaceLayout::default(),
             favorites: BTreeMap::new(),
             folder_appearances: BTreeMap::new(),
             cloud_sync: BTreeMap::new(),

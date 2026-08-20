@@ -89,7 +89,10 @@ fn sync_file_writes_stay_inside_the_workspace() {
     filesystem
         .write_sync_file(root, "inbox.md", b"# Inbox")
         .unwrap();
-    assert_eq!(fs::read_to_string(workspace.path().join("inbox.md")).unwrap(), "# Inbox");
+    assert_eq!(
+        fs::read_to_string(workspace.path().join("inbox.md")).unwrap(),
+        "# Inbox"
+    );
     filesystem
         .write_sync_file(root, "attachments/2026-08/photo.png", b"png-bytes")
         .unwrap();
@@ -258,6 +261,7 @@ fn app_state_defaults_version_compatibility_and_favorites_are_isolated() {
     assert_eq!(upgraded.preferences.general.close_behavior, "tray");
     assert!(upgraded.preferences.closes_to_tray());
     assert_eq!(upgraded.window, WindowFrameState::default());
+    assert_eq!(upgraded.layout, crate::domain::WorkspaceLayout::default());
     assert!(upgraded.folder_appearances.is_empty());
     assert_eq!(upgraded.skipped_update_version, None);
 }
@@ -274,18 +278,61 @@ fn skipped_update_version_persists_across_preference_saves() {
     assert_eq!(again.skipped_update_version.as_deref(), Some("0.1.7"));
 
     let after_prefs = service
-        .save_preferences(AppSettings::default(), Some("/notes".into()), true)
+        .save_preferences(AppSettings::default(), Some("/notes".into()), true, None)
         .unwrap();
-    assert_eq!(
-        after_prefs.skipped_update_version.as_deref(),
-        Some("0.1.7")
-    );
+    assert_eq!(after_prefs.skipped_update_version.as_deref(), Some("0.1.7"));
     assert_eq!(after_prefs.last_workspace.as_deref(), Some("/notes"));
 
     assert_eq!(
-        service.skip_update_version("not-a-version".into()).unwrap_err().code,
+        service
+            .skip_update_version("not-a-version".into())
+            .unwrap_err()
+            .code,
         ErrorCode::Io
     );
+}
+
+#[test]
+fn layout_widths_persist_and_clamp() {
+    let app_data = tempdir().unwrap();
+    let service = AppStateService::new(AppDataRepository::new(app_data.path().to_path_buf()));
+    let saved = service
+        .save_preferences(
+            AppSettings::default(),
+            Some("/notes".into()),
+            false,
+            Some(crate::domain::WorkspaceLayout {
+                sidebar_width: 220,
+                library_width: 360,
+                editor_split: 0.4,
+            }),
+        )
+        .unwrap();
+    assert_eq!(saved.layout.sidebar_width, 220);
+    assert_eq!(saved.layout.library_width, 360);
+    assert!((saved.layout.editor_split - 0.4).abs() < f32::EPSILON);
+
+    let clamped = service
+        .save_preferences(
+            AppSettings::default(),
+            Some("/notes".into()),
+            false,
+            Some(crate::domain::WorkspaceLayout {
+                sidebar_width: 12,
+                library_width: 9_000,
+                editor_split: 8.0,
+            }),
+        )
+        .unwrap();
+    assert_eq!(clamped.layout.sidebar_width, 148);
+    assert_eq!(clamped.layout.library_width, 520);
+    assert!((clamped.layout.editor_split - 0.72).abs() < f32::EPSILON);
+
+    let kept = service
+        .save_preferences(AppSettings::default(), Some("/notes".into()), true, None)
+        .unwrap();
+    assert_eq!(kept.layout.sidebar_width, 148);
+    assert_eq!(kept.layout.library_width, 520);
 }
 
 #[test]
@@ -390,7 +437,7 @@ fn window_frame_is_remembered_without_storing_maximized_size() {
     assert!(maximized.window.maximized);
 
     let after_prefs = service
-        .save_preferences(AppSettings::default(), Some("/notes".into()), true)
+        .save_preferences(AppSettings::default(), Some("/notes".into()), true, None)
         .unwrap();
     assert_eq!(after_prefs.window.width, 1440.0);
     assert_eq!(after_prefs.window.height, 900.0);
@@ -529,7 +576,12 @@ fn saves_lists_and_trashes_attachments_inside_the_library() {
 
     let month = crate::domain::attachment::attachment_month_dir();
     let saved = filesystem
-        .save_attachment(root, &sample_png(), Some("../escape/photo.png"), Some("image/png"))
+        .save_attachment(
+            root,
+            &sample_png(),
+            Some("../escape/photo.png"),
+            Some("image/png"),
+        )
         .unwrap();
     assert_eq!(
         saved.relative_path,
@@ -551,7 +603,9 @@ fn saves_lists_and_trashes_attachments_inside_the_library() {
 
     let listed = filesystem.scan_attachments(root).unwrap();
     assert_eq!(listed.len(), 2);
-    assert!(listed.iter().all(|item| item.relative_path.starts_with("attachments/")));
+    assert!(listed
+        .iter()
+        .all(|item| item.relative_path.starts_with("attachments/")));
 
     let outside = tempdir().unwrap();
     let source = outside.path().join("diagram.webp");
@@ -582,7 +636,12 @@ fn rejects_non_image_and_escaping_attachment_paths() {
 
     assert_eq!(
         filesystem
-            .save_attachment(root, b"not-an-image", Some("notes.md"), Some("text/markdown"))
+            .save_attachment(
+                root,
+                b"not-an-image",
+                Some("notes.md"),
+                Some("text/markdown")
+            )
             .unwrap_err()
             .code,
         ErrorCode::UnsupportedExtension
@@ -652,17 +711,24 @@ fn workspace_scan_returns_cached_metadata_and_skips_unchanged_reads() {
     let service = WorkspaceService::new(LocalFileSystem::new());
     let first = service.scan(root).unwrap();
     assert_eq!(first.len(), 2);
-    let one = first.iter().find(|note| note.relative_path == "one.md").unwrap();
+    let one = first
+        .iter()
+        .find(|note| note.relative_path == "one.md")
+        .unwrap();
     assert_eq!(one.title, "One");
     assert_eq!(one.tags, vec!["a"]);
     assert!(one.excerpt.contains("Hello"));
-    let reads_after_first = service.content_reads.load(std::sync::atomic::Ordering::Relaxed);
+    let reads_after_first = service
+        .content_reads
+        .load(std::sync::atomic::Ordering::Relaxed);
     assert!(reads_after_first >= 2);
 
     let second = service.scan(root).unwrap();
     assert_eq!(second.len(), 2);
     assert_eq!(
-        service.content_reads.load(std::sync::atomic::Ordering::Relaxed),
+        service
+            .content_reads
+            .load(std::sync::atomic::Ordering::Relaxed),
         reads_after_first
     );
     assert!(workspace.path().join(".memoir/index.sqlite").exists());
@@ -773,12 +839,16 @@ fn write_then_scan_does_not_reread_and_rename_updates_path() {
     fs::write(workspace.path().join("old.md"), "# Old").unwrap();
     let service = WorkspaceService::new(LocalFileSystem::new());
     service.scan(root).unwrap();
-    let reads = service.content_reads.load(std::sync::atomic::Ordering::Relaxed);
+    let reads = service
+        .content_reads
+        .load(std::sync::atomic::Ordering::Relaxed);
 
     service.write(root, "old.md", "# Updated\n\nBody").unwrap();
     let after_write = service.scan(root).unwrap();
     assert_eq!(
-        service.content_reads.load(std::sync::atomic::Ordering::Relaxed),
+        service
+            .content_reads
+            .load(std::sync::atomic::Ordering::Relaxed),
         reads
     );
     assert_eq!(after_write[0].title, "Updated");
@@ -888,16 +958,18 @@ fn create_then_query_without_second_walk() {
     assert_eq!(created.title, "Fresh Note");
     assert_eq!(created.tags, vec!["lab"]);
     let after_create_walks = service.walk_dirs.load(std::sync::atomic::Ordering::Relaxed);
-    assert_eq!(after_create_walks, walks, "create must not walk the workspace");
+    assert_eq!(
+        after_create_walks, walks,
+        "create must not walk the workspace"
+    );
 
     let page = service
         .query_library(root, &crate::domain::LibraryQuery::default())
         .unwrap();
-    assert!(
-        page.notes
-            .iter()
-            .any(|note| note.relative_path == created.relative_path && note.title == "Fresh Note")
-    );
+    assert!(page
+        .notes
+        .iter()
+        .any(|note| note.relative_path == created.relative_path && note.title == "Fresh Note"));
     assert_eq!(
         service.walk_dirs.load(std::sync::atomic::Ordering::Relaxed),
         walks,
@@ -972,13 +1044,17 @@ fn rebuild_walks_once_and_hot_reconcile_skips_bodies() {
         .reconcile(root, &crate::domain::LibraryQuery::default())
         .unwrap();
     let walks_after_open = service.walk_dirs.load(std::sync::atomic::Ordering::Relaxed);
-    let reads_after_open = service.content_reads.load(std::sync::atomic::Ordering::Relaxed);
+    let reads_after_open = service
+        .content_reads
+        .load(std::sync::atomic::Ordering::Relaxed);
 
     service
         .reconcile(root, &crate::domain::LibraryQuery::default())
         .unwrap();
     assert_eq!(
-        service.content_reads.load(std::sync::atomic::Ordering::Relaxed),
+        service
+            .content_reads
+            .load(std::sync::atomic::Ordering::Relaxed),
         reads_after_open
     );
 
@@ -1015,7 +1091,11 @@ fn bench_open_vs_create_walk_counts() {
         };
         let dir = root.join(&folder);
         let _ = fs::create_dir_all(&dir);
-        fs::write(dir.join(format!("n{index}.md")), format!("# Note {index}\n\nbody")).unwrap();
+        fs::write(
+            dir.join(format!("n{index}.md")),
+            format!("# Note {index}\n\nbody"),
+        )
+        .unwrap();
     }
     fs::create_dir_all(root.join("node_modules/pkg")).unwrap();
     fs::write(root.join("node_modules/pkg/ignore.md"), "# ignored").unwrap();
@@ -1023,7 +1103,10 @@ fn bench_open_vs_create_walk_counts() {
     let service = WorkspaceService::new(LocalFileSystem::new());
     let start = std::time::Instant::now();
     let page = service
-        .reconcile(root.to_str().unwrap(), &crate::domain::LibraryQuery::default())
+        .reconcile(
+            root.to_str().unwrap(),
+            &crate::domain::LibraryQuery::default(),
+        )
         .unwrap();
     let open_ms = start.elapsed().as_millis();
     let open_walks = service.walk_dirs.load(std::sync::atomic::Ordering::Relaxed);
@@ -1034,7 +1117,10 @@ fn bench_open_vs_create_walk_counts() {
         .create(root.to_str().unwrap(), "Extra", "md", None, None)
         .unwrap();
     let q = service
-        .query_library(root.to_str().unwrap(), &crate::domain::LibraryQuery::default())
+        .query_library(
+            root.to_str().unwrap(),
+            &crate::domain::LibraryQuery::default(),
+        )
         .unwrap();
     let create_ms = start.elapsed().as_millis();
     let create_walks = service.walk_dirs.load(std::sync::atomic::Ordering::Relaxed) - open_walks;

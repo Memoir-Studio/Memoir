@@ -1,3 +1,13 @@
+.editor-workspace-split {
+  grid-template-columns: var(--editor-split) var(--editor-split-rest);
+}
+
+@media (max-width: 760px) {
+  .editor-workspace-split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .workspace-header {
   background: color-mix(in srgb, var(--memoir-elevated) 68%, var(--memoir-canvas));
   backdrop-filter: blur(14px);

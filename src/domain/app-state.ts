@@ -1,4 +1,5 @@
 import type { FolderAppearance } from "./folders";
+import type { WorkspaceLayoutState } from "./layout";
 import type { AppSettings } from "./settings";
 
 export const APP_STATE_VERSION = 1;
@@ -15,6 +16,7 @@ export type AppState = {
   recentWorkspaces: string[];
   lastWorkspace: string | null;
   sidebarCollapsed: boolean;
+  layout?: WorkspaceLayoutState;
   favorites: Record<string, string[]>;
   folderAppearances: Record<string, Record<string, FolderAppearance>>;
   window?: WindowFrameState;

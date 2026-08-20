@@ -1,11 +1,25 @@
-import { act, cleanup, render, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
+import { DEFAULT_WORKSPACE_LAYOUT } from "../domain/layout";
 import { resetAppUpdateCheckForTests } from "../features/update/useAppUpdateCheck";
 import { setGatewaysForTests } from "../gateways";
 import { useAppStore } from "../store/app-store";
 import { createMockGateways } from "../test/mock-gateways";
 import AppShell from "./AppShell";
+
+function dispatchPointer(target: Element, type: string, clientX: number) {
+  fireEvent(
+    target,
+    new MouseEvent(type, {
+      bubbles: true,
+      button: 0,
+      cancelable: true,
+      clientX,
+      clientY: 8,
+    }),
+  );
+}
 
 afterEach(() => {
   cleanup();
@@ -27,6 +41,7 @@ afterEach(() => {
     scopedFilter: null,
     attachments: [],
     libraryPanelMode: "notes",
+    layout: DEFAULT_WORKSPACE_LAYOUT,
   });
 });
 
@@ -91,5 +106,35 @@ describe("AppShell window chrome", () => {
     } finally {
       useAppStore.setState({ initialize });
     }
+  });
+});
+
+describe("AppShell layout resize", () => {
+  it("lets the user drag the navigation and notes splitters", async () => {
+    const user = userEvent.setup();
+    const view = render(<AppShell />);
+
+    await waitFor(() => {
+      expect(
+        view.queryByRole("button", { name: /load demo notes|载入演示文档/i }) ||
+          view.queryByRole("separator", { name: /调整导航栏宽度|resize navigation/i }),
+      ).toBeTruthy();
+    });
+    const loadDemo = view.queryByRole("button", { name: /load demo notes|载入演示文档/i });
+    if (loadDemo) await user.click(loadDemo);
+
+    const sidebar = await view.findByRole("separator", {
+      name: /调整导航栏宽度|resize navigation/i,
+    });
+    dispatchPointer(sidebar, "pointerdown", 164);
+    dispatchPointer(sidebar, "pointermove", 204);
+    dispatchPointer(sidebar, "pointerup", 204);
+    expect(useAppStore.getState().layout.sidebarWidth).toBe(204);
+
+    const library = view.getByRole("separator", { name: /调整笔记列表宽度|resize notes/i });
+    dispatchPointer(library, "pointerdown", 280);
+    dispatchPointer(library, "pointermove", 330);
+    dispatchPointer(library, "pointerup", 330);
+    expect(useAppStore.getState().layout.libraryWidth).toBe(330);
   });
 });

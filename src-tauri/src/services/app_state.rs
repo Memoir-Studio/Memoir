@@ -4,7 +4,7 @@ use crate::{
         cloud_sync::{sanitize_profile, CloudSyncProfile},
         path::{normalize_workspace_key, validate_relative_path},
         AppError, AppResult, AppSettings, AppState, ErrorCode, FolderAppearance,
-        LegacyStatePayload, MigrationResult,
+        LegacyStatePayload, MigrationResult, WorkspaceLayout,
     },
     infrastructure::app_data::AppDataRepository,
 };
@@ -36,6 +36,7 @@ impl AppStateService {
         preferences: AppSettings,
         last_workspace: Option<String>,
         sidebar_collapsed: bool,
+        layout: Option<WorkspaceLayout>,
     ) -> AppResult<AppState> {
         let _guard = self
             .state_lock
@@ -44,6 +45,9 @@ impl AppStateService {
         let mut state = self.repository.load_state()?;
         state.preferences = preferences;
         state.sidebar_collapsed = sidebar_collapsed;
+        if let Some(layout) = layout {
+            state.layout = layout.sanitized();
+        }
         let last_workspace = last_workspace
             .map(|workspace| normalize_workspace_key(&workspace).unwrap_or(workspace));
         state.last_workspace = last_workspace.clone();
@@ -142,12 +146,10 @@ impl AppStateService {
     }
 
     pub fn skip_update_version(&self, version: String) -> AppResult<AppState> {
-        let canonical = parse_version(&version)
-            .map(format_version)
-            .ok_or_else(|| {
-                AppError::new(ErrorCode::Io, "Unable to skip this update version.")
-                    .with_details("Version must be major.minor.patch.")
-            })?;
+        let canonical = parse_version(&version).map(format_version).ok_or_else(|| {
+            AppError::new(ErrorCode::Io, "Unable to skip this update version.")
+                .with_details("Version must be major.minor.patch.")
+        })?;
         let _guard = self
             .state_lock
             .lock()
@@ -184,9 +186,7 @@ impl AppStateService {
         let workspace_root = normalize_workspace_key(&workspace_root)?;
         let profile = sanitize_profile(profile)?;
         let mut state = self.repository.load_state()?;
-        state
-            .cloud_sync
-            .insert(workspace_root, profile.clone());
+        state.cloud_sync.insert(workspace_root, profile.clone());
         self.repository.save_state(&state)?;
         Ok(profile)
     }
@@ -198,9 +198,7 @@ impl AppStateService {
     ) -> AppResult<Vec<String>> {
         let normalized =
             normalize_workspace_key(workspace_root).unwrap_or_else(|_| workspace_root.to_string());
-        let mut found = self
-            .repository
-            .drafts_exist(&normalized, relative_paths)?;
+        let mut found = self.repository.drafts_exist(&normalized, relative_paths)?;
         if normalized != workspace_root {
             found.extend(
                 self.repository

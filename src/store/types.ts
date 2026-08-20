@@ -14,6 +14,7 @@ import type {
   CloudSyncProfileInput,
   CloudSyncRunResult,
 } from "../domain/cloud-sync";
+import type { WorkspaceLayoutState } from "../domain/layout";
 import type { SettingsSection } from "../features/settings/types";
 
 export type WorkspaceSlice = {
@@ -54,6 +55,7 @@ export type UiSlice = {
   error: string;
   viewMode: ViewMode;
   isSidebarCollapsed: boolean;
+  layout: WorkspaceLayoutState;
   settingsOpen: boolean;
   settingsSection: SettingsSection;
   cloudSyncProfile: CloudSyncProfile;
@@ -92,6 +94,7 @@ export type AppActions = {
   setLibraryPanelMode(mode: LibrarySlice["libraryPanelMode"]): void;
   setViewMode(mode: ViewMode): void;
   setSidebarCollapsed(collapsed: boolean): void;
+  setLayout(layout: Partial<WorkspaceLayoutState>): void;
   setSettings(settings: AppSettings): void;
   resetSettings(): void;
   openSettings(section?: SettingsSection): void;

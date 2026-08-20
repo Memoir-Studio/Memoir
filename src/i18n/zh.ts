@@ -21,6 +21,10 @@ export const zh = {
   "app.migrationFailed": "旧数据迁移失败，原数据已保留；下次启动会自动重试：{message}",
   "app.closeDrawer": "关闭侧边抽屉",
 
+  "layout.resizeSidebar": "调整导航栏宽度",
+  "layout.resizeLibrary": "调整笔记列表宽度",
+  "layout.resizeEditor": "调整编辑区宽度",
+
   "nav.navigation": "导航",
   "nav.notes": "笔记",
   "nav.editor": "编辑",
