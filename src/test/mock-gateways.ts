@@ -1,4 +1,6 @@
 import type { AppState } from "../domain/app-state";
+import { GatewayError } from "../domain/errors";
+import type { AppUpdateCheck } from "../domain/app-update";
 import type { AttachmentFile, SaveAttachmentInput } from "../domain/attachments";
 import { attachmentRelativePath, mimeFromExtension } from "../domain/attachments";
 import type { FolderAppearance } from "../domain/folders";
@@ -230,6 +232,16 @@ export class MockPersistenceGateway implements PersistenceGateway {
     folderAppearances: {},
   };
   drafts = new Map<string, string>();
+  nextUpdateCheck: AppUpdateCheck = {
+    status: "upToDate",
+    currentVersion: "0.0.0",
+    latestVersion: "0.0.0",
+    releaseUrl: null,
+    releaseNotes: null,
+  };
+  checkAppUpdateCalls = 0;
+  skipAppUpdateCalls: string[] = [];
+  failCheck = false;
 
   async loadAppState() {
     return structuredClone(this.state);
@@ -302,6 +314,23 @@ export class MockPersistenceGateway implements PersistenceGateway {
 
   async migrateLegacyState() {
     return { migratedKeys: [] };
+  }
+
+  async checkAppUpdate() {
+    this.checkAppUpdateCalls += 1;
+    if (this.failCheck) {
+      throw new GatewayError({
+        code: "io",
+        message: "No published GitHub release was found.",
+        details: "HTTP 404",
+      });
+    }
+    return structuredClone(this.nextUpdateCheck);
+  }
+
+  async skipAppUpdate(version: string) {
+    this.skipAppUpdateCalls.push(version);
+    this.state = { ...this.state, skippedUpdateVersion: version };
   }
 }
 

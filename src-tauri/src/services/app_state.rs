@@ -1,8 +1,10 @@
 use crate::{
     domain::{
+        app_update::{format_version, parse_version},
         cloud_sync::{sanitize_profile, CloudSyncProfile},
         path::{normalize_workspace_key, validate_relative_path},
-        AppResult, AppSettings, AppState, FolderAppearance, LegacyStatePayload, MigrationResult,
+        AppError, AppResult, AppSettings, AppState, ErrorCode, FolderAppearance,
+        LegacyStatePayload, MigrationResult,
     },
     infrastructure::app_data::AppDataRepository,
 };
@@ -135,6 +137,26 @@ impl AppStateService {
                 .folder_appearances
                 .insert(workspace_root, workspace_map);
         }
+        self.repository.save_state(&state)?;
+        Ok(state)
+    }
+
+    pub fn skip_update_version(&self, version: String) -> AppResult<AppState> {
+        let canonical = parse_version(&version)
+            .map(format_version)
+            .ok_or_else(|| {
+                AppError::new(ErrorCode::Io, "Unable to skip this update version.")
+                    .with_details("Version must be major.minor.patch.")
+            })?;
+        let _guard = self
+            .state_lock
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        let mut state = self.repository.load_state()?;
+        if state.skipped_update_version.as_deref() == Some(canonical.as_str()) {
+            return Ok(state);
+        }
+        state.skipped_update_version = Some(canonical);
         self.repository.save_state(&state)?;
         Ok(state)
     }

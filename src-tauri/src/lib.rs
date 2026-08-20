@@ -8,12 +8,12 @@ mod tray;
 mod window_frame;
 
 use commands::{
-    create_note, delete_attachment, delete_draft, delete_note, drafts_exist,
+    check_app_update, create_note, delete_attachment, delete_draft, delete_note, drafts_exist,
     get_cloud_sync_profile, get_index_info, import_attachment, load_app_state,
     migrate_legacy_state, query_library, read_draft, read_note, rebuild_index, reconcile_workspace,
     rename_note, run_cloud_sync, save_attachment, save_cloud_sync_profile, save_preferences,
-    scan_attachments, set_favorite, set_folder_appearance, test_cloud_sync, write_draft,
-    write_export_file, write_note, AppServices,
+    scan_attachments, set_favorite, set_folder_appearance, skip_app_update, test_cloud_sync,
+    write_draft, write_export_file, write_note, AppServices,
 };
 use infrastructure::{app_data::AppDataRepository, filesystem::LocalFileSystem};
 use services::{AppStateService, CloudSyncService, WorkspaceService};
@@ -69,6 +69,8 @@ pub fn run() {
             import_attachment,
             delete_attachment,
             load_app_state,
+            check_app_update,
+            skip_app_update,
             save_preferences,
             set_favorite,
             set_folder_appearance,

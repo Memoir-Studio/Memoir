@@ -341,6 +341,8 @@ pub struct AppState {
     pub cloud_sync: BTreeMap<String, CloudSyncProfile>,
     #[serde(default)]
     pub window: WindowFrameState,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub skipped_update_version: Option<String>,
 }
 
 fn default_version() -> u32 {
@@ -359,6 +361,7 @@ impl Default for AppState {
             folder_appearances: BTreeMap::new(),
             cloud_sync: BTreeMap::new(),
             window: WindowFrameState::default(),
+            skipped_update_version: None,
         }
     }
 }

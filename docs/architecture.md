@@ -48,7 +48,7 @@ tray.rs         system tray and close-to-tray
 | Path | Role |
 | --- | --- |
 | `src/app` | Shell: init, theme, composition |
-| `src/features/*` | UI and feature-local helpers (`sync` is the cloud-sync panel in the library drawer) |
+| `src/features/*` | UI and feature-local helpers (`sync` is the cloud-sync panel in the library drawer; `update` is the GitHub release notice) |
 | `src/store` | Zustand store and selectors |
 | `src/gateways` | Tauri and in-memory browser adapters |
 | `src/domain` | Shared TS models and settings merge |
@@ -89,6 +89,8 @@ Persistence commands:
 - `delete_draft`
 - `drafts_exist`
 - `migrate_legacy_state`
+- `check_app_update` — GitHub Releases latest tag; skip-aware, notify-only
+- `skip_app_update`
 
 Cloud sync commands:
 
@@ -145,6 +147,7 @@ app-data/
 - `folderAppearances` — emoji/color keyed by workspace, then folder
 - `cloudSync` — per-workspace provider settings (WebDAV URL and credentials stay here, not in the vault)
 - `window` — logical width, height, maximized
+- `skippedUpdateVersion` — last GitHub release the user chose to skip; a newer tag prompts again
 
 A last-sync snapshot lives at `sync/<workspace sha256>/snapshot.json` so two-way sync can detect local/remote edits and deletes. It also stores attachment directory stats so a repeat sync can skip `read_dir` when those folders have not changed. Notes and image attachments are replicated; `.memoir/`, trash, and drafts are not. Attachments sync before notes. Conflicts keep the newer mtime (local wins ties); the losing attachment is kept as a local `*.conflict-*` file. Enabled workspaces also sync after open and after save. A run that did not change local files does not walk the library again.
 
@@ -156,7 +159,7 @@ Add `.memoir/` to the vault’s root `.gitignore`. If the folder lives in iCloud
 
 Pasted, dropped, and imported images are ordinary files in workspace `attachments/YYYY-MM/`. They are not stored in app-data. The browser demo keeps them in memory as data URLs. Desktop file drops use the native window drag-drop event because the webview does not expose OS files on `dataTransfer`.
 
-The browser build is an in-memory demo. It does not read or write real files, does not open SQLite, and it does not persist settings.
+The browser build is an in-memory demo. It does not read or write real files, does not open SQLite, it does not persist settings, and it does not call GitHub for updates.
 
 ## Path safety
 

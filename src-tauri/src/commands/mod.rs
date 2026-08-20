@@ -1,9 +1,11 @@
 use crate::{
     domain::{
-        attachment::ATTACHMENTS_DIR, AppError, AppSettings, AppState, AttachmentFile,
-        CloudSyncProbe, CloudSyncProfile, CloudSyncRunResult, FolderAppearance, LegacyStatePayload,
-        LibraryPage, LibraryQuery, MigrationResult, NoteFile, RenamedNote, WorkspaceIndexInfo,
+        attachment::ATTACHMENTS_DIR, AppError, AppSettings, AppState, AppUpdateCheck,
+        AttachmentFile, CloudSyncProbe, CloudSyncProfile, CloudSyncRunResult, FolderAppearance,
+        LegacyStatePayload, LibraryPage, LibraryQuery, MigrationResult, NoteFile, RenamedNote,
+        WorkspaceIndexInfo,
     },
+    infrastructure::github_releases,
     services::{AppStateService, CloudSyncService, WorkspaceService},
     tray::ClosePolicy,
 };
@@ -224,6 +226,37 @@ pub fn write_export_file(
 #[tauri::command]
 pub fn load_app_state(services: State<'_, AppServices>) -> Result<AppState, AppError> {
     services.app_state.load()
+}
+
+#[tauri::command]
+pub async fn check_app_update(
+    services: State<'_, AppServices>,
+) -> Result<AppUpdateCheck, AppError> {
+    let app_state = services.app_state.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let skipped = app_state.load()?.skipped_update_version;
+        let release = github_releases::fetch_latest_release()?;
+        Ok(crate::domain::build_update_check(
+            env!("CARGO_PKG_VERSION"),
+            skipped.as_deref(),
+            &release.tag_name,
+            &release.html_url,
+            release.body.as_deref(),
+        ))
+    })
+    .await
+    .map_err(|error| {
+        AppError::new(crate::domain::ErrorCode::Io, "Unable to check for updates.")
+            .with_details(error.to_string())
+    })?
+}
+
+#[tauri::command]
+pub fn skip_app_update(
+    services: State<'_, AppServices>,
+    version: String,
+) -> Result<AppState, AppError> {
+    services.app_state.skip_update_version(version)
 }
 
 #[tauri::command]

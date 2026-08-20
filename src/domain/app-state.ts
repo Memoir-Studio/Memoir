@@ -18,6 +18,7 @@ export type AppState = {
   favorites: Record<string, string[]>;
   folderAppearances: Record<string, Record<string, FolderAppearance>>;
   window?: WindowFrameState;
+  skippedUpdateVersion?: string | null;
 };
 
 export type LegacyStatePayload = {

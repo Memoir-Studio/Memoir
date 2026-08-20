@@ -1,4 +1,5 @@
 import type { AppState, LegacyStatePayload } from "../domain/app-state";
+import type { AppUpdateCheck } from "../domain/app-update";
 import { APP_STATE_VERSION } from "../domain/app-state";
 import type { AttachmentFile, SaveAttachmentInput } from "../domain/attachments";
 import {
@@ -19,6 +20,7 @@ import { indexInfoFromNotes, type WorkspaceIndexInfo } from "../domain/index-inf
 import type { LibraryPage, LibraryQuery, RawNoteFile, RenamedNote } from "../domain/notes";
 import { parseNote, queryNotesInMemory } from "../features/library/note-utils";
 import { DEFAULT_SETTINGS } from "../domain/settings";
+import { APP_VERSION } from "../platform/app-version";
 import {
   defaultCloudSyncProfile,
   mergeCloudSyncProfile,
@@ -425,6 +427,18 @@ export class BrowserPersistenceGateway implements PersistenceGateway {
   async migrateLegacyState(_payload: LegacyStatePayload) {
     return { migratedKeys: [] };
   }
+
+  async checkAppUpdate(): Promise<AppUpdateCheck> {
+    return {
+      status: "upToDate",
+      currentVersion: APP_VERSION,
+      latestVersion: APP_VERSION,
+      releaseUrl: null,
+      releaseNotes: null,
+    };
+  }
+
+  async skipAppUpdate(_version: string) {}
 }
 
 export class BrowserCloudSyncGateway implements CloudSyncGateway {

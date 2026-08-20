@@ -1,5 +1,20 @@
 import { describe, expect, it, vi } from "vitest";
-import { BrowserWorkspaceGateway } from "./browser";
+import { APP_VERSION } from "../platform/app-version";
+import { BrowserPersistenceGateway, BrowserWorkspaceGateway } from "./browser";
+
+describe("BrowserPersistenceGateway", () => {
+  it("does not call GitHub and reports the demo as up to date", async () => {
+    const gateway = new BrowserPersistenceGateway();
+    await expect(gateway.checkAppUpdate()).resolves.toEqual({
+      status: "upToDate",
+      currentVersion: APP_VERSION,
+      latestVersion: APP_VERSION,
+      releaseUrl: null,
+      releaseNotes: null,
+    });
+    await expect(gateway.skipAppUpdate("0.1.7")).resolves.toBeUndefined();
+  });
+});
 
 describe("BrowserWorkspaceGateway", () => {
   it("returns title tags and excerpt from the in-memory scan", async () => {

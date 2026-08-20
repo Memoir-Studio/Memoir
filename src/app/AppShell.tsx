@@ -4,6 +4,7 @@ import { Button, StatusNotice } from "../components/ui";
 import type { EditorHandle } from "../features/editor/EditorPane";
 import { LibrarySidebar } from "../features/library/LibrarySidebar";
 import { NoteList } from "../features/library/NoteList";
+import { AppUpdateNotice } from "../features/update/AppUpdateNotice";
 import { WindowFrame } from "../features/window/WindowChrome";
 import {
   useWorkspaceDialogs,
@@ -325,6 +326,7 @@ export default function AppShell() {
           />
         </WorkspaceDialogsProvider>
       )}
+      {initialized ? <AppUpdateNotice /> : null}
     </I18nProvider>
   );
 }

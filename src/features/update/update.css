@@ -1,0 +1,37 @@
+.update-dialog {
+  max-width: 420px;
+}
+
+.update-notes {
+  max-height: 12rem;
+  overflow: auto;
+  margin: 0;
+  color: var(--memoir-muted);
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+}
+
+.settings-update {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.settings-update-status {
+  max-width: 22rem;
+  margin: 0;
+  color: var(--memoir-muted);
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.settings-update-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}

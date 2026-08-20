@@ -1,4 +1,5 @@
 import type { AppState, LegacyStatePayload, MigrationResult } from "../domain/app-state";
+import type { AppUpdateCheck } from "../domain/app-update";
 import type { AttachmentFile, SaveAttachmentInput } from "../domain/attachments";
 import type { FolderAppearance } from "../domain/folders";
 import type { WorkspaceIndexInfo } from "../domain/index-info";
@@ -67,6 +68,8 @@ export interface PersistenceGateway {
   deleteDraft(workspaceRoot: string, relativePath: string): Promise<void>;
   draftsExist(workspaceRoot: string, relativePaths: string[]): Promise<string[]>;
   migrateLegacyState(payload: LegacyStatePayload): Promise<MigrationResult>;
+  checkAppUpdate(): Promise<AppUpdateCheck>;
+  skipAppUpdate(version: string): Promise<void>;
 }
 
 export interface CloudSyncGateway {

@@ -33,6 +33,16 @@ export async function watchNativeFileDrop(
   onEvent: (event: NativeFileDropEvent) => void,
 ): Promise<() => void> {
   if (!isTauriRuntime()) return () => undefined;
+  try {
+    return await listenNativeFileDrop(onEvent);
+  } catch {
+    return () => undefined;
+  }
+}
+
+async function listenNativeFileDrop(
+  onEvent: (event: NativeFileDropEvent) => void,
+): Promise<() => void> {
   const { getCurrentWindow } = await import("@tauri-apps/api/window");
   const current = await getCurrentWindow();
   let scaleFactor = 1;

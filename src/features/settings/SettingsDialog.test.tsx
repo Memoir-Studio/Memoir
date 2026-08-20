@@ -141,6 +141,62 @@ describe("SettingsDialog", () => {
     expect(openExternal).toHaveBeenCalledWith(GITHUB_REPO_URL);
   });
 
+  it("checks for updates from the about section", async () => {
+    const gateways = createMockGateways();
+    gateways.persistence.nextUpdateCheck = {
+      status: "available",
+      currentVersion: "0.1.6",
+      latestVersion: "0.1.7",
+      releaseUrl: `${GITHUB_REPO_URL}/releases/tag/v0.1.7`,
+      releaseNotes: null,
+    };
+    const openExternal = vi.spyOn(gateways.workspace, "openExternal");
+    setGatewaysForTests(gateways);
+    const user = userEvent.setup();
+    const view = render(
+      <SettingsDialog
+        onClose={() => undefined}
+        onReset={() => undefined}
+        onSectionChange={() => undefined}
+        onSettingsChange={() => undefined}
+        open
+        section="about"
+        settings={DEFAULT_SETTINGS}
+      />,
+    );
+
+    await user.click(view.getByRole("button", { name: "检查更新" }));
+    expect(await view.findByText("可更新到 0.1.7")).toBeInTheDocument();
+    await user.click(view.getByRole("button", { name: "前往下载" }));
+    expect(openExternal).toHaveBeenCalledWith(`${GITHUB_REPO_URL}/releases/tag/v0.1.7`);
+    await user.click(view.getByRole("button", { name: "跳过此版本" }));
+    expect(gateways.persistence.skipAppUpdateCalls).toEqual(["0.1.7"]);
+    expect(await view.findByText("已跳过 0.1.7")).toBeInTheDocument();
+  });
+
+  it("shows an error when a manual update check fails", async () => {
+    const gateways = createMockGateways();
+    gateways.persistence.failCheck = true;
+    setGatewaysForTests(gateways);
+    const user = userEvent.setup();
+    const view = render(
+      <SettingsDialog
+        onClose={() => undefined}
+        onReset={() => undefined}
+        onSectionChange={() => undefined}
+        onSettingsChange={() => undefined}
+        open
+        section="about"
+        settings={DEFAULT_SETTINGS}
+      />,
+    );
+
+    await user.click(view.getByRole("button", { name: "检查更新" }));
+    expect(
+      await view.findByText("无法检查更新：No published GitHub release was found. (HTTP 404)"),
+    ).toBeInTheDocument();
+  });
+
   it("emits close behavior from the general section", async () => {
     const onSettingsChange = vi.fn();
     const user = userEvent.setup();

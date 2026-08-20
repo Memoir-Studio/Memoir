@@ -167,6 +167,24 @@ describe("Tauri gateways", () => {
     });
   });
 
+  it("checks for app updates and skips a version", async () => {
+    const { TauriPersistenceGateway } = await import("./tauri");
+    const result = {
+      status: "available",
+      currentVersion: "0.1.6",
+      latestVersion: "0.1.7",
+      releaseUrl: "https://github.com/Memoir-Studio/Memoir/releases/tag/v0.1.7",
+      releaseNotes: "Fixes a crash.",
+    };
+    invoke.mockResolvedValueOnce(result);
+    const gateway = new TauriPersistenceGateway();
+    await expect(gateway.checkAppUpdate()).resolves.toEqual(result);
+    expect(invoke).toHaveBeenCalledWith("check_app_update", undefined);
+    invoke.mockResolvedValueOnce(undefined);
+    await gateway.skipAppUpdate("0.1.7");
+    expect(invoke).toHaveBeenCalledWith("skip_app_update", { version: "0.1.7" });
+  });
+
   it("sends folder appearance updates with camelCase DTOs", async () => {
     const { TauriPersistenceGateway } = await import("./tauri");
     invoke.mockResolvedValue({ folderAppearances: {} });

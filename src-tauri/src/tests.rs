@@ -259,6 +259,33 @@ fn app_state_defaults_version_compatibility_and_favorites_are_isolated() {
     assert!(upgraded.preferences.closes_to_tray());
     assert_eq!(upgraded.window, WindowFrameState::default());
     assert!(upgraded.folder_appearances.is_empty());
+    assert_eq!(upgraded.skipped_update_version, None);
+}
+
+#[test]
+fn skipped_update_version_persists_across_preference_saves() {
+    let app_data = tempdir().unwrap();
+    let service = AppStateService::new(AppDataRepository::new(app_data.path().to_path_buf()));
+
+    let skipped = service.skip_update_version("v0.1.7".into()).unwrap();
+    assert_eq!(skipped.skipped_update_version.as_deref(), Some("0.1.7"));
+
+    let again = service.skip_update_version("0.1.7".into()).unwrap();
+    assert_eq!(again.skipped_update_version.as_deref(), Some("0.1.7"));
+
+    let after_prefs = service
+        .save_preferences(AppSettings::default(), Some("/notes".into()), true)
+        .unwrap();
+    assert_eq!(
+        after_prefs.skipped_update_version.as_deref(),
+        Some("0.1.7")
+    );
+    assert_eq!(after_prefs.last_workspace.as_deref(), Some("/notes"));
+
+    assert_eq!(
+        service.skip_update_version("not-a-version".into()).unwrap_err().code,
+        ErrorCode::Io
+    );
 }
 
 #[test]

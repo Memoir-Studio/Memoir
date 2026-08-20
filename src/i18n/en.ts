@@ -291,6 +291,18 @@ export const en = {
   "settings.version": "Version {version}",
   "settings.dataLocal": "Data stays on this device",
   "settings.github": "GitHub",
+  "settings.checkUpdate": "Check for updates",
+  "settings.checkingUpdate": "Checking…",
+  "settings.upToDate": "You're up to date",
+  "settings.updateAvailable": "Version {version} is available",
+  "settings.updateSkipped": "Skipped {version}",
+  "settings.updateFailed": "Couldn't check for updates: {message}",
+
+  "update.title": "Update available",
+  "update.description": "Memoir {version} is out.",
+  "update.skip": "Skip this version",
+  "update.later": "Later",
+  "update.download": "Download",
 
   "sync.title": "Cloud sync",
   "sync.tabStatus": "Sync",

@@ -1,4 +1,5 @@
 import { Check, ExternalLink, Info, Palette, RotateCcw, SlidersHorizontal, Type } from "lucide-react";
+import { GITHUB_REPO_URL } from "../../domain/app-update";
 import type { AppSettings, LocalePreference } from "../../domain/settings";
 import {
   Button,
@@ -12,9 +13,10 @@ import { getGateways } from "../../gateways";
 import { useI18n } from "../../i18n/react";
 import type { MessageKey } from "../../i18n";
 import { APP_VERSION } from "../../platform/app-version";
+import { UpdateCheckControls } from "../update/UpdateCheckControls";
 import type { SettingsSection } from "./types";
 
-export const GITHUB_REPO_URL = "https://github.com/Memoir-Studio/Memoir";
+export { GITHUB_REPO_URL };
 
 function SettingRow({
   label,
@@ -418,6 +420,7 @@ export default function SettingsDialog({
                 <span>{t("settings.github")}</span>
                 <ExternalLink aria-hidden strokeWidth={1.8} />
               </a>
+              <UpdateCheckControls />
             </div>
           )}
         </section>

@@ -1,14 +1,17 @@
 import { act, cleanup, render, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
+import { resetAppUpdateCheckForTests } from "../features/update/useAppUpdateCheck";
 import { setGatewaysForTests } from "../gateways";
 import { useAppStore } from "../store/app-store";
+import { createMockGateways } from "../test/mock-gateways";
 import AppShell from "./AppShell";
 
 afterEach(() => {
   cleanup();
   delete (window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__;
   setGatewaysForTests(null);
+  resetAppUpdateCheckForTests();
   useAppStore.setState({
     workspaceRoot: null,
     notes: [],
@@ -67,6 +70,7 @@ describe("AppShell window chrome", () => {
       value: {},
       configurable: true,
     });
+    setGatewaysForTests(createMockGateways());
     const initialize = useAppStore.getState().initialize;
     useAppStore.setState({
       initialize: async () => undefined,

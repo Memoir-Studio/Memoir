@@ -288,6 +288,18 @@ export const zh = {
   "settings.version": "版本 {version}",
   "settings.dataLocal": "数据保存在本地",
   "settings.github": "GitHub",
+  "settings.checkUpdate": "检查更新",
+  "settings.checkingUpdate": "正在检查…",
+  "settings.upToDate": "已是最新版本",
+  "settings.updateAvailable": "可更新到 {version}",
+  "settings.updateSkipped": "已跳过 {version}",
+  "settings.updateFailed": "无法检查更新：{message}",
+
+  "update.title": "发现新版本",
+  "update.description": "Memoir {version} 已经发布。",
+  "update.skip": "跳过此版本",
+  "update.later": "稍后",
+  "update.download": "前往下载",
 
   "sync.title": "云同步",
   "sync.tabStatus": "同步",
