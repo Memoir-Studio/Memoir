@@ -1,0 +1,48 @@
+name: Draft release on version bump
+
+# `chore: bump version to x.y.z` on `dev` triggers Build Installers
+# for every platform and uploads a draft GitHub Release (tag vX.Y.Z).
+on:
+  push:
+    branches: [dev]
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  dispatch:
+    name: Dispatch installer build
+    if: startsWith(github.event.head_commit.message, 'chore: bump version to ')
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Match bump commit to Cargo.toml
+        env:
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          set -euo pipefail
+          subject="${COMMIT_MESSAGE%%$'\n'*}"
+          if [[ ! "$subject" =~ ^chore:\ bump\ version\ to\ [0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Commit subject is not a semver bump: $subject"
+            exit 1
+          fi
+          version="${subject#chore: bump version to }"
+          cargo_version="$(sed -n 's/^version = "\([^"]*\)"/\1/p' src-tauri/Cargo.toml | head -n1)"
+          if [ "$version" != "$cargo_version" ]; then
+            echo "Commit version '$version' does not match Cargo.toml '$cargo_version'"
+            exit 1
+          fi
+          echo "Dispatching draft installer build for v$version"
+
+      - name: Trigger Build Installers as a draft
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run build.yml \
+            --repo "${GITHUB_REPOSITORY}" \
+            --ref "${GITHUB_REF_NAME}" \
+            -f platform=all \
+            -f draft_release=true
