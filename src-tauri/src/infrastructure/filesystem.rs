@@ -400,7 +400,7 @@ fn collect_attachments_cached(
     if dir_meta.file_type().is_symlink() || !dir_meta.is_dir() {
         return Ok(());
     }
-    let dir_mtime = i64::try_from(modified_ms(dir_meta.modified())).unwrap_or(i64::MAX);
+    let dir_mtime = dir_cache_mtime(&dir_meta);
     let dir_size = i64::try_from(dir_meta.len()).unwrap_or(i64::MAX);
     if let Some(cached) = cache.get(&dir_key) {
         if cached.modified_ms == dir_mtime && cached.size == dir_size {
@@ -705,7 +705,7 @@ fn collect_notes(
     if dir_meta.file_type().is_symlink() || !dir_meta.is_dir() {
         return Ok(());
     }
-    let dir_mtime = i64::try_from(modified_ms(dir_meta.modified())).unwrap_or(i64::MAX);
+    let dir_mtime = dir_cache_mtime(&dir_meta);
     let dir_size = i64::try_from(dir_meta.len()).unwrap_or(i64::MAX);
     if let Some(cached) = cache.get(&dir_key) {
         if cached.modified_ms == dir_mtime && cached.size == dir_size {
@@ -831,6 +831,19 @@ pub(crate) fn modified_ms(modified: io::Result<SystemTime>) -> u128 {
         .and_then(|value| value.duration_since(SystemTime::UNIX_EPOCH).ok())
         .map(|duration| duration.as_millis())
         .unwrap_or_default()
+}
+
+/// Directory mtime fingerprint stored on `DirCacheRow.modified_ms`.
+///
+/// Uses nanoseconds so two creates in the same millisecond still invalidate the
+/// skip-`read_dir` cache. Older rows stored milliseconds and simply miss once.
+fn dir_cache_mtime(metadata: &fs::Metadata) -> i64 {
+    metadata
+        .modified()
+        .ok()
+        .and_then(|value| value.duration_since(SystemTime::UNIX_EPOCH).ok())
+        .and_then(|duration| i64::try_from(duration.as_nanos()).ok())
+        .unwrap_or(i64::MAX)
 }
 
 fn validate_optional_directory(folder: Option<&str>) -> AppResult<Option<PathBuf>> {
@@ -970,7 +983,19 @@ mod tests {
         assert_eq!(filesystem.attachment_walk_dirs.load(Ordering::Relaxed), 0);
         assert!(reused.reused_dirs.contains(&"attachments".to_string()));
 
-        fs::write(month.join("other.png"), [5, 6, 7, 8]).unwrap();
+        let other = month.join("other.png");
+        let before_stamp = dir_cache_mtime(&fs::symlink_metadata(&month).unwrap());
+        fs::write(&other, [5, 6, 7, 8]).unwrap();
+        let started = std::time::Instant::now();
+        while dir_cache_mtime(&fs::symlink_metadata(&month).unwrap()) == before_stamp {
+            assert!(
+                started.elapsed() < std::time::Duration::from_secs(2),
+                "directory mtime did not change after adding a file"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(10));
+            let _ = fs::remove_file(&other);
+            fs::write(&other, [5, 6, 7, 8]).unwrap();
+        }
         filesystem.attachment_walk_dirs.store(0, Ordering::Relaxed);
         let changed = filesystem
             .scan_attachments_cached(root.to_str().unwrap(), &cache, &known)
