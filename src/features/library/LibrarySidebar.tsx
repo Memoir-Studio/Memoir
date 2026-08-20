@@ -150,30 +150,30 @@ function FolderNavItem({
         "sidebar-nav-item sidebar-folder-item grid w-full items-center rounded-lg",
         collapsed
           ? "min-[761px]:grid-cols-1 min-[761px]:justify-items-center min-[761px]:gap-0 min-[761px]:px-0"
-          : "is-tree grid-cols-[14px_minmax(0,1fr)_auto] gap-1 px-2",
+          : cn(
+              "is-tree gap-1 px-2",
+              hasChildren ? "grid-cols-[14px_minmax(0,1fr)_auto]" : "grid-cols-[minmax(0,1fr)_auto]",
+            ),
         active && "is-active",
       )}
       data-folder-color={appearance?.color}
       style={collapsed ? undefined : ({ "--folder-depth": depth } as CSSProperties)}
     >
-      {!collapsed &&
-        (hasChildren ? (
-          <button
-            aria-expanded={expanded}
-            aria-label={expanded ? t("folder.collapse", { name: label }) : t("folder.expand", { name: label })}
-            className="sidebar-folder-toggle"
-            onClick={onToggle}
-            type="button"
-          >
-            <ChevronRight
-              aria-hidden
-              className={cn("sidebar-folder-chevron", expanded && "is-open")}
-              strokeWidth={2}
-            />
-          </button>
-        ) : (
-          <span aria-hidden className="sidebar-folder-toggle-spacer" />
-        ))}
+      {!collapsed && hasChildren && (
+        <button
+          aria-expanded={expanded}
+          aria-label={expanded ? t("folder.collapse", { name: label }) : t("folder.expand", { name: label })}
+          className="sidebar-folder-toggle"
+          onClick={onToggle}
+          type="button"
+        >
+          <ChevronRight
+            aria-hidden
+            className={cn("sidebar-folder-chevron", expanded && "is-open")}
+            strokeWidth={2}
+          />
+        </button>
+      )}
       <button
         aria-current={active ? "page" : undefined}
         aria-label={collapsed ? label : undefined}
