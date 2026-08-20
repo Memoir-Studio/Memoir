@@ -13,7 +13,7 @@ permissions:
 jobs:
   dispatch:
     name: Dispatch installer build
-    if: startsWith(github.event.head_commit.message, 'chore: bump version to ')
+    if: "${{ startsWith(github.event.head_commit.message, 'chore: bump version to ') }}"
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
