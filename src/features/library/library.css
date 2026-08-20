@@ -330,9 +330,9 @@
 
 .outline-item-label {
   display: grid;
-  grid-template-columns: 8px minmax(0, 1fr);
+  grid-template-columns: 3px minmax(0, 1fr);
   align-items: center;
-  gap: 7px;
+  gap: 5px;
   width: 100%;
   min-width: 0;
   min-height: 34px;
@@ -418,11 +418,9 @@
 }
 
 .note-card.is-active {
-  border-color: color-mix(in srgb, var(--memoir-border) 92%, transparent);
-  background: var(--memoir-elevated);
-  box-shadow:
-    0 1px 2px rgb(65 56 43 / 7%),
-    0 8px 20px rgb(65 56 43 / 5%);
+  border-color: transparent;
+  background: color-mix(in srgb, var(--memoir-accent-soft) 72%, var(--memoir-panel));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--memoir-accent) 8%, transparent);
 }
 
 .note-card.is-menu-target {
@@ -430,7 +428,6 @@
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--memoir-accent) 16%, transparent);
 }
 
-.note-card.is-active::before,
 .note-card.is-dirty::before {
   position: absolute;
   top: 10px;
