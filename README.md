@@ -17,6 +17,7 @@
 
 <p align="center">
   <a href="./LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-d65f4d" /></a>
+  <a href="https://github.com/Memoir-Studio/Memoir/actions/workflows/test.yml"><img alt="Test" src="https://github.com/Memoir-Studio/Memoir/actions/workflows/test.yml/badge.svg?branch=dev" /></a>
   <img alt="Tauri 2" src="https://img.shields.io/badge/Tauri-2-24C8DB?logo=tauri&logoColor=white" />
   <img alt="React 19" src="https://img.shields.io/badge/React-19-087EA4?logo=react&logoColor=white" />
   <img alt="Platforms" src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-111111" />
@@ -111,10 +112,12 @@ The browser build is an in-memory demo. It does not read or write real files, an
 Verify a change before opening a PR:
 
 ```bash
-bun test
+bun run test
 bun run build
 cargo test --manifest-path src-tauri/Cargo.toml
 ```
+
+GitHub Actions runs the same checks on pull requests and pushes to `dev`. Installer builds wait for them to pass.
 
 ### Layout
 

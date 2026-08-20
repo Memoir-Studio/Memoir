@@ -28,7 +28,10 @@ pub fn open_or_rebuild(root: &Path) -> WorkspaceIndex {
 }
 
 fn try_open_persistent(root: &Path) -> Option<WorkspaceIndex> {
-    let dir = index_dir(root);
+    // Canonicalize so ensure_inside still holds when root is a symlink
+    // (macOS /var → /private/var, including tempfile paths).
+    let root = root.canonicalize().ok()?;
+    let dir = index_dir(&root);
     if dir.exists() {
         let metadata = fs::symlink_metadata(&dir).ok()?;
         if metadata.file_type().is_symlink() || !metadata.is_dir() {
@@ -39,7 +42,7 @@ fn try_open_persistent(root: &Path) -> Option<WorkspaceIndex> {
     }
 
     let canonical = dir.canonicalize().ok()?;
-    ensure_inside(root, &canonical).ok()?;
+    ensure_inside(&root, &canonical).ok()?;
 
     let gitignore = dir.join(".gitignore");
     if !gitignore.exists() {

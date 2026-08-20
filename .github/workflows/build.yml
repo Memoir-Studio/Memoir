@@ -29,8 +29,13 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  test:
+    name: Test
+    uses: ./.github/workflows/test.yml
+
   prepare:
     name: Prepare matrix
+    needs: test
     runs-on: ubuntu-24.04
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
