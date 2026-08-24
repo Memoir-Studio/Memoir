@@ -2,15 +2,18 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Cloud, Loader2, RefreshCw, Settings2 } from "lucide-react";
 import { Button, IconButton, Input, Select, Toggle } from "../../components/ui";
 import {
+  cloudSyncProgressRatio,
   hasCloudSyncCredentials,
   mergeCloudSyncProfile,
   toCloudSyncProfileInput,
   type CloudProviderId,
   type CloudSyncProfile,
+  type CloudSyncProgress,
 } from "../../domain/cloud-sync";
 import { mapGatewayError } from "../../domain/errors";
 import { formatRelativeTime, formatSyncDuration } from "../../i18n";
 import { useI18n } from "../../i18n/react";
+import type { MessageKey, MessageParams } from "../../i18n/translate";
 import { isTauriRuntime } from "../../platform/runtime";
 import { useAppStore } from "../../store/app-store";
 import { handleWindowDragMouseDown } from "../window/window-drag";
@@ -35,6 +38,65 @@ function Field({
   );
 }
 
+function progressDetail(
+  progress: CloudSyncProgress,
+  t: (key: MessageKey, params?: MessageParams) => string,
+) {
+  if (progress.action && progress.path) {
+    const actionKey =
+      progress.action === "upload"
+        ? "sync.actionUpload"
+        : progress.action === "download"
+          ? "sync.actionDownload"
+          : progress.action === "deleteRemote"
+            ? "sync.actionDeleteRemote"
+            : "sync.actionDeleteLocal";
+    return t(actionKey, { path: progress.path });
+  }
+  if (progress.phase === "listing" && progress.path) return t("sync.phaseListingPath", { path: progress.path });
+  if (progress.phase === "planning" && progress.path) return t("sync.phasePlanningPath", { path: progress.path });
+  if (progress.phase === "scanning") return t("sync.phaseScanning");
+  if (progress.phase === "listing") return t("sync.phaseListing");
+  if (progress.phase === "planning") return t("sync.phasePlanning");
+  if (progress.phase === "finishing") return t("sync.phaseFinishing");
+  return t("sync.phaseWorking");
+}
+
+function SyncProgress({ progress }: { progress: CloudSyncProgress }) {
+  const { t } = useI18n();
+  const ratio = cloudSyncProgressRatio(progress);
+  const determinate = ratio !== null;
+  const percent = determinate ? Math.round(ratio * 100) : undefined;
+  return (
+    <div className="cloud-sync-progress">
+      <div
+        aria-label={t("sync.progressAria")}
+        aria-valuemax={100}
+        aria-valuemin={0}
+        aria-valuenow={percent}
+        className="cloud-sync-progress-track"
+        role="progressbar"
+      >
+        <div
+          className="cloud-sync-progress-bar"
+          data-indeterminate={String(!determinate)}
+          style={determinate ? { width: `${percent}%` } : undefined}
+        />
+      </div>
+      <div className="cloud-sync-progress-meta">
+        <p className="cloud-sync-progress-file" title={progress.path ?? undefined}>
+          {progressDetail(progress, t)}
+        </p>
+        {progress.total > 0 ? (
+          <span className="cloud-sync-progress-count">
+            {t("sync.progressCount", { current: progress.current, total: progress.total })}
+          </span>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 function sourceHost(url: string) {
   try {
     return new URL(url).host || url;
@@ -45,6 +107,7 @@ function sourceHost(url: string) {
 
 export function CloudSyncPanel() {
   const profile = useAppStore((state) => state.cloudSyncProfile);
+  const progress = useAppStore((state) => state.cloudSyncProgress);
   const saveCloudSyncProfile = useAppStore((state) => state.saveCloudSyncProfile);
   const testCloudSync = useAppStore((state) => state.testCloudSync);
   const runCloudSync = useAppStore((state) => state.runCloudSync);
@@ -69,14 +132,14 @@ export function CloudSyncPanel() {
     : t("sync.lastSyncNever");
   const deleted =
     (profile.lastReport?.deletedRemote ?? 0) + (profile.lastReport?.deletedLocal ?? 0);
-  const statusLabel =
-    busy === "sync"
-      ? t("sync.statusSyncing")
-      : profile.lastStatus === "ok"
-        ? t("sync.statusOk")
-        : profile.lastStatus === "error"
-          ? t("sync.statusError")
-          : t("sync.statusIdle");
+  const syncing = busy === "sync" || progress !== null;
+  const statusLabel = syncing
+    ? t("sync.statusSyncing")
+    : profile.lastStatus === "ok"
+      ? t("sync.statusOk")
+      : profile.lastStatus === "error"
+        ? t("sync.statusError")
+        : t("sync.statusIdle");
 
   const update = (patch: Partial<CloudSyncProfile>) => {
     setForm((current) => mergeCloudSyncProfile({ ...current, ...patch }));
@@ -163,11 +226,11 @@ export function CloudSyncPanel() {
         </div>
         {section === "status" ? (
           <IconButton
-            disabled={busy !== null || !desktop}
-            label={busy === "sync" ? t("sync.syncing") : t("sync.syncNow")}
+            disabled={busy !== null || syncing || !desktop}
+            label={syncing ? t("sync.syncing") : t("sync.syncNow")}
             onClick={() => void onSync()}
           >
-            {busy === "sync" ? (
+            {syncing ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
               <RefreshCw className="h-4 w-4" />
@@ -193,7 +256,7 @@ export function CloudSyncPanel() {
             <>
               <div
                 className="cloud-sync-summary"
-                data-status={busy === "sync" ? "syncing" : profile.lastStatus}
+                data-status={syncing ? "syncing" : profile.lastStatus}
               >
                 <div className="cloud-sync-row">
                   <strong>{statusLabel}</strong>
@@ -217,9 +280,10 @@ export function CloudSyncPanel() {
                     .filter(Boolean)
                     .join(" · ")}
                 </p>
+                {progress ? <SyncProgress progress={progress} /> : null}
               </div>
 
-              {profile.lastReport && (
+              {profile.lastReport && !syncing && (
                 <div className="cloud-sync-stats">
                   <div className="cloud-sync-stat">
                     <strong>{profile.lastReport.uploaded}</strong>
@@ -239,19 +303,19 @@ export function CloudSyncPanel() {
                   </div>
                 </div>
               )}
-              {profile.lastReport && profile.lastReport.conflicts > 0 && (
+              {profile.lastReport && !syncing && profile.lastReport.conflicts > 0 && (
                 <p className="cloud-sync-hint">{t("sync.conflicts", { count: profile.lastReport.conflicts })}</p>
               )}
-              {profile.lastReport && profile.lastReport.errors.length > 0 && (
+              {profile.lastReport && !syncing && profile.lastReport.errors.length > 0 && (
                 <p className="cloud-sync-hint">{t("sync.fileErrors", { count: profile.lastReport.errors.length })}</p>
               )}
               <Button
-                disabled={busy !== null || !desktop}
+                disabled={busy !== null || syncing || !desktop}
                 onClick={() => void onSync()}
                 size="sm"
                 variant="primary"
               >
-                {busy === "sync" ? t("sync.syncing") : t("sync.syncNow")}
+                {syncing ? t("sync.syncing") : t("sync.syncNow")}
               </Button>
               <p className="cloud-sync-hint">{t("sync.autoHint")}</p>
             </>

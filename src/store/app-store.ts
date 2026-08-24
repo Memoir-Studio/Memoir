@@ -24,6 +24,7 @@ import {
   cloudSyncChangedActiveNote,
   cloudSyncTouchedLocal,
   defaultCloudSyncProfile,
+  initialCloudSyncProgress,
   mergeCloudSyncProfile,
   type CloudSyncProfileInput,
 } from "../domain/cloud-sync";
@@ -150,6 +151,7 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
   let cloudSyncTimer: number | null = null;
   let cloudSyncInFlight = false;
   let cloudSyncPending = false;
+  let cloudSyncProgressWatch: Promise<void> | null = null;
   let metadataTimer: number | null = null;
   let metadataPath: string | null = null;
 
@@ -271,6 +273,17 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
       const state = get();
       if (!state.workspaceRoot || !state.cloudSyncProfile.enabled) return;
       await get().runCloudSync();
+    };
+
+    const ensureCloudSyncProgressWatch = () => {
+      if (cloudSyncProgressWatch) return;
+      cloudSyncProgressWatch = gateways.cloudSync
+        .watchProgress((progress) => {
+          if (!cloudSyncInFlight) return;
+          set({ cloudSyncProgress: progress });
+        })
+        .then(() => undefined)
+        .catch(() => undefined);
     };
 
     const loadCloudSyncProfile = async (root: string | null) => {
@@ -400,9 +413,11 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
       settingsOpen: false,
       settingsSection: "appearance",
       cloudSyncProfile: defaultCloudSyncProfile(),
+      cloudSyncProgress: null,
       mobilePanel: "editor",
 
       async initialize() {
+        ensureCloudSyncProgressWatch();
         try {
           const appState = await gateways.persistence.loadAppState();
           const settings = mergeSettings(appState.preferences);
@@ -1017,7 +1032,9 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
           cloudSyncPending = true;
           return null;
         }
+        ensureCloudSyncProgressWatch();
         cloudSyncInFlight = true;
+        set({ cloudSyncProgress: initialCloudSyncProgress() });
         const unsaved = isOpenUnsavedNote(get());
         const activePath = get().activePath;
         try {
@@ -1045,6 +1062,7 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
           throw error;
         } finally {
           cloudSyncInFlight = false;
+          set({ cloudSyncProgress: null });
           if (cloudSyncPending) {
             cloudSyncPending = false;
             void get().runCloudSync();

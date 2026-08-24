@@ -17,6 +17,7 @@ import type {
   CloudSyncProbe,
   CloudSyncProfile,
   CloudSyncProfileInput,
+  CloudSyncProgress,
   CloudSyncRunResult,
 } from "../domain/cloud-sync";
 
@@ -81,6 +82,7 @@ export interface CloudSyncGateway {
   saveProfile(workspaceRoot: string, profile: CloudSyncProfileInput): Promise<CloudSyncProfile>;
   testConnection(profile: CloudSyncProfileInput): Promise<CloudSyncProbe>;
   runSync(workspaceRoot: string, profile?: CloudSyncProfileInput): Promise<CloudSyncRunResult>;
+  watchProgress(onProgress: (progress: CloudSyncProgress) => void): Promise<() => void>;
 }
 
 export type AppGateways = {

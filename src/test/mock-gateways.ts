@@ -21,6 +21,7 @@ import {
   type CloudSyncProfile,
   type CloudSyncProfileInput,
   type CloudSyncProbe,
+  type CloudSyncProgress,
   type CloudSyncReport,
   type CloudSyncRunResult,
 } from "../domain/cloud-sync";
@@ -357,6 +358,7 @@ export class MockCloudSyncGateway implements CloudSyncGateway {
   nextProbe: CloudSyncProbe = { ok: true, message: "Connected." };
   runHold: Promise<void> | null = null;
   runCalls = 0;
+  progressListeners: Array<(progress: CloudSyncProgress) => void> = [];
   nextReport: CloudSyncReport = {
     uploaded: 1,
     downloaded: 0,
@@ -405,6 +407,17 @@ export class MockCloudSyncGateway implements CloudSyncGateway {
     });
     this.profiles.set(workspaceRoot, next);
     return { profile: next, report: this.nextReport };
+  }
+
+  async watchProgress(onProgress: (progress: CloudSyncProgress) => void) {
+    this.progressListeners.push(onProgress);
+    return () => {
+      this.progressListeners = this.progressListeners.filter((listener) => listener !== onProgress);
+    };
+  }
+
+  emitProgress(progress: CloudSyncProgress) {
+    for (const listener of this.progressListeners) listener(progress);
   }
 }
 

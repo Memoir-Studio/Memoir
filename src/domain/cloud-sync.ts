@@ -3,6 +3,22 @@ export type CloudProviderId = (typeof CLOUD_PROVIDER_IDS)[number];
 
 export type CloudSyncStatus = "idle" | "ok" | "error";
 
+export const CLOUD_SYNC_PROGRESS_EVENT = "cloud-sync-progress";
+
+export const CLOUD_SYNC_PHASES = ["scanning", "listing", "planning", "working", "finishing"] as const;
+export type CloudSyncPhase = (typeof CLOUD_SYNC_PHASES)[number];
+
+export const CLOUD_SYNC_ACTIONS = ["upload", "download", "deleteRemote", "deleteLocal"] as const;
+export type CloudSyncAction = (typeof CLOUD_SYNC_ACTIONS)[number];
+
+export type CloudSyncProgress = {
+  phase: CloudSyncPhase;
+  path: string | null;
+  action: CloudSyncAction | null;
+  current: number;
+  total: number;
+};
+
 export type WebDavSettings = {
   url: string;
   username: string;
@@ -82,6 +98,36 @@ export function isCloudProviderId(value: unknown): value is CloudProviderId {
 
 export function isCloudSyncStatus(value: unknown): value is CloudSyncStatus {
   return value === "idle" || value === "ok" || value === "error";
+}
+
+export function isCloudSyncPhase(value: unknown): value is CloudSyncPhase {
+  return CLOUD_SYNC_PHASES.includes(value as CloudSyncPhase);
+}
+
+export function isCloudSyncAction(value: unknown): value is CloudSyncAction {
+  return CLOUD_SYNC_ACTIONS.includes(value as CloudSyncAction);
+}
+
+export function initialCloudSyncProgress(): CloudSyncProgress {
+  return { phase: "scanning", path: null, action: null, current: 0, total: 0 };
+}
+
+export function mergeCloudSyncProgress(
+  progress?: Partial<CloudSyncProgress> | null,
+): CloudSyncProgress | null {
+  if (!progress || !isCloudSyncPhase(progress.phase)) return null;
+  return {
+    phase: progress.phase,
+    path: asTrimmedString(progress.path) || null,
+    action: isCloudSyncAction(progress.action) ? progress.action : null,
+    current: Math.max(0, asFiniteNumber(progress.current) ?? 0),
+    total: Math.max(0, asFiniteNumber(progress.total) ?? 0),
+  };
+}
+
+export function cloudSyncProgressRatio(progress: CloudSyncProgress): number | null {
+  if (progress.total <= 0) return null;
+  return Math.min(1, progress.current / progress.total);
 }
 
 function asTrimmedString(value: unknown): string {

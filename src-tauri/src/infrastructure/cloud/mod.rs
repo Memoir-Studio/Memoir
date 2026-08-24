@@ -1,7 +1,9 @@
 pub mod webdav;
 
 use crate::domain::{
-    cloud_sync::{validate_profile_for_connect, CloudSyncProfile, FileIdentity, WEBDAV_PROVIDER_ID},
+    cloud_sync::{
+        validate_profile_for_connect, CloudSyncProfile, FileIdentity, WEBDAV_PROVIDER_ID,
+    },
     AppError, AppResult,
 };
 use webdav::WebDavProvider;
@@ -11,6 +13,13 @@ pub trait CloudProvider: Send + Sync {
     fn id(&self) -> &'static str;
     fn probe(&self) -> AppResult<()>;
     fn list(&self) -> AppResult<Vec<FileIdentity>>;
+    fn list_with_progress(
+        &self,
+        on_progress: &(dyn Fn(&str) + Send + Sync),
+    ) -> AppResult<Vec<FileIdentity>> {
+        let _ = on_progress;
+        self.list()
+    }
     fn get(&self, relative_path: &str) -> AppResult<Vec<u8>>;
     fn put(&self, relative_path: &str, bytes: &[u8]) -> AppResult<FileIdentity>;
     fn delete(&self, relative_path: &str) -> AppResult<()>;

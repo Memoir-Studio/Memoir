@@ -14,6 +14,7 @@ afterEach(() => {
   useAppStore.setState({
     workspaceRoot: null,
     cloudSyncProfile: defaultCloudSyncProfile(),
+    cloudSyncProgress: null,
     error: "",
   });
 });
@@ -142,5 +143,36 @@ describe("CloudSyncPanel", () => {
     const syncButtons = view.getAllByRole("button", { name: "立即同步" });
     await user.click(syncButtons[syncButtons.length - 1]);
     expect(runCloudSync).toHaveBeenCalledWith();
+  });
+
+  it("shows a progress bar and the file currently transferring", () => {
+    useAppStore.setState({
+      workspaceRoot: "/workspace",
+      cloudSyncProfile: {
+        ...defaultCloudSyncProfile(),
+        enabled: true,
+        webdav: {
+          url: "https://dav.example/dav",
+          username: "ada",
+          password: "secret",
+          insecureTls: false,
+        },
+      },
+      cloudSyncProgress: {
+        phase: "working",
+        path: "attachments/2026-08/shot.png",
+        action: "upload",
+        current: 3,
+        total: 10,
+      },
+    });
+    const view = render(<CloudSyncPanel />);
+    expect(view.getByText("同步中")).toBeInTheDocument();
+    expect(view.getByText("正在上传 attachments/2026-08/shot.png")).toBeInTheDocument();
+    expect(view.getByText("3 / 10")).toBeInTheDocument();
+    expect(view.getByRole("progressbar", { name: "同步进度" })).toHaveAttribute("aria-valuenow", "30");
+    for (const button of view.getAllByRole("button", { name: "正在同步…" })) {
+      expect(button).toBeDisabled();
+    }
   });
 });

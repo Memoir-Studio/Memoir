@@ -5,8 +5,8 @@ use crate::{
             action_as_transfer, conflict_sidecar_path, is_conflict_sidecar, merge_local_dir_cache,
             now_ms, plan_file, sanitize_profile, snapshot_from_identities,
             validate_profile_for_connect, CloudSyncFileError, CloudSyncProbe, CloudSyncProfile,
-            CloudSyncReport, CloudSyncRunResult, FileIdentity, LocalDirCacheEntry, SyncAction,
-            SyncSnapshot,
+            CloudSyncProgress, CloudSyncReport, CloudSyncRunResult, FileIdentity,
+            LocalDirCacheEntry, SyncAction, SyncSnapshot,
         },
         path::normalize_workspace_key,
         AppError, AppResult, ErrorCode,
@@ -21,9 +21,55 @@ use crate::{
 };
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::Path;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Mutex;
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
 use std::thread;
+use std::time::{Duration, Instant};
+
+const PROGRESS_THROTTLE: Duration = Duration::from_millis(80);
+
+pub type CloudSyncProgressSink = Arc<dyn Fn(CloudSyncProgress) + Send + Sync>;
+
+struct ProgressReporter {
+    sink: Option<CloudSyncProgressSink>,
+    last: Mutex<Option<Instant>>,
+}
+
+impl ProgressReporter {
+    fn new(sink: Option<CloudSyncProgressSink>) -> Self {
+        Self {
+            sink,
+            last: Mutex::new(None),
+        }
+    }
+
+    fn emit(&self, progress: CloudSyncProgress) {
+        let Some(sink) = &self.sink else {
+            return;
+        };
+        if let Ok(mut last) = self.last.lock() {
+            *last = Some(Instant::now());
+        }
+        sink(progress);
+    }
+
+    fn emit_throttled(&self, progress: CloudSyncProgress) {
+        let Some(sink) = &self.sink else {
+            return;
+        };
+        let now = Instant::now();
+        {
+            let mut last = self.last.lock().unwrap_or_else(|error| error.into_inner());
+            if let Some(previous) = *last {
+                if now.duration_since(previous) < PROGRESS_THROTTLE {
+                    return;
+                }
+            }
+            *last = Some(now);
+        }
+        sink(progress);
+    }
+}
 
 const TRANSFER_PARALLELISM: usize = 4;
 
@@ -88,6 +134,7 @@ impl CloudSyncService {
         &self,
         workspace_root: &str,
         profile: Option<CloudSyncProfile>,
+        on_progress: Option<CloudSyncProgressSink>,
     ) -> AppResult<CloudSyncRunResult> {
         let workspace_key =
             normalize_workspace_key(workspace_root).unwrap_or_else(|_| workspace_root.to_string());
@@ -103,7 +150,7 @@ impl CloudSyncService {
         }
         validate_profile_for_connect(&profile)?;
         let provider = provider_from_profile(&profile)?;
-        match self.run_sync_with(workspace_root, provider.as_ref()) {
+        match self.run_sync_with_progress(workspace_root, provider.as_ref(), on_progress) {
             Ok(report) => {
                 profile.last_sync_ms = Some(report.completed_ms);
                 profile.last_status = Some("ok".into());
@@ -127,12 +174,32 @@ impl CloudSyncService {
         workspace_root: &str,
         provider: &dyn CloudProvider,
     ) -> AppResult<CloudSyncReport> {
+        self.run_sync_with_progress(workspace_root, provider, None)
+    }
+
+    pub fn run_sync_with_progress(
+        &self,
+        workspace_root: &str,
+        provider: &dyn CloudProvider,
+        on_progress: Option<CloudSyncProgressSink>,
+    ) -> AppResult<CloudSyncReport> {
+        let reporter = ProgressReporter::new(on_progress);
         let started_ms = now_ms();
         let workspace_key =
             normalize_workspace_key(workspace_root).unwrap_or_else(|_| workspace_root.to_string());
+        reporter.emit(CloudSyncProgress::phase("scanning"));
         let snapshot = self.app_data.load_sync_snapshot(&workspace_key)?;
         let (local_files, attachment_walk) = self.list_local_files(workspace_root, &snapshot)?;
-        let remote_files = provider.list()?;
+        reporter.emit(CloudSyncProgress::phase("listing"));
+        let remote_files = provider.list_with_progress(&|folder| {
+            reporter.emit_throttled(CloudSyncProgress {
+                phase: "listing".into(),
+                path: nonempty_path(folder),
+                action: None,
+                current: 0,
+                total: 0,
+            });
+        })?;
         let local_map = index_files(local_files);
         let remote_map = index_files(remote_files);
         let mut paths = BTreeSet::new();
@@ -150,11 +217,26 @@ impl CloudSyncService {
         let mut next_snapshot = snapshot.clone();
         let mut hashed_locals: HashMap<String, FileIdentity> = HashMap::new();
         let mut transfers: Vec<TransferJob> = Vec::new();
+        let plan_total = ordered.len() as u64;
+        reporter.emit(CloudSyncProgress {
+            phase: "planning".into(),
+            path: None,
+            action: None,
+            current: 0,
+            total: plan_total,
+        });
 
-        for path in ordered {
+        for (index, path) in ordered.into_iter().enumerate() {
             if is_conflict_sidecar(&path) {
                 continue;
             }
+            reporter.emit_throttled(CloudSyncProgress {
+                phase: "planning".into(),
+                path: Some(path.clone()),
+                action: None,
+                current: index as u64,
+                total: plan_total,
+            });
             let remote = remote_map.get(&path);
             let snap = snapshot.files.get(&path);
             if let Some(hashed) =
@@ -183,6 +265,13 @@ impl CloudSyncService {
                     remote: remote.cloned(),
                 }),
                 SyncAction::DeleteRemote | SyncAction::DeleteLocal => {
+                    reporter.emit(CloudSyncProgress {
+                        phase: "planning".into(),
+                        path: Some(path.clone()),
+                        action: action_name(action).map(str::to_string),
+                        current: index as u64,
+                        total: plan_total,
+                    });
                     match self.apply_action(workspace_root, provider, &path, action, local, remote)
                     {
                         Ok(ApplyResult::DeletedRemote) => {
@@ -221,8 +310,10 @@ impl CloudSyncService {
             transfers,
             &mut report,
             &mut next_snapshot,
+            &reporter,
         )?;
 
+        reporter.emit(CloudSyncProgress::phase("finishing"));
         next_snapshot.local_dirs = merge_local_dir_cache(
             &snapshot.local_dirs,
             &attachment_walk
@@ -271,6 +362,7 @@ impl CloudSyncService {
         jobs: Vec<TransferJob>,
         report: &mut CloudSyncReport,
         next_snapshot: &mut SyncSnapshot,
+        reporter: &ProgressReporter,
     ) -> AppResult<()> {
         if jobs.is_empty() {
             return Ok(());
@@ -284,17 +376,32 @@ impl CloudSyncService {
             .into_iter()
             .filter(|job| sync_rank(&job.path) == 1)
             .collect::<Vec<_>>();
+        let total = (attachment_jobs.len() + note_jobs.len()) as u64;
+        let completed = AtomicU64::new(0);
         self.apply_transfer_rank(
             workspace_root,
             provider,
             attachment_jobs,
             report,
             next_snapshot,
+            reporter,
+            &completed,
+            total,
         );
-        self.apply_transfer_rank(workspace_root, provider, note_jobs, report, next_snapshot);
+        self.apply_transfer_rank(
+            workspace_root,
+            provider,
+            note_jobs,
+            report,
+            next_snapshot,
+            reporter,
+            &completed,
+            total,
+        );
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn apply_transfer_rank(
         &self,
         workspace_root: &str,
@@ -302,12 +409,21 @@ impl CloudSyncService {
         jobs: Vec<TransferJob>,
         report: &mut CloudSyncReport,
         next_snapshot: &mut SyncSnapshot,
+        reporter: &ProgressReporter,
+        completed: &AtomicU64,
+        total: u64,
     ) {
         if jobs.is_empty() {
             return;
         }
         if jobs.len() == 1 {
             let job = &jobs[0];
+            reporter.emit(working_progress(
+                &job.path,
+                job.action,
+                completed.load(Ordering::Relaxed),
+                total,
+            ));
             self.record_transfer(
                 &job.path,
                 self.apply_action(
@@ -321,6 +437,8 @@ impl CloudSyncService {
                 report,
                 next_snapshot,
             );
+            let done = completed.fetch_add(1, Ordering::Relaxed) + 1;
+            reporter.emit(working_progress(&job.path, job.action, done, total));
             return;
         }
 
@@ -335,6 +453,12 @@ impl CloudSyncService {
                         break;
                     }
                     let job = &jobs[index];
+                    reporter.emit(working_progress(
+                        &job.path,
+                        job.action,
+                        completed.load(Ordering::Relaxed),
+                        total,
+                    ));
                     let result = self.apply_action(
                         workspace_root,
                         provider,
@@ -343,6 +467,8 @@ impl CloudSyncService {
                         job.local.as_ref(),
                         job.remote.as_ref(),
                     );
+                    let done = completed.fetch_add(1, Ordering::Relaxed) + 1;
+                    reporter.emit(working_progress(&job.path, job.action, done, total));
                     outcomes
                         .lock()
                         .expect("transfer outcomes")
@@ -508,6 +634,35 @@ fn sync_rank(path: &str) -> u8 {
         0
     } else {
         1
+    }
+}
+
+fn action_name(action: SyncAction) -> Option<&'static str> {
+    match action {
+        SyncAction::Upload => Some("upload"),
+        SyncAction::Download => Some("download"),
+        SyncAction::DeleteRemote => Some("deleteRemote"),
+        SyncAction::DeleteLocal => Some("deleteLocal"),
+        SyncAction::Skip | SyncAction::Conflict(_) => None,
+    }
+}
+
+fn nonempty_path(path: &str) -> Option<String> {
+    let trimmed = path.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_string())
+    }
+}
+
+fn working_progress(path: &str, action: SyncAction, current: u64, total: u64) -> CloudSyncProgress {
+    CloudSyncProgress {
+        phase: "working".into(),
+        path: Some(path.to_string()),
+        action: action_name(action).map(str::to_string),
+        current,
+        total,
     }
 }
 
@@ -879,6 +1034,41 @@ mod tests {
             "expected overlapping uploads, max {}",
             provider.max_in_flight()
         );
+    }
+
+    #[test]
+    fn reports_scan_list_plan_and_working_progress() {
+        let (_dir, service, root) = setup();
+        fs::write(std::path::Path::new(&root).join("local.md"), "# Local").unwrap();
+        let provider = MemoryProvider::new();
+        provider.insert("remote.md", b"# Remote", 50);
+        let events = std::sync::Arc::new(Mutex::new(Vec::new()));
+        let sink_events = events.clone();
+        let report = service
+            .run_sync_with_progress(
+                &root,
+                &provider,
+                Some(std::sync::Arc::new(move |progress| {
+                    sink_events.lock().unwrap().push(progress);
+                })),
+            )
+            .unwrap();
+        assert_eq!(report.uploaded, 1);
+        assert_eq!(report.downloaded, 1);
+        let events = events.lock().unwrap();
+        let phases: Vec<_> = events.iter().map(|event| event.phase.as_str()).collect();
+        assert!(phases.contains(&"scanning"));
+        assert!(phases.contains(&"listing"));
+        assert!(phases.contains(&"planning"));
+        assert!(phases.contains(&"working"));
+        assert!(phases.contains(&"finishing"));
+        assert!(events.iter().any(|event| {
+            event.path.as_deref() == Some("local.md") && event.action.as_deref() == Some("upload")
+        }));
+        assert!(events.iter().any(|event| {
+            event.path.as_deref() == Some("remote.md")
+                && event.action.as_deref() == Some("download")
+        }));
     }
 
     #[test]

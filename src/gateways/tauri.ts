@@ -11,11 +11,14 @@ import type { WorkspaceIndexInfo } from "../domain/index-info";
 import type { NoteGraph } from "../domain/note-links";
 import type { LibraryPage, LibraryQuery, RawNoteFile, RenamedNote } from "../domain/notes";
 import type { AppSettings } from "../domain/settings";
-import type {
-  CloudSyncProbe,
-  CloudSyncProfile,
-  CloudSyncProfileInput,
-  CloudSyncRunResult,
+import {
+  CLOUD_SYNC_PROGRESS_EVENT,
+  mergeCloudSyncProgress,
+  type CloudSyncProbe,
+  type CloudSyncProfile,
+  type CloudSyncProfileInput,
+  type CloudSyncProgress,
+  type CloudSyncRunResult,
 } from "../domain/cloud-sync";
 import { mapGatewayError } from "../domain/errors";
 import type {
@@ -237,6 +240,15 @@ export class TauriCloudSyncGateway implements CloudSyncGateway {
 
   runSync(workspaceRoot: string, profile?: CloudSyncProfileInput) {
     return call<CloudSyncRunResult>("run_cloud_sync", { workspaceRoot, profile });
+  }
+
+  async watchProgress(onProgress: (progress: CloudSyncProgress) => void) {
+    const { listen } = await import("@tauri-apps/api/event");
+    const unlisten = await listen<CloudSyncProgress>(CLOUD_SYNC_PROGRESS_EVENT, (event) => {
+      const next = mergeCloudSyncProgress(event.payload);
+      if (next) onProgress(next);
+    });
+    return unlisten;
   }
 }
 

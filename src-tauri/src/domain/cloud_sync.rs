@@ -10,6 +10,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 pub const CLOUD_SYNC_SNAPSHOT_VERSION: u32 = 1;
 pub const WEBDAV_PROVIDER_ID: &str = "webdav";
+pub const CLOUD_SYNC_PROGRESS_EVENT: &str = "cloud-sync-progress";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "camelCase")]
@@ -54,6 +55,30 @@ pub struct CloudSyncReport {
     pub duration_ms: u64,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub changed_local_paths: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct CloudSyncProgress {
+    #[serde(default)]
+    pub phase: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub action: Option<String>,
+    #[serde(default)]
+    pub current: u64,
+    #[serde(default)]
+    pub total: u64,
+}
+
+impl CloudSyncProgress {
+    pub fn phase(phase: &str) -> Self {
+        Self {
+            phase: phase.into(),
+            ..Self::default()
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

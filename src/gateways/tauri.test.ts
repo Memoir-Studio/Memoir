@@ -5,6 +5,7 @@ const open = vi.fn();
 const save = vi.fn();
 const openPath = vi.fn();
 const revealItemInDir = vi.fn();
+const listen = vi.fn();
 
 vi.mock("@tauri-apps/api/core", () => ({
   invoke,
@@ -16,6 +17,9 @@ vi.mock("@tauri-apps/plugin-opener", () => ({
   openUrl: vi.fn(),
   revealItemInDir,
 }));
+vi.mock("@tauri-apps/api/event", () => ({
+  listen,
+}));
 
 describe("Tauri gateways", () => {
   beforeEach(() => {
@@ -24,6 +28,7 @@ describe("Tauri gateways", () => {
     save.mockReset();
     openPath.mockReset();
     revealItemInDir.mockReset();
+    listen.mockReset();
   });
 
   it("uses camelCase DTOs for workspace commands", async () => {
@@ -253,6 +258,36 @@ describe("Tauri gateways", () => {
     });
     await gateway.runSync("/notes", profile);
     expect(invoke).toHaveBeenCalledWith("run_cloud_sync", { workspaceRoot: "/notes", profile });
+  });
+
+  it("forwards cloud sync progress events", async () => {
+    const { TauriCloudSyncGateway } = await import("./tauri");
+    const unlisten = vi.fn();
+    listen.mockImplementation(async (_event: string, handler: (event: { payload: unknown }) => void) => {
+      handler({
+        payload: {
+          phase: "working",
+          path: "a.md",
+          action: "upload",
+          current: 1,
+          total: 4,
+        },
+      });
+      return unlisten;
+    });
+    const onProgress = vi.fn();
+    const gateway = new TauriCloudSyncGateway();
+    const stop = await gateway.watchProgress(onProgress);
+    expect(listen).toHaveBeenCalledWith("cloud-sync-progress", expect.any(Function));
+    expect(onProgress).toHaveBeenCalledWith({
+      phase: "working",
+      path: "a.md",
+      action: "upload",
+      current: 1,
+      total: 4,
+    });
+    stop();
+    expect(unlisten).toHaveBeenCalled();
   });
 
   it("asks draftsExist with camelCase arguments", async () => {

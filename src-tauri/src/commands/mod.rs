@@ -2,8 +2,8 @@ use crate::{
     domain::{
         attachment::ATTACHMENTS_DIR, AppError, AppSettings, AppState, AppUpdateCheck,
         AttachmentFile, CloudSyncProbe, CloudSyncProfile, CloudSyncRunResult, FolderAppearance,
-        LegacyStatePayload, LibraryPage, LibraryQuery, MigrationResult, NoteFile, RenamedNote,
-        NoteGraph, WorkspaceIndexInfo, WorkspaceLayout,
+        LegacyStatePayload, LibraryPage, LibraryQuery, MigrationResult, NoteFile, NoteGraph,
+        RenamedNote, WorkspaceIndexInfo, WorkspaceLayout,
     },
     infrastructure::github_releases,
     services::{AppStateService, CloudSyncService, WorkspaceService},
@@ -11,7 +11,7 @@ use crate::{
 };
 use std::path::PathBuf;
 use std::sync::Arc;
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 fn allow_workspace_media(app: &AppHandle, root: &str) {
     let path = PathBuf::from(root);
@@ -390,17 +390,26 @@ pub async fn test_cloud_sync(
 
 #[tauri::command]
 pub async fn run_cloud_sync(
+    app: AppHandle,
     services: State<'_, AppServices>,
     workspace_root: String,
     profile: Option<CloudSyncProfile>,
 ) -> Result<CloudSyncRunResult, AppError> {
     let cloud_sync = services.cloud_sync.clone();
-    tauri::async_runtime::spawn_blocking(move || cloud_sync.run_sync(&workspace_root, profile))
-        .await
-        .map_err(|error| {
-            AppError::new(crate::domain::ErrorCode::Io, "Cloud sync interrupted.")
-                .with_details(error.to_string())
-        })?
+    tauri::async_runtime::spawn_blocking(move || {
+        cloud_sync.run_sync(
+            &workspace_root,
+            profile,
+            Some(Arc::new(move |progress| {
+                let _ = app.emit(crate::domain::CLOUD_SYNC_PROGRESS_EVENT, progress);
+            })),
+        )
+    })
+    .await
+    .map_err(|error| {
+        AppError::new(crate::domain::ErrorCode::Io, "Cloud sync interrupted.")
+            .with_details(error.to_string())
+    })?
 }
 
 #[tauri::command]

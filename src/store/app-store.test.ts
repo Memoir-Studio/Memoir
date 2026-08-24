@@ -572,6 +572,56 @@ describe("app store actions", () => {
     expect(gateways.cloudSync.runCalls).toBe(2);
   });
 
+  it("exposes live cloud sync progress while a run is in flight", async () => {
+    const gateways = createMockGateways();
+    let release!: () => void;
+    gateways.cloudSync.runHold = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const store = createAppStore(gateways);
+    await store.getState().openWorkspace("/workspace");
+    await store.getState().saveCloudSyncProfile({
+      enabled: true,
+      provider: "webdav",
+      remotePrefix: "Memoir",
+      webdav: {
+        url: "https://dav.example/dav",
+        username: "ada",
+        password: "secret",
+        insecureTls: false,
+      },
+    });
+
+    const first = store.getState().runCloudSync();
+    await Promise.resolve();
+    expect(store.getState().cloudSyncProgress).toEqual({
+      phase: "scanning",
+      path: null,
+      action: null,
+      current: 0,
+      total: 0,
+    });
+    for (let i = 0; i < 10 && gateways.cloudSync.progressListeners.length === 0; i += 1) {
+      await Promise.resolve();
+    }
+    gateways.cloudSync.emitProgress({
+      phase: "working",
+      path: "journal/day.md",
+      action: "upload",
+      current: 2,
+      total: 8,
+    });
+    expect(store.getState().cloudSyncProgress).toMatchObject({
+      phase: "working",
+      path: "journal/day.md",
+      current: 2,
+      total: 8,
+    });
+    release();
+    await first;
+    expect(store.getState().cloudSyncProgress).toBeNull();
+  });
+
   it("marks dirty on body-only edits without remapping title on every call", async () => {
     const gateways = createMockGateways();
     const store = createAppStore(gateways);

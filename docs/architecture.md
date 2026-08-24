@@ -98,7 +98,7 @@ Cloud sync commands:
 - `get_cloud_sync_profile`
 - `save_cloud_sync_profile`
 - `test_cloud_sync`
-- `run_cloud_sync`
+- `run_cloud_sync` — two-way WebDAV sync; emits `cloud-sync-progress` (`scanning` / `listing` / `planning` / `working` / `finishing`, plus the current path) while the run is in flight
 
 These are not commands. They go through plugins or Tauri helpers, still behind `WorkspaceGateway`:
 

@@ -172,7 +172,14 @@ impl WebDavProvider {
         parse_multistatus(&xml)
     }
 
-    fn list_recursive(&self, url: &Url, out: &mut Vec<FileIdentity>) -> AppResult<()> {
+    fn list_recursive(
+        &self,
+        url: &Url,
+        out: &mut Vec<FileIdentity>,
+        on_progress: &(dyn Fn(&str) + Send + Sync),
+    ) -> AppResult<()> {
+        let folder = href_to_relative(&self.base, url.as_str()).unwrap_or_default();
+        on_progress(&folder);
         let items = self.propfind(url, "1")?;
         self.remember_collections_from(&items);
         for item in items {
@@ -183,7 +190,7 @@ impl WebDavProvider {
                 if relative.is_empty() {
                     continue;
                 }
-                self.list_recursive(&join_remote(&self.base, &relative)?, out)?;
+                self.list_recursive(&join_remote(&self.base, &relative)?, out, on_progress)?;
                 continue;
             }
             if !is_syncable_relative(&relative) {
@@ -272,8 +279,16 @@ impl CloudProvider for WebDavProvider {
     }
 
     fn list(&self) -> AppResult<Vec<FileIdentity>> {
+        self.list_with_progress(&|_| {})
+    }
+
+    fn list_with_progress(
+        &self,
+        on_progress: &(dyn Fn(&str) + Send + Sync),
+    ) -> AppResult<Vec<FileIdentity>> {
         self.ensure_base_collection()?;
         self.session.listed.store(true, Ordering::Relaxed);
+        on_progress("");
         let mode = *self
             .session
             .depth_mode
@@ -285,7 +300,7 @@ impl CloudProvider for WebDavProvider {
             }
         }
         let mut files = Vec::new();
-        self.list_recursive(&self.base, &mut files)?;
+        self.list_recursive(&self.base, &mut files, on_progress)?;
         Ok(files)
     }
 

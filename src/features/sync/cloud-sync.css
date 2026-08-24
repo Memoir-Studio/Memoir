@@ -144,3 +144,61 @@
   color: var(--memoir-muted);
   font-size: 10px;
 }
+
+.cloud-sync-progress {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.cloud-sync-progress-track {
+  height: 4px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--memoir-accent) 16%, var(--memoir-border));
+}
+
+.cloud-sync-progress-bar {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--memoir-accent);
+  transition: width 160ms var(--memoir-ease);
+}
+
+.cloud-sync-progress-bar[data-indeterminate="true"] {
+  width: 38%;
+  animation: cloud-sync-indet 1.15s ease-in-out infinite;
+}
+
+@keyframes cloud-sync-indet {
+  0% {
+    transform: translateX(-130%);
+  }
+  100% {
+    transform: translateX(280%);
+  }
+}
+
+.cloud-sync-progress-meta {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: start;
+}
+
+.cloud-sync-progress-file {
+  margin: 0;
+  color: var(--memoir-text);
+  font-size: 11px;
+  line-height: 1.45;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cloud-sync-progress-count {
+  color: var(--memoir-muted);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}

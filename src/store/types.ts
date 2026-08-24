@@ -12,6 +12,7 @@ import type {
   CloudSyncProbe,
   CloudSyncProfile,
   CloudSyncProfileInput,
+  CloudSyncProgress,
   CloudSyncRunResult,
 } from "../domain/cloud-sync";
 import type { WorkspaceLayoutState } from "../domain/layout";
@@ -59,6 +60,7 @@ export type UiSlice = {
   settingsOpen: boolean;
   settingsSection: SettingsSection;
   cloudSyncProfile: CloudSyncProfile;
+  cloudSyncProgress: CloudSyncProgress | null;
   mobilePanel: "editor" | "library" | "navigation";
 };
 

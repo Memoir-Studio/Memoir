@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   cloudSyncChangedActiveNote,
+  cloudSyncProgressRatio,
   cloudSyncTouchedLocal,
   defaultCloudSyncProfile,
   hasCloudSyncCredentials,
   mergeCloudSyncProfile,
+  mergeCloudSyncProgress,
 } from "./cloud-sync";
 
 describe("cloud sync profile", () => {
@@ -72,5 +74,34 @@ describe("cloud sync profile", () => {
         webdav: { ...merged.webdav, url: "https://dav.example/remote.php/dav/" },
       }),
     ).toBe(true);
+  });
+
+  it("parses live sync progress and a determinate ratio", () => {
+    expect(mergeCloudSyncProgress(null)).toBeNull();
+    expect(mergeCloudSyncProgress({ phase: "nope" as never })).toBeNull();
+    const progress = mergeCloudSyncProgress({
+      phase: "working",
+      path: " attachments/shot.png ",
+      action: "upload",
+      current: "3" as unknown as number,
+      total: 10,
+    });
+    expect(progress).toEqual({
+      phase: "working",
+      path: "attachments/shot.png",
+      action: "upload",
+      current: 3,
+      total: 10,
+    });
+    expect(cloudSyncProgressRatio(progress!)).toBe(0.3);
+    expect(
+      cloudSyncProgressRatio({
+        phase: "listing",
+        path: null,
+        action: null,
+        current: 0,
+        total: 0,
+      }),
+    ).toBeNull();
   });
 });

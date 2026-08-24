@@ -28,6 +28,7 @@ import {
   mergeCloudSyncProfile,
   type CloudSyncProfile,
   type CloudSyncProfileInput,
+  type CloudSyncProgress,
 } from "../domain/cloud-sync";
 import { GatewayError } from "../domain/errors";
 import type {
@@ -492,6 +493,10 @@ export class BrowserCloudSyncGateway implements CloudSyncGateway {
       code: "io",
       message: "Cloud sync is only available in the desktop app.",
     });
+  }
+
+  async watchProgress(_onProgress: (progress: CloudSyncProgress) => void) {
+    return () => undefined;
   }
 }
 
