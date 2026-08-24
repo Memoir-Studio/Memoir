@@ -146,12 +146,11 @@ pub fn upgrade_schema(conn: &Connection, version: i32) -> Result<(), ()> {
 /// Rejects any sqlite_master object that is not on the v2 whitelist.
 /// `sqlite_%` names (including `sqlite_autoindex_*`) are excluded from the scan.
 pub fn schema_is_safe(conn: &Connection) -> bool {
-    let mut statement = match conn.prepare(
-        "SELECT type, name FROM sqlite_master WHERE name NOT LIKE 'sqlite_%'",
-    ) {
-        Ok(statement) => statement,
-        Err(_) => return false,
-    };
+    let mut statement =
+        match conn.prepare("SELECT type, name FROM sqlite_master WHERE name NOT LIKE 'sqlite_%'") {
+            Ok(statement) => statement,
+            Err(_) => return false,
+        };
     let rows = statement.query_map([], |row| {
         Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
     });
@@ -171,7 +170,14 @@ pub fn schema_is_safe(conn: &Connection) -> bool {
             return false;
         }
     }
-    for table in ["meta", "notes", "note_tags", "note_links", "dir_cache", "notes_fts"] {
+    for table in [
+        "meta",
+        "notes",
+        "note_tags",
+        "note_links",
+        "dir_cache",
+        "notes_fts",
+    ] {
         let exists: Result<i64, _> = conn.query_row(
             "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?1",
             params![table],
@@ -186,8 +192,9 @@ pub fn schema_is_safe(conn: &Connection) -> bool {
 
 #[cfg(test)]
 pub fn master_objects(conn: &Connection) -> rusqlite::Result<Vec<(String, String)>> {
-    let mut statement =
-        conn.prepare("SELECT type, name FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' ORDER BY type, name")?;
+    let mut statement = conn.prepare(
+        "SELECT type, name FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' ORDER BY type, name",
+    )?;
     let rows = statement.query_map([], |row| {
         Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
     })?;
@@ -225,7 +232,9 @@ mod tests {
             "notes_fts_content",
         ] {
             assert!(
-                objects.iter().any(|(kind, name)| kind == "table" && name == required),
+                objects
+                    .iter()
+                    .any(|(kind, name)| kind == "table" && name == required),
                 "missing FTS object {required}: {objects:?}"
             );
         }
@@ -235,7 +244,8 @@ mod tests {
     fn extra_table_or_trigger_is_hostile() {
         let conn = Connection::open_in_memory().unwrap();
         apply_schema_v2(&conn).unwrap();
-        conn.execute_batch("CREATE TABLE evil (id INTEGER);").unwrap();
+        conn.execute_batch("CREATE TABLE evil (id INTEGER);")
+            .unwrap();
         assert!(!schema_is_safe(&conn));
 
         let conn = Connection::open_in_memory().unwrap();

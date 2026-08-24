@@ -1,6 +1,6 @@
-use super::schema::{schema_is_safe, upgrade_schema, user_version};
 #[cfg(test)]
 use super::schema::{apply_schema_v2, CURRENT_USER_VERSION};
+use super::schema::{schema_is_safe, upgrade_schema, user_version};
 use crate::domain::path::ensure_inside;
 use rusqlite::Connection;
 use std::{

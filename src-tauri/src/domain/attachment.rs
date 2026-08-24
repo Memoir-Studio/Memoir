@@ -4,9 +4,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 pub const ATTACHMENTS_DIR: &str = "attachments";
 pub const MAX_ATTACHMENT_BYTES: usize = 20 * 1024 * 1024;
-pub const ATTACHMENT_EXTENSIONS: [&str; 8] = [
-    "png", "jpg", "jpeg", "gif", "webp", "bmp", "avif", "svg",
-];
+pub const ATTACHMENT_EXTENSIONS: [&str; 8] =
+    ["png", "jpg", "jpeg", "gif", "webp", "bmp", "avif", "svg"];
 
 pub fn is_attachment_extension(extension: &str) -> bool {
     ATTACHMENT_EXTENSIONS.contains(&extension.to_ascii_lowercase().as_str())
@@ -122,11 +121,7 @@ pub fn looks_like_svg(bytes: &[u8]) -> bool {
 
 pub fn sanitize_attachment_file_name(name: &str) -> String {
     let normalized = name.replace('\\', "/");
-    let base = normalized
-        .rsplit('/')
-        .next()
-        .unwrap_or(name)
-        .trim();
+    let base = normalized.rsplit('/').next().unwrap_or(name).trim();
     let mut slug = String::new();
     let mut last_dash = false;
     for character in base.chars() {

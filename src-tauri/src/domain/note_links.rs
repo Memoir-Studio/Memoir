@@ -86,7 +86,9 @@ pub fn extract_note_links(content: &str) -> Vec<RawNoteLink> {
         if full.start() > 0 && visible.as_bytes().get(full.start() - 1) == Some(&b'!') {
             continue;
         }
-        if let Some(parsed) = parse_wiki_inner(captured.get(1).map(|item| item.as_str()).unwrap_or("")) {
+        if let Some(parsed) =
+            parse_wiki_inner(captured.get(1).map(|item| item.as_str()).unwrap_or(""))
+        {
             if remember_link(&mut seen, &parsed) {
                 links.push(parsed);
             }
@@ -334,8 +336,9 @@ fn display_from_ref(target_ref: &str, heading: &str) -> String {
 
 fn is_external_href(href: &str) -> bool {
     static PATTERN: OnceLock<Regex> = OnceLock::new();
-    let pattern = PATTERN
-        .get_or_init(|| Regex::new(r"^(https?:|mailto:|data:|javascript:|ftp:|tel:|#)").expect("static"));
+    let pattern = PATTERN.get_or_init(|| {
+        Regex::new(r"^(https?:|mailto:|data:|javascript:|ftp:|tel:|#)").expect("static")
+    });
     pattern.is_match(href.trim())
 }
 

@@ -1,7 +1,5 @@
 use super::schema::now_ms;
-use crate::domain::{
-    folder_of, resolve_note_ref, NoteFile, NoteLinkIdentity, RawNoteLink,
-};
+use crate::domain::{folder_of, resolve_note_ref, NoteFile, NoteLinkIdentity, RawNoteLink};
 use rusqlite::{params, Connection, OptionalExtension};
 use std::collections::{HashMap, HashSet};
 
@@ -110,9 +108,8 @@ pub fn parse_algo_version(conn: &Connection) -> rusqlite::Result<u32> {
 }
 
 pub fn select_identities(conn: &Connection) -> rusqlite::Result<Vec<NoteIdentityRow>> {
-    let mut statement = conn.prepare(
-        "SELECT relative_path, modified_ms, size, parse_truncated FROM notes",
-    )?;
+    let mut statement =
+        conn.prepare("SELECT relative_path, modified_ms, size, parse_truncated FROM notes")?;
     let rows = statement.query_map([], |row| {
         Ok(NoteIdentityRow {
             relative_path: row.get(0)?,
@@ -154,10 +151,7 @@ pub fn replace_dir_cache(
         let collected = rows.collect::<rusqlite::Result<Vec<_>>>()?;
         collected
     };
-    let mut keep: HashSet<String> = walked
-        .iter()
-        .map(|row| row.relative_dir.clone())
-        .collect();
+    let mut keep: HashSet<String> = walked.iter().map(|row| row.relative_dir.clone()).collect();
     for dir in reused {
         keep.insert(dir.clone());
         for name in &existing {
@@ -168,7 +162,10 @@ pub fn replace_dir_cache(
     }
     for name in existing {
         if !keep.contains(&name) {
-            conn.execute("DELETE FROM dir_cache WHERE relative_dir = ?1", params![name])?;
+            conn.execute(
+                "DELETE FROM dir_cache WHERE relative_dir = ?1",
+                params![name],
+            )?;
         }
     }
     for row in walked {
@@ -230,11 +227,23 @@ pub fn upsert_note(conn: &Connection, row: &NoteRow) -> rusqlite::Result<i64> {
     let id = note_id_for_path(conn, &row.relative_path)?.unwrap_or(conn.last_insert_rowid());
     replace_tags(conn, id, &row.tags)?;
     replace_links(conn, id, &row.links)?;
-    sync_fts(conn, id, &row.title, &row.excerpt, &row.relative_path, &row.tags)?;
+    sync_fts(
+        conn,
+        id,
+        &row.title,
+        &row.excerpt,
+        &row.relative_path,
+        &row.tags,
+    )?;
     Ok(id)
 }
 
-pub fn cas_delete(conn: &Connection, path: &str, modified_ms: i64, size: i64) -> rusqlite::Result<usize> {
+pub fn cas_delete(
+    conn: &Connection,
+    path: &str,
+    modified_ms: i64,
+    size: i64,
+) -> rusqlite::Result<usize> {
     let id = match note_id_for_path(conn, path)? {
         Some(id) => id,
         None => return Ok(0),
@@ -288,7 +297,14 @@ pub fn cas_update(
         if let Some(id) = note_id_for_path(conn, &row.relative_path)? {
             replace_tags(conn, id, &row.tags)?;
             replace_links(conn, id, &row.links)?;
-            sync_fts(conn, id, &row.title, &row.excerpt, &row.relative_path, &row.tags)?;
+            sync_fts(
+                conn,
+                id,
+                &row.title,
+                &row.excerpt,
+                &row.relative_path,
+                &row.tags,
+            )?;
         }
     }
     Ok(affected)
@@ -319,7 +335,14 @@ pub fn insert_ignore(conn: &Connection, row: &NoteRow) -> rusqlite::Result<usize
         if let Some(id) = note_id_for_path(conn, &row.relative_path)? {
             replace_tags(conn, id, &row.tags)?;
             replace_links(conn, id, &row.links)?;
-            sync_fts(conn, id, &row.title, &row.excerpt, &row.relative_path, &row.tags)?;
+            sync_fts(
+                conn,
+                id,
+                &row.title,
+                &row.excerpt,
+                &row.relative_path,
+                &row.tags,
+            )?;
         }
     }
     Ok(affected)
@@ -382,7 +405,10 @@ pub fn replace_links(
     note_id: i64,
     links: &[RawNoteLink],
 ) -> rusqlite::Result<()> {
-    conn.execute("DELETE FROM note_links WHERE source_id = ?1", params![note_id])?;
+    conn.execute(
+        "DELETE FROM note_links WHERE source_id = ?1",
+        params![note_id],
+    )?;
     let mut seen = HashSet::new();
     for link in links {
         let key = (
@@ -489,9 +515,11 @@ mod tests {
         assert!(id > 0);
         let count: i64 = index
             .conn
-            .query_row("SELECT COUNT(*) FROM note_tags WHERE note_id = ?1", params![id], |row| {
-                row.get(0)
-            })
+            .query_row(
+                "SELECT COUNT(*) FROM note_tags WHERE note_id = ?1",
+                params![id],
+                |row| row.get(0),
+            )
             .unwrap();
         assert_eq!(count, 1);
         let fts: String = index
@@ -511,7 +539,9 @@ mod tests {
                 .collect::<Result<Vec<_>, _>>()
                 .unwrap()
         };
-        assert!(!columns.iter().any(|name| name == "content_hash" || name == "tags_json"));
+        assert!(!columns
+            .iter()
+            .any(|name| name == "content_hash" || name == "tags_json"));
     }
 
     #[test]

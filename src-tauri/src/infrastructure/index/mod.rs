@@ -9,7 +9,7 @@ pub use connection::{
 pub use query::{collect_index_info, query_library, query_note_graph};
 pub use schema::now_ms;
 pub use writes::{
-    cas_delete, cas_update, delete_note, insert_ignore, load_dir_cache, note_row, parse_algo_version,
-    replace_dir_cache, resolve_note_links, select_identities, set_meta, upsert_note,
-    DirCacheRow, NoteIdentityRow, NoteRow,
+    cas_delete, cas_update, delete_note, insert_ignore, load_dir_cache, note_row,
+    parse_algo_version, replace_dir_cache, resolve_note_links, select_identities, set_meta,
+    upsert_note, DirCacheRow, NoteIdentityRow, NoteRow,
 };

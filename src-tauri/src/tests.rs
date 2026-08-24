@@ -765,11 +765,15 @@ fn workspace_indexes_wiki_and_markdown_links_into_a_graph() {
     let welcome_to_alpha = graph
         .edges
         .iter()
-        .find(|edge| edge.source_path == "welcome.md" && edge.target_path.as_deref() == Some("work/alpha.md"))
+        .find(|edge| {
+            edge.source_path == "welcome.md" && edge.target_path.as_deref() == Some("work/alpha.md")
+        })
         .expect("wiki edge");
     assert_eq!(welcome_to_alpha.kind.as_str(), "wiki");
     assert!(graph.edges.iter().any(|edge| {
-        edge.source_path == "welcome.md" && edge.target_ref == "Missing" && edge.target_path.is_none()
+        edge.source_path == "welcome.md"
+            && edge.target_ref == "Missing"
+            && edge.target_path.is_none()
     }));
     assert!(graph.edges.iter().any(|edge| {
         edge.source_path == "work/alpha.md"
