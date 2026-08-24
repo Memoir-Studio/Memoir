@@ -36,7 +36,7 @@ export type DocumentSlice = {
   isSaving: boolean;
 };
 
-export type LibraryPanelMode = "notes" | "outline" | "attachments" | "index" | "sync";
+export type LibraryPanelMode = "notes" | "outline" | "links" | "attachments" | "index" | "sync" | "graph";
 
 export type LibrarySlice = {
   query: string;

@@ -1,4 +1,6 @@
-use super::schema::{apply_schema_v2, schema_is_safe, user_version, CURRENT_USER_VERSION};
+use super::schema::{schema_is_safe, upgrade_schema, user_version};
+#[cfg(test)]
+use super::schema::{apply_schema_v2, CURRENT_USER_VERSION};
 use crate::domain::path::ensure_inside;
 use rusqlite::Connection;
 use std::{
@@ -85,9 +87,7 @@ fn open_in_memory() -> WorkspaceIndex {
 fn prepare_connection(conn: Connection, persistent: bool) -> Result<WorkspaceIndex, ()> {
     apply_pragmas(&conn);
     let version = user_version(&conn).map_err(|_| ())?;
-    if version == 0 {
-        apply_schema_v2(&conn).map_err(|_| ())?;
-    } else if version != CURRENT_USER_VERSION {
+    if upgrade_schema(&conn, version).is_err() {
         return Err(());
     }
     if !schema_is_safe(&conn) {

@@ -737,8 +737,47 @@ fn workspace_scan_returns_cached_metadata_and_skips_unchanged_reads() {
     assert!(info.persistent);
     assert_eq!(info.note_count, 2);
     assert_eq!(info.tag_count, 1);
+    assert_eq!(info.note_link_count, 0);
     assert!(info.file_size > 0);
     assert!(info.last_reconcile_ms > 0);
+}
+
+#[test]
+fn workspace_indexes_wiki_and_markdown_links_into_a_graph() {
+    let workspace = tempdir().unwrap();
+    let root = workspace.path().to_str().unwrap();
+    fs::write(
+        workspace.path().join("welcome.md"),
+        "# Welcome\n\nSee [[Alpha]] and [[Missing]].\n",
+    )
+    .unwrap();
+    fs::create_dir_all(workspace.path().join("work")).unwrap();
+    fs::write(
+        workspace.path().join("work/alpha.md"),
+        "---\ntitle: Alpha\n---\n\nBack to [home](../welcome.md).\n",
+    )
+    .unwrap();
+
+    let service = WorkspaceService::new(LocalFileSystem::new());
+    service.scan(root).unwrap();
+    let graph = service.note_graph(root).unwrap();
+    assert_eq!(graph.nodes.len(), 2);
+    let welcome_to_alpha = graph
+        .edges
+        .iter()
+        .find(|edge| edge.source_path == "welcome.md" && edge.target_path.as_deref() == Some("work/alpha.md"))
+        .expect("wiki edge");
+    assert_eq!(welcome_to_alpha.kind.as_str(), "wiki");
+    assert!(graph.edges.iter().any(|edge| {
+        edge.source_path == "welcome.md" && edge.target_ref == "Missing" && edge.target_path.is_none()
+    }));
+    assert!(graph.edges.iter().any(|edge| {
+        edge.source_path == "work/alpha.md"
+            && edge.target_path.as_deref() == Some("welcome.md")
+            && edge.kind.as_str() == "markdown"
+    }));
+    let info = service.index_info(root).unwrap();
+    assert_eq!(info.note_link_count, 3);
 }
 
 #[test]
@@ -1031,7 +1070,7 @@ fn v1_index_file_is_rebuilt_as_v2_and_notes_return() {
     assert_eq!(page.notes.len(), 1);
     assert_eq!(page.notes[0].title, "Keep");
     let info = service.index_info(root).unwrap();
-    assert_eq!(info.schema_version, 2);
+    assert_eq!(info.schema_version, 3);
 }
 
 #[test]

@@ -9,6 +9,7 @@ import {
   Italic,
   LayoutPanelLeft,
   Link,
+  Link2,
   List,
   ListOrdered,
   Minus,
@@ -49,6 +50,7 @@ import {
   type ScrollAnchor,
 } from "./scroll-sync";
 import { exportNotePdf } from "../export/export-note-pdf";
+import { useNoteGraph } from "../graph/useNoteGraph";
 
 const EditorPane = lazy(() => import("./EditorPane"));
 const PreviewPane = lazy(() => import("../preview/PreviewPane"));
@@ -98,6 +100,7 @@ export const EditorWorkspace = forwardRef<EditorHandle, {
   const setLayout = useAppStore((state) => state.setLayout);
   const isSaving = useAppStore((state) => state.isSaving);
   const setContent = useAppStore((state) => state.setContent);
+  const selectNote = useAppStore((state) => state.selectNote);
   const setViewMode = useAppStore((state) => state.setViewMode);
   const saveActiveNote = useAppStore((state) => state.saveActiveNote);
   const toggleFavorite = useAppStore((state) => state.toggleFavorite);
@@ -110,6 +113,7 @@ export const EditorWorkspace = forwardRef<EditorHandle, {
   const [isExporting, setIsExporting] = useState(false);
   const [nativeDropActive, setNativeDropActive] = useState(false);
   const [editorMenu, setEditorMenu] = useState<EditorMenuTarget | null>(null);
+  const { graph } = useNoteGraph();
   const untitled = t("editor.untitledFallback");
   const activeNote = notes.find((note) => note.relativePath === activePath) || null;
   const hasDocument = Boolean(activeNote && loadedContentPath === activePath);
@@ -329,7 +333,8 @@ export const EditorWorkspace = forwardRef<EditorHandle, {
     { label: t("toolbar.bold"), icon: Bold, action: () => insertSnippet("**", "**", t("toolbar.placeholderText")), divider: true },
     { label: t("toolbar.italic"), icon: Italic, action: () => insertSnippet("_", "_", t("toolbar.placeholderText")) },
     { label: t("toolbar.strikethrough"), icon: Strikethrough, action: () => insertSnippet("~~", "~~", t("toolbar.placeholderText")) },
-    { label: t("toolbar.link"), icon: Link, action: () => insertSnippet("[", "](https://)", t("toolbar.placeholderLink")), divider: true },
+    { label: t("toolbar.link"), icon: Link, action: () => insertSnippet("[", "](https://)", t("toolbar.placeholderLink")) },
+    { label: t("toolbar.wikiLink"), icon: Link2, action: () => insertSnippet("[[", "]]", t("toolbar.placeholderWikiLink")), divider: true },
     { label: t("toolbar.image"), icon: Image, action: () => void insertImportedImages() },
     { label: t("toolbar.quote"), icon: Quote, action: () => insertSnippet("> ", "", t("toolbar.placeholderQuote")), divider: true },
     { label: t("toolbar.bulletList"), icon: List, action: () => insertSnippet("- ", "", t("toolbar.placeholderItem")) },
@@ -473,10 +478,13 @@ export const EditorWorkspace = forwardRef<EditorHandle, {
                   onChange={setContent}
                   highlightDrop={nativeDropActive}
                   onContextMenu={openEditorMenu}
+                  onOpenNote={(path) => void selectNote(path)}
                   onPasteImages={savePastedImages}
                   onScroll={() => syncScroll("editor")}
                   ref={editorRef}
                   settings={settings}
+                  sourcePath={activePath || ""}
+                  wikiCatalog={graph.nodes}
                 />
               </Suspense>
               {viewMode === "split" && (

@@ -34,6 +34,7 @@ import { useAppStore } from "../store/app-store";
 
 const SettingsDialog = lazy(() => import("../features/settings/SettingsDialog"));
 const EditorWorkspace = lazy(() => import("../features/editor/EditorWorkspace"));
+const NoteGraphView = lazy(() => import("../features/graph/NoteGraphView"));
 
 function EmptyState() {
   const openWorkspace = useAppStore((state) => state.openWorkspace);
@@ -80,6 +81,7 @@ function WorkspaceLayout({
   const setSettingsSection = useAppStore((state) => state.setSettingsSection);
   const mobilePanel = useAppStore((state) => state.mobilePanel);
   const setMobilePanel = useAppStore((state) => state.setMobilePanel);
+  const libraryPanelMode = useAppStore((state) => state.libraryPanelMode);
   const { openCreate, openDelete, openRename } = useWorkspaceDialogs();
   const { t } = useI18n();
   const editorRef = useRef<EditorHandle>(null);
@@ -178,13 +180,17 @@ function WorkspaceLayout({
             </section>
           }
         >
-          <EditorWorkspace
-            className="max-[760px]:grid max-[760px]:min-h-[calc(100vh-48px)]"
-            isDark={isDark}
-            onDelete={openDelete}
-            onRename={openRename}
-            ref={editorRef}
-          />
+          {libraryPanelMode === "graph" ? (
+            <NoteGraphView />
+          ) : (
+            <EditorWorkspace
+              className="max-[760px]:grid max-[760px]:min-h-[calc(100vh-48px)]"
+              isDark={isDark}
+              onDelete={openDelete}
+              onRename={openRename}
+              ref={editorRef}
+            />
+          )}
         </Suspense>
 
         {mobilePanel !== "editor" && (

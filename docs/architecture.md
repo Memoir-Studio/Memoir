@@ -67,6 +67,7 @@ Workspace commands:
 
 - `scan_workspace` — walks identity (`path` / `mtime` / `size`), reconciles `<workspace>/.memoir/index.sqlite`, and returns cached `title` / `tags` / `excerpt`
 - `get_index_info` — returns the current workspace SQLite index snapshot (path, size, counts, schema)
+- `get_note_graph` — returns every indexed note as a node and extracted wiki / markdown note links as edges
 - `rebuild_index` — deletes the disposable index files, reopens an empty cache, rescans, and returns fresh `get_index_info`
 - `read_note`
 - `write_note`
@@ -153,7 +154,7 @@ A last-sync snapshot lives at `sync/<workspace sha256>/snapshot.json` so two-way
 
 Drafts are separate files so typing does not rewrite the whole state file. State and draft writes create a sibling temp file, `sync`, then `rename`.
 
-Each desktop workspace also has a disposable library cache at `<workspace>/.memoir/index.sqlite` (plus WAL sidecars). It stores note identity and derived library fields (`title`, `tags`, `excerpt`) so opening the library does not read every file. Notes on disk remain the only source of truth: delete the directory and Memoir rebuilds it. A missing, corrupt, hostile, or unwritable cache never fails a scan — Memoir rebuilds the file or uses an in-memory index for the session. Drafts, favorites, and settings stay in app-data, not in this file.
+Each desktop workspace also has a disposable library cache at `<workspace>/.memoir/index.sqlite` (plus WAL sidecars). It stores note identity, derived library fields (`title`, `tags`, `excerpt`), and extracted note links (`[[wikilink]]` and markdown links to `.md` / `.mdx`) so opening the library or graph does not read every file. Notes on disk remain the only source of truth: delete the directory and Memoir rebuilds it. A missing, corrupt, hostile, or unwritable cache never fails a scan — Memoir rebuilds the file or uses an in-memory index for the session. Drafts, favorites, and settings stay in app-data, not in this file.
 
 Add `.memoir/` to the vault’s root `.gitignore`. If the folder lives in iCloud, Dropbox, or OneDrive, exclude `.memoir/` from sync. Memoir writes an inner `.memoir/.gitignore` containing `*` so a force-added folder still ignores the database.
 

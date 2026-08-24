@@ -42,6 +42,7 @@ Notes are ordinary files. You can open the same folder in git, VS Code, or any o
 - **Markdown and MDX** — GitHub Flavored Markdown, KaTeX, Mermaid, task lists, and a small set of built-in MDX components.
 - **Edit / split / preview** — write source, read the rendered page, or do both with synced scroll.
 - **Library** — folders, frontmatter tags, favorites, recent notes, and a heading outline.
+- **References** — `[[Note]]` wiki links and markdown links to other notes, with backlinks and a workspace graph.
 - **Safe by default** — atomic writes, crash-safe drafts, autosave, and deletes that go to `.memoir-trash/` instead of vanishing.
 - **Fast library** — each workspace keeps a disposable SQLite cache at `.memoir/index.sqlite` so the sidebar does not re-read every note. The markdown files are still the source of truth; gitignore `.memoir/` and exclude it from iCloud / Dropbox / OneDrive.
 - **Appearance** — light / dark / system theme, accent colors, density, type scale, and Chinese / English UI.
@@ -56,6 +57,8 @@ tags: [leetcode, rust]
 ---
 
 # Two Sum
+
+Link another note with `[[Welcome to Memoir]]` or `[home](../welcome.md)`.
 
 Inline math: $O(n)$. Display math:
 

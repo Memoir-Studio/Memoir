@@ -5,8 +5,8 @@ use super::{
 };
 use crate::domain::{
     note_parse::{INDEX_READ_CAP, PARSE_ALGO_VERSION},
-    FolderStat, LibraryNav, LibraryPage, LibraryQuery, LibraryStats, NoteFile, TagStat,
-    WorkspaceIndexInfo,
+    FolderStat, LibraryNav, LibraryPage, LibraryQuery, LibraryStats, NoteFile, NoteGraph,
+    NoteGraphEdge, NoteGraphNode, NoteLinkKind, TagStat, WorkspaceIndexInfo,
 };
 use rusqlite::{params, params_from_iter, Connection, OptionalExtension};
 use std::path::Path;
@@ -357,8 +357,54 @@ pub fn collect_index_info(conn: &Connection, root: &Path, persistent: bool) -> W
         note_count: count_sql(conn, "SELECT COUNT(*) FROM notes"),
         tag_count: count_sql(conn, "SELECT COUNT(DISTINCT tag_norm) FROM note_tags"),
         tag_link_count: count_sql(conn, "SELECT COUNT(*) FROM note_tags"),
+        note_link_count: count_sql(conn, "SELECT COUNT(*) FROM note_links"),
         truncated_count: count_sql(conn, "SELECT COUNT(*) FROM notes WHERE parse_truncated = 1"),
     }
+}
+
+pub fn query_note_graph(conn: &Connection) -> rusqlite::Result<NoteGraph> {
+    let mut nodes = Vec::new();
+    {
+        let mut statement =
+            conn.prepare("SELECT relative_path, title, folder FROM notes ORDER BY relative_path")?;
+        let rows = statement.query_map([], |row| {
+            Ok(NoteGraphNode {
+                relative_path: row.get(0)?,
+                title: row.get(1)?,
+                folder: row.get(2)?,
+            })
+        })?;
+        for row in rows {
+            nodes.push(row?);
+        }
+    }
+
+    let mut edges = Vec::new();
+    {
+        let mut statement = conn.prepare(
+            "
+            SELECT s.relative_path, l.target_path, l.target_ref, l.display_text, l.heading, l.kind
+              FROM note_links l
+              JOIN notes s ON s.id = l.source_id
+             ORDER BY s.relative_path, l.target_ref
+            ",
+        )?;
+        let rows = statement.query_map([], |row| {
+            Ok(NoteGraphEdge {
+                source_path: row.get(0)?,
+                target_path: row.get(1)?,
+                target_ref: row.get(2)?,
+                display_text: row.get(3)?,
+                heading: row.get(4)?,
+                kind: NoteLinkKind::parse(&row.get::<_, String>(5)?),
+            })
+        })?;
+        for row in rows {
+            edges.push(row?);
+        }
+    }
+
+    Ok(NoteGraph { nodes, edges })
 }
 
 #[cfg(test)]

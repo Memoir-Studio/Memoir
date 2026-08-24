@@ -1,8 +1,9 @@
+use crate::domain::note_links::{extract_note_links, RawNoteLink};
 use regex::Regex;
 use serde_yaml::Value;
 use std::sync::OnceLock;
 
-pub const PARSE_ALGO_VERSION: u32 = 1;
+pub const PARSE_ALGO_VERSION: u32 = 2;
 pub const INDEX_READ_CAP: usize = 1024 * 1024;
 pub const EXCERPT_LEN: usize = 150;
 
@@ -11,6 +12,7 @@ pub struct ParsedNote {
     pub title: String,
     pub tags: Vec<String>,
     pub excerpt: String,
+    pub links: Vec<RawNoteLink>,
 }
 
 pub fn parse_note(content: &str, fallback_file_name: &str) -> ParsedNote {
@@ -25,6 +27,7 @@ pub fn parse_note(content: &str, fallback_file_name: &str) -> ParsedNote {
                     title,
                     tags: parse_tags(&data),
                     excerpt: build_excerpt(&body),
+                    links: extract_note_links(content),
                 }
             }
             Err(_) => fallback_parse(content, fallback_file_name),
@@ -62,6 +65,7 @@ fn fallback_parse(content: &str, fallback_file_name: &str) -> ParsedNote {
         title: extract_title(&body, fallback_file_name),
         tags: Vec::new(),
         excerpt: build_excerpt(&body),
+        links: extract_note_links(content),
     }
 }
 

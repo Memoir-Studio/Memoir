@@ -32,6 +32,20 @@ describe("BrowserWorkspaceGateway", () => {
     expect(welcome?.excerpt.length).toBeGreaterThan(0);
   });
 
+  it("returns a note graph for wiki and markdown references", async () => {
+    const gateway = new BrowserWorkspaceGateway();
+    const graph = await gateway.getNoteGraph("demo://memoir");
+    expect(graph.nodes.length).toBeGreaterThan(1);
+    expect(
+      graph.edges.some(
+        (edge) =>
+          edge.sourcePath === "welcome.mdx" &&
+          edge.targetRef === "Two Sum" &&
+          edge.targetPath === "LeetCode/two-sum.md",
+      ),
+    ).toBe(true);
+  });
+
   it("writes multiple tags into the new note frontmatter", async () => {
     const gateway = new BrowserWorkspaceGateway();
     const path = await gateway.createNote({

@@ -4,6 +4,7 @@ import type { AppUpdateCheck } from "../domain/app-update";
 import type { AttachmentFile, SaveAttachmentInput } from "../domain/attachments";
 import type { FolderAppearance } from "../domain/folders";
 import type { WorkspaceIndexInfo } from "../domain/index-info";
+import type { NoteGraph } from "../domain/note-links";
 import type {
   LibraryPage,
   LibraryQuery,
@@ -32,6 +33,7 @@ export interface WorkspaceGateway {
   reconcileWorkspace(root: string, query?: LibraryQuery): Promise<LibraryPage>;
   queryLibrary(root: string, query: LibraryQuery): Promise<LibraryPage>;
   getIndexInfo(root: string): Promise<WorkspaceIndexInfo>;
+  getNoteGraph(root: string): Promise<NoteGraph>;
   rebuildIndex(root: string, query?: LibraryQuery): Promise<LibraryPage>;
   readNote(root: string, relativePath: string): Promise<string>;
   writeNote(root: string, relativePath: string, content: string): Promise<RawNoteFile>;

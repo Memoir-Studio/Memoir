@@ -140,6 +140,10 @@ export function IndexInspector() {
               <p className="index-stat-label">{t("library.indexTagLinks")}</p>
             </div>
             <div className="index-stat">
+              <p className="index-stat-value tabular-nums">{info.noteLinkCount}</p>
+              <p className="index-stat-label">{t("library.indexNoteLinks")}</p>
+            </div>
+            <div className="index-stat">
               <p className="index-stat-value tabular-nums">{info.truncatedCount}</p>
               <p className="index-stat-label">{t("library.indexTruncated")}</p>
             </div>

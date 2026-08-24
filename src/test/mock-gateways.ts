@@ -10,6 +10,7 @@ import {
   normalizeFolderKey,
 } from "../domain/folders";
 import { indexInfoFromNotes, type WorkspaceIndexInfo } from "../domain/index-info";
+import { buildNoteGraph, type NoteGraph } from "../domain/note-links";
 import type { LibraryPage, LibraryQuery, RawNoteFile, RenamedNote } from "../domain/notes";
 import { parseNote, queryNotesInMemory } from "../features/library/note-utils";
 import { DEFAULT_WORKSPACE_LAYOUT, mergeLayout, type WorkspaceLayoutState } from "../domain/layout";
@@ -77,6 +78,15 @@ export class MockWorkspaceGateway implements WorkspaceGateway {
   async reconcileWorkspace(root: string, query?: LibraryQuery): Promise<LibraryPage> {
     this.reconcileCount += 1;
     return this.queryLibrary(root, query ?? { q: "", nav: "all", folder: null, tag: null });
+  }
+
+  async getNoteGraph(): Promise<NoteGraph> {
+    return buildNoteGraph(
+      [...this.files.entries()].map(([relativePath, content]) => {
+        const fileName = relativePath.split("/").pop() || relativePath;
+        return { relativePath, title: parseNote(content, fileName).title, content };
+      }),
+    );
   }
 
   async getIndexInfo(): Promise<WorkspaceIndexInfo> {

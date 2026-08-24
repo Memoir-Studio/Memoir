@@ -161,6 +161,20 @@
   text-underline-offset: 3px;
 }
 
+.memoir-preview a.wiki-link {
+  text-decoration: none;
+  border-bottom: 1px dashed color-mix(in srgb, var(--memoir-accent) 46%, transparent);
+}
+
+.memoir-preview a.wiki-link:hover {
+  border-bottom-style: solid;
+}
+
+.memoir-preview a.wiki-link.is-missing {
+  color: var(--memoir-muted);
+  border-bottom-style: dotted;
+}
+
 .memoir-preview pre {
   border: 1px solid color-mix(in srgb, var(--memoir-border) 88%, var(--memoir-muted));
   border-radius: 10px;

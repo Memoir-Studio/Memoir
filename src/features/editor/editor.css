@@ -85,6 +85,70 @@
   animation: memoir-fade-in var(--memoir-motion-fast) var(--memoir-ease);
 }
 
+.editor-pane .cm-wiki-link {
+  color: var(--memoir-accent);
+  text-decoration: underline;
+  text-decoration-style: dashed;
+  text-underline-offset: 3px;
+}
+
+.wiki-complete {
+  position: absolute;
+  z-index: 5;
+  min-width: 220px;
+  max-width: 320px;
+  margin-top: 6px;
+  padding: 4px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--memoir-border) 88%, transparent);
+  border-radius: 10px;
+  background: var(--memoir-elevated);
+  box-shadow: 0 10px 28px rgb(40 36 30 / 12%);
+  pointer-events: auto;
+}
+
+.wiki-complete-option {
+  display: grid;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  appearance: none;
+}
+
+.wiki-complete-option.is-active,
+.wiki-complete-option:hover {
+  background: color-mix(in srgb, var(--memoir-accent-soft) 80%, transparent);
+}
+
+.wiki-complete-title {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.wiki-complete-path {
+  display: block;
+  margin-top: 1px;
+  color: var(--memoir-muted);
+  font-size: 10px;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 2px;
+  text-decoration-color: color-mix(in srgb, var(--memoir-muted) 55%, transparent);
+}
+
+.wiki-complete-option:hover .wiki-complete-path,
+.wiki-complete-option.is-active .wiki-complete-path {
+  color: color-mix(in srgb, var(--memoir-text) 62%, var(--memoir-muted));
+  text-decoration-color: color-mix(in srgb, var(--memoir-accent) 45%, transparent);
+}
+
 .editor-pane .cm-content ::selection,
 .editor-pane .cm-line ::selection {
   background: color-mix(in srgb, var(--memoir-accent) 22%, transparent);

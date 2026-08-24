@@ -1,10 +1,22 @@
-import { act, cleanup, render } from "@testing-library/react";
+import { act, cleanup, render, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { NoteMeta } from "../../domain/notes";
+import { setGatewaysForTests } from "../../gateways";
+import { useAppStore } from "../../store/app-store";
+import { createMockGateways } from "../../test/mock-gateways";
 import { PreviewPane } from "./PreviewPane";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  setGatewaysForTests(null);
+  useAppStore.setState({
+    workspaceRoot: null,
+    activePath: null,
+    content: "",
+    savedContent: "",
+  });
+});
 
 const note: NoteMeta = {
   relativePath: "tasks.md",
@@ -17,6 +29,38 @@ const note: NoteMeta = {
   excerpt: "",
   favorite: false,
 };
+
+describe("PreviewPane wiki links", () => {
+  it("opens a resolved wiki link in the workspace", async () => {
+    const gateways = createMockGateways();
+    gateways.workspace.files.set("tasks.md", "See [[One]].\n");
+    gateways.workspace.files.set("one.md", "# One\n");
+    setGatewaysForTests(gateways);
+    const selectNote = vi.fn(async () => undefined);
+    useAppStore.setState({
+      workspaceRoot: "/notes",
+      activePath: "tasks.md",
+      content: "See [[One]].\n",
+      savedContent: "See [[One]].\n",
+      selectNote,
+    });
+    const view = render(
+      <PreviewPane
+        activePath="tasks.md"
+        content="See [[One]].\n"
+        note={note}
+        onContentChange={() => undefined}
+        root="/notes"
+      />,
+    );
+    const user = userEvent.setup();
+    await waitFor(() => {
+      expect(view.getByRole("link", { name: "One" })).not.toHaveClass("is-missing");
+    });
+    await user.click(view.getByRole("link", { name: "One" }));
+    expect(selectNote).toHaveBeenCalledWith("one.md");
+  });
+});
 
 describe("PreviewPane task list", () => {
   it("updates the matching Markdown task when a preview checkbox is clicked", async () => {

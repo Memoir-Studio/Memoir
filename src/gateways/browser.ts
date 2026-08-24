@@ -18,6 +18,7 @@ import {
   normalizeFolderKey,
 } from "../domain/folders";
 import { indexInfoFromNotes, type WorkspaceIndexInfo } from "../domain/index-info";
+import { buildNoteGraph, type NoteGraph } from "../domain/note-links";
 import type { LibraryPage, LibraryQuery, RawNoteFile, RenamedNote } from "../domain/notes";
 import { parseNote, queryNotesInMemory } from "../features/library/note-utils";
 import { DEFAULT_SETTINGS } from "../domain/settings";
@@ -50,6 +51,8 @@ tags: [memoir, mdx]
 
 This in-memory demo supports **Markdown**, MDX components, Mermaid, and editing.
 
+Try a file reference: [[今日记录]] or [[Two Sum]].
+
 <Callout type="tip" title="Browser demo">
   Browser preview never writes real app state to localStorage.
 </Callout>
@@ -65,6 +68,8 @@ tags: [diary]
 # 今日记录
 
 写一点今天的事。
+
+灵感来自 [[Welcome to Memoir]]，未完成的想法放在 [[随手记]]。
 `,
   ],
   [
@@ -77,6 +82,8 @@ tags: [ideas]
 # 随手记
 
 把念头先放在这里。
+
+也可以回到 [今日记录](../日记/today.md)。
 `,
   ],
   [
@@ -89,6 +96,8 @@ tags: [leetcode]
 # Two Sum
 
 Practice note for the classic problem.
+
+See [[Welcome to Memoir]] for the vault layout.
 `,
   ],
 ];
@@ -154,12 +163,24 @@ export class BrowserWorkspaceGateway implements WorkspaceGateway {
     return this.queryLibrary(root, query ?? { q: "", nav: "all", folder: null, tag: null });
   }
 
+  async getNoteGraph(root: string): Promise<NoteGraph> {
+    this.assertRoot(root);
+    return buildNoteGraph(
+      [...this.files.entries()].map(([relativePath, content]) => {
+        const fileName = relativePath.split("/").pop() || relativePath;
+        return { relativePath, title: parseNote(content, fileName).title, content };
+      }),
+    );
+  }
+
   async getIndexInfo(root: string): Promise<WorkspaceIndexInfo> {
     const notes = this.listNotes();
     this.assertRoot(root);
+    const graph = await this.getNoteGraph(root);
     return indexInfoFromNotes(notes, {
       createdMs: Math.min(...notes.map((note) => note.modifiedMs)),
       lastReconcileMs: Date.now(),
+      noteLinkCount: graph.edges.length,
     });
   }
 

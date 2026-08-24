@@ -129,6 +129,7 @@ pub struct WorkspaceIndexInfo {
     pub note_count: u64,
     pub tag_count: u64,
     pub tag_link_count: u64,
+    pub note_link_count: u64,
     pub truncated_count: u64,
 }
 

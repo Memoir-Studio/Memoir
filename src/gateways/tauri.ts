@@ -8,6 +8,7 @@ import type { AttachmentFile, SaveAttachmentInput } from "../domain/attachments"
 import { ATTACHMENT_EXTENSIONS } from "../domain/attachments";
 import type { FolderAppearance } from "../domain/folders";
 import type { WorkspaceIndexInfo } from "../domain/index-info";
+import type { NoteGraph } from "../domain/note-links";
 import type { LibraryPage, LibraryQuery, RawNoteFile, RenamedNote } from "../domain/notes";
 import type { AppSettings } from "../domain/settings";
 import type {
@@ -53,6 +54,10 @@ export class TauriWorkspaceGateway implements WorkspaceGateway {
 
   getIndexInfo(root: string) {
     return call<WorkspaceIndexInfo>("get_index_info", { root });
+  }
+
+  getNoteGraph(root: string) {
+    return call<NoteGraph>("get_note_graph", { root });
   }
 
   rebuildIndex(root: string, query?: LibraryQuery) {

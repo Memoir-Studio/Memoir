@@ -14,6 +14,7 @@
 @import "./features/window/window.css";
 @import "./features/layout/layout.css";
 @import "./features/library/library.css";
+@import "./features/graph/graph.css";
 @import "./features/attachments/attachments.css";
 @import "./features/workspace/workspace.css";
 @import "./features/editor/editor.css";

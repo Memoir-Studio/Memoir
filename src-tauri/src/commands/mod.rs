@@ -3,7 +3,7 @@ use crate::{
         attachment::ATTACHMENTS_DIR, AppError, AppSettings, AppState, AppUpdateCheck,
         AttachmentFile, CloudSyncProbe, CloudSyncProfile, CloudSyncRunResult, FolderAppearance,
         LegacyStatePayload, LibraryPage, LibraryQuery, MigrationResult, NoteFile, RenamedNote,
-        WorkspaceIndexInfo, WorkspaceLayout,
+        NoteGraph, WorkspaceIndexInfo, WorkspaceLayout,
     },
     infrastructure::github_releases,
     services::{AppStateService, CloudSyncService, WorkspaceService},
@@ -148,6 +148,20 @@ pub async fn rebuild_index(
         .await
         .map_err(|error| {
             AppError::new(crate::domain::ErrorCode::Io, "Index rebuild interrupted.")
+                .with_details(error.to_string())
+        })?
+}
+
+#[tauri::command]
+pub async fn get_note_graph(
+    services: State<'_, AppServices>,
+    root: String,
+) -> Result<NoteGraph, AppError> {
+    let workspace = services.workspace.clone();
+    tauri::async_runtime::spawn_blocking(move || workspace.note_graph(&root))
+        .await
+        .map_err(|error| {
+            AppError::new(crate::domain::ErrorCode::Io, "Note graph interrupted.")
                 .with_details(error.to_string())
         })?
 }

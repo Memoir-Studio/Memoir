@@ -1,0 +1,231 @@
+.graph-panel-stats {
+  display: grid;
+}
+
+.graph-stat {
+  padding: 8px 8px 7px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--memoir-elevated) 70%, var(--memoir-panel));
+  text-align: center;
+}
+
+.graph-stat p {
+  color: var(--memoir-text);
+  font-size: 14px;
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+
+.graph-stat span {
+  display: block;
+  margin-top: 3px;
+  color: var(--memoir-muted);
+  font-size: 10px;
+}
+
+.graph-node-row {
+  min-height: 44px;
+  color: color-mix(in srgb, var(--memoir-text) 78%, var(--memoir-muted));
+}
+
+.graph-node-row:hover,
+.note-link-row.is-openable:hover {
+  background: color-mix(in srgb, var(--memoir-elevated) 54%, transparent);
+  color: var(--memoir-text);
+}
+
+.graph-node-row.is-active {
+  background: color-mix(in srgb, var(--memoir-accent-soft) 76%, var(--memoir-panel));
+  color: var(--memoir-text);
+}
+
+.note-graph-view {
+  min-width: 0;
+}
+
+.note-graph-stage {
+  user-select: none;
+  background:
+    radial-gradient(ellipse 70% 55% at 50% 42%, color-mix(in srgb, var(--memoir-accent) 5%, transparent), transparent 70%),
+    var(--memoir-canvas);
+}
+
+.view-switcher.graph-mode-switcher {
+  border-radius: 10px;
+  padding: 3px;
+}
+
+.view-switcher.graph-mode-switcher button {
+  width: auto;
+  min-width: 52px;
+  height: 30px;
+  padding: 0 8px;
+  border-radius: 8px;
+  gap: 5px;
+  font-size: 11px;
+}
+
+.note-graph-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+  touch-action: none;
+}
+
+.note-graph-canvas:active {
+  cursor: grabbing;
+}
+
+.note-graph-labels {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.note-graph-label {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 112px;
+  padding: 0;
+  border: 0;
+  appearance: none;
+  background: transparent;
+  font-family: inherit;
+  color: color-mix(in srgb, var(--memoir-text) 88%, var(--memoir-muted));
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: -0.015em;
+  line-height: 1.35;
+  text-align: center;
+  pointer-events: auto;
+  cursor: pointer;
+  user-select: none;
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  word-break: break-word;
+}
+
+.note-graph-label.is-neighbor {
+  color: var(--memoir-text);
+  font-weight: 550;
+}
+
+.note-graph-label.is-active {
+  color: var(--memoir-text);
+  font-weight: 650;
+}
+
+.note-graph-label.is-muted {
+  color: color-mix(in srgb, var(--memoir-muted) 72%, var(--memoir-text));
+  font-weight: 450;
+}
+
+.note-graph-card {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  z-index: 3;
+  display: flex;
+  width: min(280px, calc(100% - 32px));
+  align-items: flex-start;
+  gap: 8px;
+  padding: 11px 12px 11px 13px;
+  border: 1px solid color-mix(in srgb, var(--memoir-border) 88%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--memoir-elevated) 92%, var(--memoir-panel));
+  box-shadow: 0 12px 32px rgb(40 36 30 / 10%);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  appearance: none;
+  transition:
+    background-color 150ms var(--memoir-ease),
+    border-color 150ms var(--memoir-ease),
+    box-shadow 150ms var(--memoir-ease);
+}
+
+.note-graph-card:hover {
+  border-color: color-mix(in srgb, var(--memoir-border) 100%, transparent);
+  background: var(--memoir-elevated);
+}
+
+.note-graph-card-go {
+  color: var(--memoir-muted);
+  transition: color 150ms var(--memoir-ease);
+}
+
+.note-graph-card:hover .note-graph-card-go {
+  color: var(--memoir-text);
+}
+
+.note-graph-legend {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  z-index: 3;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 16px;
+  max-width: min(420px, calc(100% - 320px));
+  padding: 0;
+  margin: 0;
+  color: var(--memoir-muted);
+  font-size: 11px;
+  line-height: 1;
+  list-style: none;
+  pointer-events: none;
+}
+
+.note-graph-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.note-graph-swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--memoir-accent) 22%, var(--memoir-canvas));
+}
+
+.note-graph-swatch.is-selected {
+  width: 10px;
+  height: 10px;
+  background: var(--memoir-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--memoir-accent) 16%, transparent);
+}
+
+.note-graph-swatch.is-linked {
+  background: var(--memoir-accent);
+}
+
+.note-graph-swatch.is-edge {
+  width: 14px;
+  height: 2px;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--memoir-accent) 82%, transparent);
+}
+
+.note-link-row {
+  border: 0;
+  background: transparent;
+  color: inherit;
+}
+
+@media (max-width: 860px) {
+  .note-graph-legend {
+    max-width: calc(100% - 32px);
+    bottom: auto;
+    top: 12px;
+  }
+}

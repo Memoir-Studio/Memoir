@@ -54,15 +54,16 @@ describe("Tauri gateways", () => {
       fileSize: 12,
       walSize: 0,
       shmSize: 0,
-      schemaVersion: 2,
+      schemaVersion: 3,
       schemaName: "memoir-index",
-      parseAlgoVersion: 1,
+      parseAlgoVersion: 2,
       indexReadCap: 1024,
       createdMs: 1,
       lastReconcileMs: 2,
       noteCount: 3,
       tagCount: 1,
       tagLinkCount: 1,
+      noteLinkCount: 0,
       truncatedCount: 0,
     };
     const page = {
@@ -84,6 +85,15 @@ describe("Tauri gateways", () => {
     invoke.mockResolvedValueOnce(page);
     await expect(gateway.rebuildIndex("/notes")).resolves.toEqual(page);
     expect(invoke).toHaveBeenCalledWith("rebuild_index", { root: "/notes", query: undefined });
+  });
+
+  it("loads the note graph", async () => {
+    const { TauriWorkspaceGateway } = await import("./tauri");
+    const graph = { nodes: [], edges: [] };
+    invoke.mockResolvedValueOnce(graph);
+    const gateway = new TauriWorkspaceGateway();
+    await expect(gateway.getNoteGraph("/notes")).resolves.toEqual(graph);
+    expect(invoke).toHaveBeenCalledWith("get_note_graph", { root: "/notes" });
   });
 
   it("sends library query DTOs for reconcile and query", async () => {

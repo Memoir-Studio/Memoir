@@ -24,7 +24,16 @@ import * as runtime from "react/jsx-runtime";
 import { getGateways } from "../../gateways";
 import { Tag } from "../../components/ui";
 import type { NoteMeta } from "../../domain/notes";
+import {
+  isNoteMarkdownHref,
+  resolveNoteRef,
+  splitHash,
+  type NoteGraphNode,
+} from "../../domain/note-links";
 import { decodeMediaHref, noteDirectory, resolveWorkspaceFilePath } from "../../domain/paths";
+import { useNoteGraph } from "../graph/useNoteGraph";
+import { remarkWikiLinks, wikiInnerFromHref } from "./remark-wiki-links";
+import { useAppStore } from "../../store/app-store";
 import { useI18n } from "../../i18n/react";
 import { parseNote } from "../library/note-utils";
 import { rehypeSourceLines } from "./source-line";
@@ -33,7 +42,7 @@ import { rehypeTaskOffsets, toggleTaskAtOffset } from "./task-list";
 const MDX_IMPORT_EXPORT_DISABLED = "MDX_IMPORT_EXPORT_DISABLED";
 
 const MermaidBlock = lazy(() => import("./MermaidBlock"));
-const remarkPlugins = [remarkGfm, remarkMath];
+const remarkPlugins = [remarkGfm, remarkMath, remarkWikiLinks];
 const highlightCode: [typeof rehypeHighlight, { detect: boolean; plainText: string[] }] = [
   rehypeHighlight,
   { detect: false, plainText: ["mermaid"] },
@@ -91,7 +100,13 @@ function previewComponents(
   root: string | null,
   relativePath: string | null,
   onToggleTask: ((offset: number, checked: boolean) => void) | undefined,
-  labels: { toggleTask: string; loadingMermaid: string },
+  labels: {
+    toggleTask: string;
+    loadingMermaid: string;
+    missingWikiLink: (name: string) => string;
+  },
+  catalog: NoteGraphNode[],
+  onOpenNote?: (path: string) => void,
 ): MDXComponents {
   const gateway = getGateways().workspace;
   const directory = relativePath ? noteDirectory(relativePath) : "";
@@ -101,23 +116,43 @@ function previewComponents(
     Card,
     Columns,
     Steps,
-    a: ({ href, children, ...props }: ComponentPropsWithoutRef<"a">) => (
-      <a
-        {...props}
-        href={href}
-        onClick={(event) => {
-          if (!href) return;
-          event.preventDefault();
-          if (/^https?:/i.test(href)) {
-            void gateway.openExternal(href);
-          } else if (root) {
-            void gateway.openPath(resolveWorkspaceFilePath(root, directory, decodeMediaHref(href)));
-          }
-        }}
-      >
-        {children}
-      </a>
-    ),
+    a: ({ href, children, className, node: _node, ...props }: ComponentPropsWithoutRef<"a"> & { node?: unknown }) => {
+      const wikiInner = href ? wikiInnerFromHref(href) : null;
+      const targetRef = wikiInner
+        ? splitHash(wikiInner.split("|")[0] || "").path
+        : href && isNoteMarkdownHref(href)
+          ? splitHash(decodeMediaHref(href)).path
+          : "";
+      const resolved =
+        targetRef && relativePath ? resolveNoteRef(targetRef, relativePath, catalog) : undefined;
+      const missingWiki = Boolean(wikiInner && !resolved);
+      return (
+        <a
+          {...props}
+          className={[className, missingWiki && "is-missing"].filter(Boolean).join(" ")}
+          href={href}
+          title={missingWiki ? labels.missingWikiLink(targetRef) : props.title}
+          onClick={(event) => {
+            if (!href) return;
+            event.preventDefault();
+            if (/^https?:/i.test(href)) {
+              void gateway.openExternal(href);
+              return;
+            }
+            if (resolved) {
+              onOpenNote?.(resolved);
+              return;
+            }
+            if (wikiInner) return;
+            if (root) {
+              void gateway.openPath(resolveWorkspaceFilePath(root, directory, decodeMediaHref(href)));
+            }
+          }}
+        >
+          {children}
+        </a>
+      );
+    },
     img: ({ src, alt, ...props }: ComponentPropsWithoutRef<"img">) => {
       if (!src || /^(https?:|data:|blob:)/i.test(src) || !root) {
         return <img {...props} alt={alt || ""} src={src} />;
@@ -210,6 +245,8 @@ export function NotePreviewArticle({
 }) {
   const { t } = useI18n();
   const untitled = t("editor.untitledFallback");
+  const { graph } = useNoteGraph();
+  const selectNote = useAppStore((state) => state.selectNote);
   const parsed = useMemo(
     () => parseNote(content, note?.fileName || untitled),
     [content, note?.fileName, untitled],
@@ -227,15 +264,24 @@ export function NotePreviewArticle({
               onContentChange(toggleTaskAtOffset(content, bodyOffset + taskOffset, checked));
             }
           : undefined,
-        { toggleTask: toggleTaskLabel, loadingMermaid: loadingMermaidLabel },
+        {
+          toggleTask: toggleTaskLabel,
+          loadingMermaid: loadingMermaidLabel,
+          missingWikiLink: (name) => t("preview.missingWikiLink", { name }),
+        },
+        graph.nodes,
+        (path) => void selectNote(path),
       ),
     [
       bodyOffset,
       content,
+      graph.nodes,
       loadingMermaidLabel,
       onContentChange,
       relativePath,
       root,
+      selectNote,
+      t,
       toggleTaskLabel,
     ],
   );

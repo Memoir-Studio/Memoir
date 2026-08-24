@@ -1,0 +1,106 @@
+{
+  "extract": [
+    {
+      "name": "wiki-basic-and-alias",
+      "content": "See [[Alpha]] and [[Beta|the beta]].",
+      "links": [
+        { "targetRef": "Alpha", "heading": "", "displayText": "Alpha", "kind": "wiki" },
+        { "targetRef": "Beta", "heading": "", "displayText": "the beta", "kind": "wiki" }
+      ]
+    },
+    {
+      "name": "wiki-heading-and-alias",
+      "content": "Jump to [[Alpha#Setup|install]].",
+      "links": [
+        { "targetRef": "Alpha", "heading": "Setup", "displayText": "install", "kind": "wiki" }
+      ]
+    },
+    {
+      "name": "skips-fences-inline-code-and-embeds",
+      "content": "Keep [[Keep]]\n\n```\n[[Hidden]]\n```\n\nInline `[[Nope]]` and ![[shot.png]] and ![img](pic.png).\n",
+      "links": [
+        { "targetRef": "Keep", "heading": "", "displayText": "Keep", "kind": "wiki" }
+      ]
+    },
+    {
+      "name": "markdown-note-links-skip-urls",
+      "content": "See [Two](./LeetCode/two-sum.md#idea) and [site](https://example.com/a.md) and [pic](attachments/2024-01/a.png).",
+      "links": [
+        { "targetRef": "LeetCode/two-sum.md", "heading": "idea", "displayText": "Two", "kind": "markdown" }
+      ]
+    },
+    {
+      "name": "frontmatter-ignored-and-duplicates-collapsed",
+      "content": "---\ntitle: [[Not A Link]]\n---\n\n[[Alpha]] then [[Alpha]] again.\n",
+      "links": [
+        { "targetRef": "Alpha", "heading": "", "displayText": "Alpha", "kind": "wiki" }
+      ]
+    },
+    {
+      "name": "wiki-path-with-extension",
+      "content": "Open [[work/alpha.md]].",
+      "links": [
+        { "targetRef": "work/alpha.md", "heading": "", "displayText": "alpha", "kind": "wiki" }
+      ]
+    }
+  ],
+  "resolve": [
+    {
+      "name": "title-unique",
+      "sourcePath": "inbox.md",
+      "targetRef": "Alpha",
+      "notes": [
+        { "relativePath": "work/alpha.md", "title": "Alpha" },
+        { "relativePath": "beta.md", "title": "Beta" }
+      ],
+      "resolved": "work/alpha.md"
+    },
+    {
+      "name": "stem-unique",
+      "sourcePath": "inbox.md",
+      "targetRef": "two-sum",
+      "notes": [
+        { "relativePath": "LeetCode/two-sum.md", "title": "Two Sum" },
+        { "relativePath": "beta.md", "title": "Beta" }
+      ],
+      "resolved": "LeetCode/two-sum.md"
+    },
+    {
+      "name": "relative-markdown-path",
+      "sourcePath": "work/alpha.md",
+      "targetRef": "../beta.md",
+      "notes": [
+        { "relativePath": "work/alpha.md", "title": "Alpha" },
+        { "relativePath": "beta.md", "title": "Beta" }
+      ],
+      "resolved": "beta.md"
+    },
+    {
+      "name": "same-folder-wins-on-duplicate-stem",
+      "sourcePath": "work/note.md",
+      "targetRef": "alpha",
+      "notes": [
+        { "relativePath": "work/alpha.md", "title": "Alpha" },
+        { "relativePath": "other/alpha.md", "title": "Alpha copy" }
+      ],
+      "resolved": "work/alpha.md"
+    },
+    {
+      "name": "ambiguous-title-unresolved",
+      "sourcePath": "inbox.md",
+      "targetRef": "Alpha",
+      "notes": [
+        { "relativePath": "a/alpha.md", "title": "Alpha" },
+        { "relativePath": "b/alpha.md", "title": "Alpha" }
+      ],
+      "resolved": null
+    },
+    {
+      "name": "missing-unresolved",
+      "sourcePath": "inbox.md",
+      "targetRef": "Ghost",
+      "notes": [{ "relativePath": "inbox.md", "title": "Inbox" }],
+      "resolved": null
+    }
+  ]
+}

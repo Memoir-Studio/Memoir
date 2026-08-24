@@ -3,14 +3,14 @@ use crate::{
         note_parse::{decode_utf8_prefix, parse_note, INDEX_READ_CAP, PARSE_ALGO_VERSION},
         path::normalize_root,
         AppError, AppResult, AttachmentFile, ErrorCode, FileIdentity, LibraryPage, LibraryQuery,
-        NoteFile, NoteIdentity, RenamedNote, WorkspaceIndexInfo,
+        NoteFile, NoteGraph, NoteIdentity, RenamedNote, WorkspaceIndexInfo,
     },
     infrastructure::{
         filesystem::{modified_ms, LocalFileSystem},
         index::{
             self, cas_delete, cas_update, delete_note, insert_ignore, load_dir_cache, note_row,
-            replace_dir_cache, select_identities, set_meta, upsert_note, DirCacheRow,
-            NoteIdentityRow, NoteRow,
+            replace_dir_cache, resolve_note_links, select_identities, set_meta, upsert_note,
+            DirCacheRow, NoteIdentityRow, NoteRow,
         },
     },
 };
@@ -232,7 +232,10 @@ impl WorkspaceService {
             .filesystem
             .rename_note(root, old_relative_path, new_relative_path)?;
         if let Ok(root_path) = normalize_root(root) {
-            self.write_through(&root_path, |conn| delete_note(conn, old_relative_path));
+            self.write_through(&root_path, |conn| {
+                delete_note(conn, old_relative_path)?;
+                resolve_note_links(conn)
+            });
         }
         let note = self.index_written_note(root, &renamed, None)?;
         Ok(RenamedNote {
@@ -244,7 +247,10 @@ impl WorkspaceService {
     pub fn delete(&self, root: &str, relative_path: &str) -> AppResult<String> {
         let trashed = self.filesystem.delete_note(root, relative_path)?;
         if let Ok(root_path) = normalize_root(root) {
-            self.write_through(&root_path, |conn| delete_note(conn, relative_path));
+            self.write_through(&root_path, |conn| {
+                delete_note(conn, relative_path)?;
+                resolve_note_links(conn)
+            });
         }
         Ok(trashed)
     }
@@ -259,6 +265,17 @@ impl WorkspaceService {
             &root_path,
             open.persistent,
         ))
+    }
+
+    pub fn note_graph(&self, root: &str) -> AppResult<NoteGraph> {
+        let root_path = normalize_root(root)?;
+        let mut guard = self.lock_index();
+        self.ensure_open(&mut guard, &root_path);
+        let open = guard.as_ref().expect("index handle");
+        index::query_note_graph(&open.conn).map_err(|error| {
+            AppError::new(ErrorCode::Io, "Couldn't query the note graph.")
+                .with_details(error.to_string())
+        })
     }
 
     pub fn rebuild_index(&self, root: &str, query: &LibraryQuery) -> AppResult<LibraryPage> {
@@ -348,9 +365,11 @@ impl WorkspaceService {
             parsed.title,
             parsed.excerpt,
             &parsed.tags,
-        );
+        )
+        .with_links(parsed.links);
         self.write_through(&root_path, |conn| {
             upsert_note(conn, &row)?;
+            resolve_note_links(conn)?;
             Ok(())
         });
         Ok(row.to_note_file())
@@ -456,7 +475,8 @@ impl WorkspaceService {
                 parsed_note.title,
                 parsed_note.excerpt,
                 &parsed_note.tags,
-            ),
+            )
+            .with_links(parsed_note.links),
         })
     }
 
@@ -507,6 +527,7 @@ fn commit_reconcile(
         }
     }
     if replace_dir_cache(&txn, walked_dirs, reused_dirs).is_err()
+        || resolve_note_links(&txn).is_err()
         || set_meta(&txn, "last_reconcile_ms", &index::now_ms().to_string()).is_err()
         || set_meta(&txn, "index_read_cap", &INDEX_READ_CAP.to_string()).is_err()
         || set_meta(&txn, "parse_algo_version", &PARSE_ALGO_VERSION.to_string()).is_err()

@@ -9,7 +9,7 @@ mod window_frame;
 
 use commands::{
     check_app_update, create_note, delete_attachment, delete_draft, delete_note, drafts_exist,
-    get_cloud_sync_profile, get_index_info, import_attachment, load_app_state,
+    get_cloud_sync_profile, get_index_info, get_note_graph, import_attachment, load_app_state,
     migrate_legacy_state, query_library, read_draft, read_note, rebuild_index, reconcile_workspace,
     rename_note, run_cloud_sync, save_attachment, save_cloud_sync_profile, save_preferences,
     scan_attachments, set_favorite, set_folder_appearance, skip_app_update, test_cloud_sync,
@@ -57,6 +57,7 @@ pub fn run() {
             reconcile_workspace,
             query_library,
             get_index_info,
+            get_note_graph,
             rebuild_index,
             read_note,
             write_note,

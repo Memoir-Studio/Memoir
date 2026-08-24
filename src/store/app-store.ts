@@ -897,7 +897,10 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
         void runLibraryQuery();
       },
       setLibraryPanelMode(libraryPanelMode) {
-        set({ libraryPanelMode, mobilePanel: "library" });
+        set({
+          libraryPanelMode,
+          mobilePanel: libraryPanelMode === "graph" ? "editor" : "library",
+        });
       },
       setViewMode(viewMode) {
         set({ viewMode });

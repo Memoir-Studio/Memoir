@@ -42,6 +42,7 @@ Memoir 是一款安静的桌面笔记本。把一个装满 `.md` / `.mdx` 的文
 - **Markdown 与 MDX** — GFM、KaTeX、Mermaid、任务列表，以及一组内置 MDX 组件。
 - **编辑 / 分栏 / 预览** — 写源码、看渲染，或两边同时打开并同步滚动。
 - **资料库** — 文件夹、frontmatter 标签、收藏、最近编辑、标题大纲。
+- **引用** — `[[笔记]]` 维基链接和指向其他笔记的 Markdown 链接，支持反向引用和完整图谱。
 - **默认安全** — 原子写入、可恢复草稿、自动保存；删除进入工作区的 `.memoir-trash/`，而不是直接消失。
 - **资料库加速** — 每个工作区在 `.memoir/index.sqlite` 里放一份可丢弃的索引，打开列表时不必重读每一篇笔记。Markdown 文件仍是唯一真相；请把 `.memoir/` 加入 gitignore，并在 iCloud / Dropbox / OneDrive 中排除它。
 - **外观** — 浅色 / 深色 / 跟随系统、强调色、界面密度、字号，以及中英界面。
@@ -56,6 +57,8 @@ tags: [leetcode, rust]
 ---
 
 # Two Sum
+
+用 `[[Welcome to Memoir]]` 或 `[首页](../welcome.md)` 引用其他笔记。
 
 行内公式：$O(n)$。独立公式：
 

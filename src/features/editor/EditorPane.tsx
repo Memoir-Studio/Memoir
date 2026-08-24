@@ -25,6 +25,12 @@ import type { AppSettings } from "../../domain/settings";
 import { useI18n } from "../../i18n/react";
 import { noteStats, parseNote } from "../library/note-utils";
 import { cn, Tag } from "../../components/ui";
+import {
+  wikiLinkExtensions,
+  wikiNoteCatalog,
+  wikiSourcePath,
+  type WikiCatalogNote,
+} from "./wiki-links";
 
 function positionFromCoords(view: EditorView, x: number, y: number) {
   try {
@@ -169,6 +175,11 @@ function createEditorExtensions(
   onPasteImages?: (files: File[]) => Promise<string>,
   onContextMenu?: (target: EditorMenuTarget) => void,
   ignorePointerUntil?: MutableRefObject<number>,
+  wiki?: {
+    catalog: WikiCatalogNote[];
+    sourcePath: string;
+    onOpenNote?: (path: string) => void;
+  },
 ) {
   return [
     history(),
@@ -176,6 +187,9 @@ function createEditorExtensions(
     syntaxHighlighting(markdownHighlightStyle),
     fencedCodeBlockHighlighter(),
     highlightActiveLine(),
+    wikiNoteCatalog.of(wiki?.catalog ?? []),
+    wikiSourcePath.of(wiki?.sourcePath ?? ""),
+    ...wikiLinkExtensions(wiki?.onOpenNote),
     ...(settings.lineWrapping ? [EditorView.lineWrapping] : []),
     ...(settings.lineNumbers ? [lineNumbers(), highlightActiveLineGutter()] : []),
     keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap, indentWithTab]),
@@ -326,6 +340,9 @@ interface EditorPaneProps {
   onPasteImages?: (files: File[]) => Promise<string>;
   highlightDrop?: boolean;
   onContextMenu?: (target: EditorMenuTarget) => void;
+  wikiCatalog?: WikiCatalogNote[];
+  sourcePath?: string;
+  onOpenNote?: (path: string) => void;
 }
 
 export const EditorPane = forwardRef<EditorHandle, EditorPaneProps>(function EditorPane(
@@ -339,6 +356,9 @@ export const EditorPane = forwardRef<EditorHandle, EditorPaneProps>(function Edi
     onPasteImages,
     highlightDrop = false,
     onContextMenu,
+    wikiCatalog = [],
+    sourcePath = "",
+    onOpenNote,
   },
   forwardedRef,
 ) {
@@ -358,8 +378,9 @@ export const EditorPane = forwardRef<EditorHandle, EditorPaneProps>(function Edi
         onPasteImages,
         onContextMenu,
         ignorePointerUntil,
+        { catalog: wikiCatalog, sourcePath, onOpenNote },
       ),
-    [isDark, onContextMenu, onPasteImages, settings.editor],
+    [isDark, onContextMenu, onOpenNote, onPasteImages, settings.editor, sourcePath, wikiCatalog],
   );
   const parsed = useMemo(() => parseNote(content, fileName), [content, fileName]);
   const stats = useMemo(() => noteStats(content), [content]);

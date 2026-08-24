@@ -2,12 +2,13 @@ use crate::domain::note_parse::{INDEX_READ_CAP, PARSE_ALGO_VERSION};
 use rusqlite::{params, Connection};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-pub const CURRENT_USER_VERSION: i32 = 2;
+pub const CURRENT_USER_VERSION: i32 = 3;
 
 pub const ALLOWED_TABLES: &[&str] = &[
     "meta",
     "notes",
     "note_tags",
+    "note_links",
     "dir_cache",
     "notes_fts",
     "notes_fts_data",
@@ -17,7 +18,13 @@ pub const ALLOWED_TABLES: &[&str] = &[
     "notes_fts_content",
 ];
 
-pub const ALLOWED_INDEXES: &[&str] = &["notes_modified", "notes_folder", "note_tags_norm"];
+pub const ALLOWED_INDEXES: &[&str] = &[
+    "notes_modified",
+    "notes_folder",
+    "note_tags_norm",
+    "note_links_source",
+    "note_links_target",
+];
 
 pub fn user_version(conn: &Connection) -> rusqlite::Result<i32> {
     conn.query_row("PRAGMA user_version", [], |row| row.get(0))
@@ -90,8 +97,50 @@ pub fn apply_schema_v2(conn: &Connection) -> rusqlite::Result<()> {
         "INSERT OR REPLACE INTO meta(key, value) VALUES ('created_ms', ?1)",
         params![now_ms().to_string()],
     )?;
+    conn.pragma_update(None, "user_version", 2)?;
+    Ok(())
+}
+
+pub fn apply_note_links_schema(conn: &Connection) -> rusqlite::Result<()> {
+    conn.execute_batch(
+        "
+        CREATE TABLE IF NOT EXISTS note_links (
+            id           INTEGER PRIMARY KEY,
+            source_id    INTEGER NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+            target_ref   TEXT    NOT NULL,
+            target_path  TEXT,
+            display_text TEXT    NOT NULL,
+            heading      TEXT    NOT NULL DEFAULT '',
+            kind         TEXT    NOT NULL,
+            UNIQUE(source_id, target_ref, heading, kind)
+        );
+        CREATE INDEX IF NOT EXISTS note_links_source ON note_links(source_id);
+        CREATE INDEX IF NOT EXISTS note_links_target ON note_links(target_path);
+        ",
+    )?;
+    Ok(())
+}
+
+pub fn apply_schema(conn: &Connection) -> rusqlite::Result<()> {
+    apply_schema_v2(conn)?;
+    apply_note_links_schema(conn)?;
     conn.pragma_update(None, "user_version", CURRENT_USER_VERSION)?;
     Ok(())
+}
+
+pub fn upgrade_schema(conn: &Connection, version: i32) -> Result<(), ()> {
+    if version == 0 {
+        apply_schema(conn).map_err(|_| ())
+    } else if version == 2 {
+        apply_note_links_schema(conn).map_err(|_| ())?;
+        conn.pragma_update(None, "user_version", CURRENT_USER_VERSION)
+            .map_err(|_| ())?;
+        Ok(())
+    } else if version == CURRENT_USER_VERSION {
+        Ok(())
+    } else {
+        Err(())
+    }
 }
 
 /// Rejects any sqlite_master object that is not on the v2 whitelist.
@@ -122,7 +171,7 @@ pub fn schema_is_safe(conn: &Connection) -> bool {
             return false;
         }
     }
-    for table in ["meta", "notes", "note_tags", "dir_cache", "notes_fts"] {
+    for table in ["meta", "notes", "note_tags", "note_links", "dir_cache", "notes_fts"] {
         let exists: Result<i64, _> = conn.query_row(
             "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?1",
             params![table],
@@ -152,7 +201,7 @@ mod tests {
     #[test]
     fn bundled_fts5_shadow_tables_are_on_the_whitelist() {
         let conn = Connection::open_in_memory().unwrap();
-        apply_schema_v2(&conn).unwrap();
+        apply_schema(&conn).unwrap();
         let objects = master_objects(&conn).unwrap();
         assert!(schema_is_safe(&conn), "unsafe schema: {objects:?}");
         assert!(!objects.is_empty());
@@ -190,7 +239,7 @@ mod tests {
         assert!(!schema_is_safe(&conn));
 
         let conn = Connection::open_in_memory().unwrap();
-        apply_schema_v2(&conn).unwrap();
+        apply_schema(&conn).unwrap();
         conn.execute_batch("CREATE TRIGGER evil AFTER INSERT ON notes BEGIN SELECT 1; END;")
             .unwrap();
         assert!(!schema_is_safe(&conn));

@@ -28,6 +28,22 @@ afterEach(() => {
   });
 });
 
+describe("LibrarySidebar graph", () => {
+  it("opens the graph panel", async () => {
+    const user = userEvent.setup();
+    useAppStore.setState({
+      workspaceRoot: "/notes",
+      libraryStats: { ...emptyLibraryStats(), total: 1 },
+    });
+    const view = render(
+      <LibrarySidebar isDark={false} onCreateFolder={() => undefined} onCreateTag={() => undefined} />,
+    );
+    expect(view.getByRole("button", { name: "图谱" })).toBeInTheDocument();
+    await user.click(view.getByRole("button", { name: "图谱" }));
+    expect(useAppStore.getState().libraryPanelMode).toBe("graph");
+  });
+});
+
 describe("LibrarySidebar folders", () => {
   it("renders a custom folder emoji and opens the appearance dialog", async () => {
     useAppStore.setState({

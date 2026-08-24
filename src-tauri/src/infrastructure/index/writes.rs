@@ -1,5 +1,7 @@
 use super::schema::now_ms;
-use crate::domain::{folder_of, NoteFile};
+use crate::domain::{
+    folder_of, resolve_note_ref, NoteFile, NoteLinkIdentity, RawNoteLink,
+};
 use rusqlite::{params, Connection, OptionalExtension};
 use std::collections::{HashMap, HashSet};
 
@@ -17,6 +19,7 @@ pub struct NoteRow {
     pub title: String,
     pub excerpt: String,
     pub tags: Vec<String>,
+    pub links: Vec<RawNoteLink>,
 }
 
 impl NoteRow {
@@ -74,6 +77,14 @@ pub fn note_row(
         title,
         excerpt,
         tags: tags.to_vec(),
+        links: Vec::new(),
+    }
+}
+
+impl NoteRow {
+    pub fn with_links(mut self, links: Vec<RawNoteLink>) -> Self {
+        self.links = links;
+        self
     }
 }
 
@@ -218,6 +229,7 @@ pub fn upsert_note(conn: &Connection, row: &NoteRow) -> rusqlite::Result<i64> {
     )?;
     let id = note_id_for_path(conn, &row.relative_path)?.unwrap_or(conn.last_insert_rowid());
     replace_tags(conn, id, &row.tags)?;
+    replace_links(conn, id, &row.links)?;
     sync_fts(conn, id, &row.title, &row.excerpt, &row.relative_path, &row.tags)?;
     Ok(id)
 }
@@ -275,6 +287,7 @@ pub fn cas_update(
     if affected == 1 {
         if let Some(id) = note_id_for_path(conn, &row.relative_path)? {
             replace_tags(conn, id, &row.tags)?;
+            replace_links(conn, id, &row.links)?;
             sync_fts(conn, id, &row.title, &row.excerpt, &row.relative_path, &row.tags)?;
         }
     }
@@ -305,6 +318,7 @@ pub fn insert_ignore(conn: &Connection, row: &NoteRow) -> rusqlite::Result<usize
     if affected == 1 {
         if let Some(id) = note_id_for_path(conn, &row.relative_path)? {
             replace_tags(conn, id, &row.tags)?;
+            replace_links(conn, id, &row.links)?;
             sync_fts(conn, id, &row.title, &row.excerpt, &row.relative_path, &row.tags)?;
         }
     }
@@ -360,6 +374,77 @@ pub fn replace_tags(conn: &Connection, note_id: i64, tags: &[String]) -> rusqlit
         params.push(norm.clone().into());
     }
     statement.execute(rusqlite::params_from_iter(params))?;
+    Ok(())
+}
+
+pub fn replace_links(
+    conn: &Connection,
+    note_id: i64,
+    links: &[RawNoteLink],
+) -> rusqlite::Result<()> {
+    conn.execute("DELETE FROM note_links WHERE source_id = ?1", params![note_id])?;
+    let mut seen = HashSet::new();
+    for link in links {
+        let key = (
+            link.target_ref.clone(),
+            link.heading.clone(),
+            link.kind.as_str().to_string(),
+        );
+        if !seen.insert(key) {
+            continue;
+        }
+        conn.execute(
+            "
+            INSERT INTO note_links(source_id, target_ref, target_path, display_text, heading, kind)
+            VALUES (?1, ?2, NULL, ?3, ?4, ?5)
+            ",
+            params![
+                note_id,
+                link.target_ref,
+                link.display_text,
+                link.heading,
+                link.kind.as_str()
+            ],
+        )?;
+    }
+    Ok(())
+}
+
+pub fn resolve_note_links(conn: &Connection) -> rusqlite::Result<()> {
+    let notes = {
+        let mut statement = conn.prepare("SELECT relative_path, title FROM notes")?;
+        let rows = statement.query_map([], |row| {
+            Ok(NoteLinkIdentity {
+                relative_path: row.get(0)?,
+                title: row.get(1)?,
+            })
+        })?;
+        rows.collect::<rusqlite::Result<Vec<_>>>()?
+    };
+    let links = {
+        let mut statement = conn.prepare(
+            "
+            SELECT l.id, n.relative_path, l.target_ref
+              FROM note_links l
+              JOIN notes n ON n.id = l.source_id
+            ",
+        )?;
+        let rows = statement.query_map([], |row| {
+            Ok((
+                row.get::<_, i64>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+            ))
+        })?;
+        rows.collect::<rusqlite::Result<Vec<_>>>()?
+    };
+    for (id, source_path, target_ref) in links {
+        let resolved = resolve_note_ref(&target_ref, &source_path, &notes);
+        conn.execute(
+            "UPDATE note_links SET target_path = ?1 WHERE id = ?2",
+            params![resolved, id],
+        )?;
+    }
     Ok(())
 }
 

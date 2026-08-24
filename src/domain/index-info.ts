@@ -1,7 +1,7 @@
 export const INDEX_RELATIVE_PATH = ".memoir/index.sqlite";
 export const INDEX_SCHEMA_NAME = "memoir-index";
-export const INDEX_SCHEMA_VERSION = 2;
-export const INDEX_PARSE_ALGO_VERSION = 1;
+export const INDEX_SCHEMA_VERSION = 3;
+export const INDEX_PARSE_ALGO_VERSION = 2;
 export const INDEX_READ_CAP = 1024 * 1024;
 
 export type WorkspaceIndexInfo = {
@@ -19,6 +19,7 @@ export type WorkspaceIndexInfo = {
   noteCount: number;
   tagCount: number;
   tagLinkCount: number;
+  noteLinkCount: number;
   truncatedCount: number;
 };
 
@@ -38,6 +39,7 @@ export function emptyIndexInfo(overrides: Partial<WorkspaceIndexInfo> = {}): Wor
     noteCount: 0,
     tagCount: 0,
     tagLinkCount: 0,
+    noteLinkCount: 0,
     truncatedCount: 0,
     ...overrides,
   };

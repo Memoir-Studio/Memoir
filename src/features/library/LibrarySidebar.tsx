@@ -8,6 +8,7 @@ import {
   FolderOpen,
   Inbox,
   Moon,
+  Network,
   Paperclip,
   PanelLeftClose,
   PanelLeftOpen,
@@ -272,7 +273,8 @@ export function LibrarySidebar({
 
   const folderLabel = (folder: string, name = folder) =>
     isRootFolder(folder) ? t("library.rootFolder") : name || folder;
-  const notesNavActive = libraryPanelMode === "notes" || libraryPanelMode === "outline";
+  const notesNavActive =
+    libraryPanelMode === "notes" || libraryPanelMode === "outline" || libraryPanelMode === "links";
   const toggleFolder = (folder: string) => {
     setCollapsedFolders((current) => {
       const next = new Set(current);
@@ -364,6 +366,13 @@ export function LibrarySidebar({
             icon={<Inbox strokeWidth={1.8} />}
             label={t("nav.uncategorized")}
             onClick={() => setNavFilter("uncategorized")}
+          />
+          <NavButton
+            active={libraryPanelMode === "graph"}
+            collapsed={collapsed}
+            icon={<Network strokeWidth={1.8} />}
+            label={t("nav.graph")}
+            onClick={() => setLibraryPanelMode("graph")}
           />
           <NavButton
             active={libraryPanelMode === "attachments"}

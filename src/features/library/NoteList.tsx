@@ -3,6 +3,7 @@ import {
   BookOpen,
   Code2,
   FileText,
+  Link2,
   ListTree,
   Loader2,
   Plus,
@@ -29,7 +30,9 @@ import type { AppLocale } from "../../i18n/locale";
 import { useI18n } from "../../i18n/react";
 import { AttachmentLibrary } from "../attachments/AttachmentLibrary";
 import { CloudSyncPanel } from "../sync/CloudSyncPanel";
+import { NoteGraphPanel } from "../graph/NoteGraphPanel";
 import { IndexInspector } from "./IndexInspector";
+import { NoteLinksPanel } from "./NoteLinksPanel";
 import { NoteContextMenu, type NoteMenuTarget } from "./NoteContextMenu";
 import { NoteOutline } from "./NoteOutline";
 import type { NoteSortDirection, NoteSortField } from "../../domain/settings";
@@ -111,9 +114,13 @@ export function NoteList({
           data-tauri-drag-region={isTauriRuntime() ? "" : undefined}
           onMouseDown={handleWindowDragMouseDown}
         >
-          {mode === "index" || mode === "attachments" ? (
+          {mode === "index" || mode === "attachments" || mode === "graph" ? (
             <h2 className="text-[13px] font-semibold tracking-[-0.02em] text-text">
-              {mode === "attachments" ? t("library.attachments") : t("library.index")}
+              {mode === "attachments"
+                ? t("library.attachments")
+                : mode === "graph"
+                  ? t("library.graph")
+                  : t("library.index")}
             </h2>
           ) : (
             <div className="view-switcher library-mode-switcher flex items-center rounded-lg p-0.5">
@@ -133,13 +140,21 @@ export function NoteList({
                 <ListTree className="h-3.5 w-3.5" />
                 <span>{t("library.outline")}</span>
               </IconButton>
+              <IconButton
+                active={mode === "links"}
+                label={t("library.links")}
+                onClick={() => setMode("links")}
+              >
+                <Link2 className="h-3.5 w-3.5" />
+                <span>{t("library.links")}</span>
+              </IconButton>
             </div>
           )}
           {mode === "attachments" ? (
             <IconButton label={t("library.importAttachment")} onClick={() => void importAttachments()}>
               <Upload className="h-4 w-4" />
             </IconButton>
-          ) : mode === "index" ? (
+          ) : mode === "index" || mode === "graph" ? (
             <span aria-hidden className="h-8 w-8" />
           ) : (
             <IconButton label={t("library.newNote")} onClick={() => onCreate()}>
@@ -153,6 +168,8 @@ export function NoteList({
         <AttachmentLibrary onInsert={onInsertAttachment} />
       ) : mode === "index" ? (
         <IndexInspector />
+      ) : mode === "graph" ? (
+        <NoteGraphPanel />
       ) : mode === "sync" ? (
         <CloudSyncPanel />
       ) : mode === "notes" ? (
@@ -200,6 +217,8 @@ export function NoteList({
             <p className="px-3 py-8 text-center text-xs text-muted">{t("library.noMatches")}</p>
           )}
         </div>
+      ) : mode === "links" ? (
+        <NoteLinksPanel />
       ) : (
         <NoteOutline documentKey={activePath} headings={headings} />
       )}
