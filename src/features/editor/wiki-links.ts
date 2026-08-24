@@ -1,4 +1,4 @@
-import { Facet, Prec, StateEffect, StateField } from "@codemirror/state";
+import { EditorState, Facet, Prec, StateEffect, StateField } from "@codemirror/state";
 import {
   Decoration,
   EditorView,
@@ -123,7 +123,7 @@ const wikiComplete = StateField.define<{
   index: number;
 } | null>({
   create(state) {
-    return wikiQueryAt(state.doc.toString(), state.selection.main.head);
+    return wikiQueryAtState(state);
   },
   update(value, transaction) {
     for (const effect of transaction.effects) {
@@ -132,7 +132,7 @@ const wikiComplete = StateField.define<{
       }
     }
     if (!transaction.docChanged && !transaction.selection) return value;
-    const next = wikiQueryAt(transaction.state.doc.toString(), transaction.state.selection.main.head);
+    const next = wikiQueryAtState(transaction.state);
     if (!next) return null;
     if (value && next.from === value.from && next.query === value.query) {
       return { ...next, index: value.index };
@@ -141,14 +141,29 @@ const wikiComplete = StateField.define<{
   },
 });
 
-export function wikiQueryAt(doc: string, pos: number) {
-  const start = doc.lastIndexOf("[[", pos);
+export function wikiQueryInLine(line: string, lineFrom: number, localPos: number) {
+  const pos = Math.max(0, Math.min(localPos, line.length));
+  const start = line.lastIndexOf("[[", pos);
   if (start < 0) return null;
-  const between = doc.slice(start + 2, pos);
+  const between = line.slice(start + 2, pos);
   if (between.includes("]]") || between.includes("\n")) return null;
-  const before = start > 0 ? doc[start - 1] : "";
+  const before = start > 0 ? line[start - 1] : "";
   if (before === "!") return null;
-  return { from: start + 2, to: pos, query: between, index: 0 };
+  return { from: lineFrom + start + 2, to: lineFrom + pos, query: between, index: 0 };
+}
+
+export function wikiQueryAt(doc: string, pos: number) {
+  const clamped = Math.max(0, Math.min(pos, doc.length));
+  const lineStart = clamped === 0 ? 0 : doc.lastIndexOf("\n", clamped - 1) + 1;
+  const newline = doc.indexOf("\n", lineStart);
+  const lineEnd = newline < 0 ? doc.length : newline;
+  return wikiQueryInLine(doc.slice(lineStart, lineEnd), lineStart, clamped - lineStart);
+}
+
+function wikiQueryAtState(state: EditorState) {
+  const pos = state.selection.main.head;
+  const line = state.doc.lineAt(pos);
+  return wikiQueryInLine(line.text, line.from, pos - line.from);
 }
 
 function filteredCatalog(view: EditorView, query: string) {
@@ -270,8 +285,8 @@ export function wikiLinkExtensions(onOpenNote?: (path: string) => void) {
         if (!(event.metaKey || event.ctrlKey) || !onOpenNote) return false;
         const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
         if (pos == null) return false;
-        const doc = view.state.doc.toString();
-        const match = wikiAt(doc, pos);
+        const line = view.state.doc.lineAt(pos);
+        const match = wikiAt(line.text, line.from, pos);
         if (!match) return false;
         const source = view.state.facet(wikiSourcePath);
         const resolved = resolveNoteRef(match, source, view.state.facet(wikiNoteCatalog));
@@ -284,10 +299,11 @@ export function wikiLinkExtensions(onOpenNote?: (path: string) => void) {
   ];
 }
 
-function wikiAt(doc: string, pos: number) {
-  const start = doc.lastIndexOf("[[", pos);
+function wikiAt(line: string, lineFrom: number, pos: number) {
+  const local = pos - lineFrom;
+  const start = line.lastIndexOf("[[", local);
   if (start < 0) return null;
-  const end = doc.indexOf("]]", start + 2);
-  if (end < 0 || pos > end + 2) return null;
-  return splitHash(doc.slice(start + 2, end).split("|")[0] || "").path;
+  const end = line.indexOf("]]", start + 2);
+  if (end < 0 || local > end + 2) return null;
+  return splitHash(line.slice(start + 2, end).split("|")[0] || "").path;
 }

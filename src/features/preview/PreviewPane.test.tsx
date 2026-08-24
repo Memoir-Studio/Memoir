@@ -5,10 +5,24 @@ import type { NoteMeta } from "../../domain/notes";
 import { setGatewaysForTests } from "../../gateways";
 import { useAppStore } from "../../store/app-store";
 import { createMockGateways } from "../../test/mock-gateways";
+import { MARKDOWN_PREVIEW_DELAY_MS } from "./NotePreviewArticle";
 import { PreviewPane } from "./PreviewPane";
+import { resetMermaidRuntime } from "./mermaid-runtime";
+
+const mermaidMock = vi.hoisted(() => ({
+  initialize: vi.fn(),
+  render: vi.fn(async () => ({ svg: "<svg data-test='mermaid'></svg>" })),
+}));
+
+vi.mock("mermaid", () => ({
+  default: mermaidMock,
+}));
 
 afterEach(() => {
   cleanup();
+  resetMermaidRuntime();
+  mermaidMock.initialize.mockClear();
+  mermaidMock.render.mockClear();
   setGatewaysForTests(null);
   useAppStore.setState({
     workspaceRoot: null,
@@ -131,6 +145,40 @@ describe("PreviewPane task list", () => {
   });
 });
 
+describe("PreviewPane markdown delay", () => {
+  it("keeps the previous markdown body until the preview delay elapses", async () => {
+    vi.useFakeTimers();
+    const view = render(
+      <PreviewPane
+        activePath="hello.md"
+        content={"# Title\n\nParagraph\n"}
+        note={{ ...note, relativePath: "hello.md", fileName: "hello.md", title: "Title" }}
+        onContentChange={() => undefined}
+        root="/notes"
+      />,
+    );
+    expect(view.getByRole("heading", { name: "Title" })).toBeInTheDocument();
+
+    view.rerender(
+      <PreviewPane
+        activePath="hello.md"
+        content={"# Next\n\nUpdated\n"}
+        note={{ ...note, relativePath: "hello.md", fileName: "hello.md", title: "Next" }}
+        onContentChange={() => undefined}
+        root="/notes"
+      />,
+    );
+    expect(view.getByRole("heading", { name: "Title" })).toBeInTheDocument();
+    expect(view.queryByRole("heading", { name: "Next" })).not.toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(MARKDOWN_PREVIEW_DELAY_MS);
+    });
+    expect(view.getByRole("heading", { name: "Next" })).toBeInTheDocument();
+    vi.useRealTimers();
+  });
+});
+
 describe("PreviewPane fenced code", () => {
   it("highlights python tokens in a fenced code block", () => {
     const view = render(
@@ -160,6 +208,28 @@ describe("PreviewPane fenced code", () => {
 
     expect(view.container.querySelector("[data-mermaid-pending]")).toBeTruthy();
     expect(view.container.querySelector(".hljs-keyword")).toBeNull();
+  });
+
+  it("does not re-initialize mermaid when the fence source is unchanged", async () => {
+    const props = {
+      activePath: "hello.md",
+      content: "```mermaid\ngraph LR\nA-->B\n```\n",
+      note: { ...note, relativePath: "hello.md", fileName: "hello.md", title: "Hello" },
+      onContentChange: () => undefined,
+      root: "/notes",
+    };
+    const view = render(<PreviewPane {...props} />);
+    await waitFor(() => {
+      expect(mermaidMock.render).toHaveBeenCalledTimes(1);
+    });
+    expect(mermaidMock.initialize).toHaveBeenCalledTimes(1);
+
+    view.rerender(<PreviewPane {...props} />);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(mermaidMock.initialize).toHaveBeenCalledTimes(1);
+    expect(mermaidMock.render).toHaveBeenCalledTimes(1);
   });
 });
 

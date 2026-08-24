@@ -5,6 +5,7 @@ import {
   Suspense,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ComponentPropsWithoutRef,
   type ComponentType,
@@ -40,6 +41,7 @@ import { rehypeSourceLines } from "./source-line";
 import { rehypeTaskOffsets, toggleTaskAtOffset } from "./task-list";
 
 const MDX_IMPORT_EXPORT_DISABLED = "MDX_IMPORT_EXPORT_DISABLED";
+export const MARKDOWN_PREVIEW_DELAY_MS = 200;
 
 const MermaidBlock = lazy(() => import("./MermaidBlock"));
 const remarkPlugins = [remarkGfm, remarkMath, remarkWikiLinks];
@@ -254,36 +256,40 @@ export function NotePreviewArticle({
   const bodyOffset = content.endsWith(parsed.body) ? content.length - parsed.body.length : 0;
   const toggleTaskLabel = t("preview.toggleTask");
   const loadingMermaidLabel = t("preview.loadingMermaid");
+  const contentRef = useRef(content);
+  const bodyOffsetRef = useRef(bodyOffset);
+  const skipPreviewDelayRef = useRef(false);
+  contentRef.current = content;
+  bodyOffsetRef.current = bodyOffset;
+  const onToggleTask = useMemo(
+    () =>
+      onContentChange
+        ? (taskOffset: number, checked: boolean) => {
+            skipPreviewDelayRef.current = true;
+            onContentChange(
+              toggleTaskAtOffset(contentRef.current, bodyOffsetRef.current + taskOffset, checked),
+            );
+          }
+        : undefined,
+    [onContentChange],
+  );
+  const selectNoteRef = useRef(selectNote);
+  selectNoteRef.current = selectNote;
   const components = useMemo(
     () =>
       previewComponents(
         root,
         relativePath,
-        onContentChange
-          ? (taskOffset, checked) => {
-              onContentChange(toggleTaskAtOffset(content, bodyOffset + taskOffset, checked));
-            }
-          : undefined,
+        onToggleTask,
         {
           toggleTask: toggleTaskLabel,
           loadingMermaid: loadingMermaidLabel,
           missingWikiLink: (name) => t("preview.missingWikiLink", { name }),
         },
         graph.nodes,
-        (path) => void selectNote(path),
+        (path) => void selectNoteRef.current(path),
       ),
-    [
-      bodyOffset,
-      content,
-      graph.nodes,
-      loadingMermaidLabel,
-      onContentChange,
-      relativePath,
-      root,
-      selectNote,
-      t,
-      toggleTaskLabel,
-    ],
+    [graph.nodes, loadingMermaidLabel, onToggleTask, relativePath, root, t, toggleTaskLabel],
   );
   const [mdxComponent, setMdxComponent] = useState<ComponentType<{
     components?: MDXComponents;
@@ -292,6 +298,20 @@ export function NotePreviewArticle({
   const shouldCompileMdx =
     note?.extension === "mdx" && (/<[A-Z][\w.:-]*(\s|>|\/>)/.test(parsed.body) || /\{[^}\n]+\}/.test(parsed.body));
   const mdxPending = shouldCompileMdx && !mdxComponent && !error;
+  const markdownDelay = compileDelay === 0 ? 0 : MARKDOWN_PREVIEW_DELAY_MS;
+  const [previewBody, setPreviewBody] = useState(parsed.body);
+
+  useEffect(() => {
+    if (shouldCompileMdx) return;
+    if (parsed.body === previewBody) return;
+    if (skipPreviewDelayRef.current || markdownDelay === 0) {
+      skipPreviewDelayRef.current = false;
+      setPreviewBody(parsed.body);
+      return;
+    }
+    const timer = window.setTimeout(() => setPreviewBody(parsed.body), markdownDelay);
+    return () => window.clearTimeout(timer);
+  }, [markdownDelay, parsed.body, previewBody, shouldCompileMdx]);
 
   useEffect(() => {
     let cancelled = false;
@@ -340,7 +360,7 @@ export function NotePreviewArticle({
           rehypePlugins={markdownRehypePlugins}
           remarkPlugins={remarkPlugins}
         >
-          {parsed.body}
+          {shouldCompileMdx ? parsed.body : previewBody}
         </ReactMarkdown>
       )}
     </article>

@@ -1,10 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { mapGatewayError } from "../../domain/errors";
-import {
-  buildNoteGraph,
-  extractNoteLinks,
-  type NoteGraph,
-} from "../../domain/note-links";
+import { overlayLiveNoteGraph, type NoteGraph } from "../../domain/note-links";
 import { getGateways } from "../../gateways";
 import { useAppStore } from "../../store/app-store";
 import { useI18n } from "../../i18n/react";
@@ -66,19 +62,7 @@ export function useNoteGraph() {
 
   const liveGraph = useMemo(() => {
     if (!activePath || content === savedContent) return graph;
-    const others = graph.edges.filter((edge) => edge.sourcePath !== activePath);
-    const overlay = buildNoteGraph(
-      graph.nodes.map((node) => ({
-        relativePath: node.relativePath,
-        title: node.title,
-        content: node.relativePath === activePath ? content : "",
-      })),
-    );
-    const liveOutgoing = overlay.edges.filter((edge) => edge.sourcePath === activePath);
-    if (!liveOutgoing.length && !extractNoteLinks(content).length) {
-      return { nodes: graph.nodes, edges: others };
-    }
-    return { nodes: graph.nodes, edges: [...others, ...liveOutgoing] };
+    return overlayLiveNoteGraph(graph, activePath, content);
   }, [activePath, content, graph, savedContent]);
 
   return { graph: liveGraph, loading };

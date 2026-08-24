@@ -5,6 +5,7 @@ import {
   extractNoteLinks,
   isNoteMarkdownHref,
   noteRefsFromGraph,
+  overlayLiveNoteGraph,
   resolveNoteRef,
 } from "./note-links";
 
@@ -13,6 +14,12 @@ describe("extractNoteLinks", () => {
     for (const item of corpus.extract) {
       expect(extractNoteLinks(item.content), item.name).toEqual(item.links);
     }
+  });
+
+  it("skips inline-code wiki tokens next to CJK without expanding code points", () => {
+    expect(extractNoteLinks("保留 [[Keep]] 和 `[[Nope]]` 以及中文。")).toEqual([
+      { targetRef: "Keep", heading: "", displayText: "Keep", kind: "wiki" },
+    ]);
   });
 });
 
@@ -69,6 +76,12 @@ describe("note graph helpers", () => {
     const live = noteRefsFromGraph(graph, "welcome.md", extractNoteLinks("Only [[Missing]]."));
     expect(live.outgoing).toHaveLength(1);
     expect(live.unresolved.map((item) => item.targetRef)).toEqual(["Missing"]);
+
+    const overlaid = overlayLiveNoteGraph(graph, "welcome.md", "Only [[Missing]].");
+    expect(overlaid.nodes).toBe(graph.nodes);
+    expect(overlaid.edges.filter((edge) => edge.sourcePath === "welcome.md")).toEqual([
+      expect.objectContaining({ targetRef: "Missing", targetPath: null }),
+    ]);
   });
 
   it("treats markdown note hrefs as in-app links", () => {

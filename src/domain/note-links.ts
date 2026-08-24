@@ -139,6 +139,28 @@ export function resolveNoteRef(
   return undefined;
 }
 
+export function overlayLiveNoteGraph(graph: NoteGraph, activePath: string, content: string): NoteGraph {
+  const others = graph.edges.filter((edge) => edge.sourcePath !== activePath);
+  const liveOutgoing: NoteGraphEdge[] = [];
+  const seen = new Set<string>();
+  for (const link of extractNoteLinks(content)) {
+    const targetPath = resolveNoteRef(link.targetRef, activePath, graph.nodes) ?? null;
+    const key = `${activePath}\0${targetPath ?? ""}\0${link.targetRef}\0${link.kind}\0${link.heading}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    liveOutgoing.push({
+      sourcePath: activePath,
+      targetPath,
+      targetRef: link.targetRef,
+      displayText: link.displayText,
+      heading: link.heading,
+      kind: link.kind,
+    });
+  }
+  if (!liveOutgoing.length) return { nodes: graph.nodes, edges: others };
+  return { nodes: graph.nodes, edges: [...others, ...liveOutgoing] };
+}
+
 export function buildNoteGraph(
   notes: Array<{ relativePath: string; title: string; content: string }>,
 ): NoteGraph {
@@ -301,36 +323,39 @@ function visibleMarkdown(content: string) {
 }
 
 function stripInlineCode(content: string) {
-  const chars = [...content];
-  const out: string[] = [];
+  const BACKTICK = 96;
+  let out = "";
   let index = 0;
-  while (index < chars.length) {
-    if (chars[index] !== "`") {
-      out.push(chars[index]);
+  const length = content.length;
+  while (index < length) {
+    if (content.charCodeAt(index) !== BACKTICK) {
+      const start = index;
       index += 1;
+      while (index < length && content.charCodeAt(index) !== BACKTICK) index += 1;
+      out += content.slice(start, index);
       continue;
     }
-    let ticks = 0;
-    while (index + ticks < chars.length && chars[index + ticks] === "`") ticks += 1;
+    let ticks = 1;
+    while (index + ticks < length && content.charCodeAt(index + ticks) === BACKTICK) ticks += 1;
     let cursor = index + ticks;
-    let end = chars.length;
-    while (cursor < chars.length) {
-      if (chars[cursor] !== "`") {
+    let end = length;
+    while (cursor < length) {
+      if (content.charCodeAt(cursor) !== BACKTICK) {
         cursor += 1;
         continue;
       }
-      let close = 0;
-      while (cursor + close < chars.length && chars[cursor + close] === "`") close += 1;
+      let close = 1;
+      while (cursor + close < length && content.charCodeAt(cursor + close) === BACKTICK) close += 1;
       if (close === ticks) {
         end = cursor + close;
         break;
       }
       cursor += close;
     }
-    for (let fill = index; fill < end; fill += 1) out.push(" ");
+    out += " ".repeat(end - index);
     index = end;
   }
-  return out.join("");
+  return out;
 }
 
 function normalizeTargetRef(value: string) {

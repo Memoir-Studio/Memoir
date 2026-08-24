@@ -53,6 +53,17 @@ describe("wiki query", () => {
     expect(wikiQueryAt("See [[mark", 10)).toEqual({ from: 6, to: 10, query: "mark", index: 0 });
     expect(wikiQueryAt("See [[mark]]", 12)).toBeNull();
   });
+
+  it("only inspects the cursor line", () => {
+    expect(wikiQueryAt("See [[mark\nlater", 16)).toBeNull();
+    const doc = "intro\nSee [[here";
+    expect(wikiQueryAt(doc, doc.length)).toEqual({
+      from: 12,
+      to: 16,
+      query: "here",
+      index: 0,
+    });
+  });
 });
 
 describe("wiki completion widget", () => {

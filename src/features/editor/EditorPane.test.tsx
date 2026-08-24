@@ -1,8 +1,25 @@
-import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
+import { StateEffect } from "@codemirror/state";
+import { EditorView } from "@codemirror/view";
+import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import { createRef } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_SETTINGS } from "../../domain/settings";
-import { EditorPane, type EditorHandle } from "./EditorPane";
+import { EDITOR_SNAPSHOT_DEBOUNCE_MS, EditorPane, type EditorHandle } from "./EditorPane";
+
+function dispatchedReconfigure(view: EditorView) {
+  const dispatch = vi.spyOn(view, "dispatch");
+  return {
+    dispatch,
+    sawReconfigure() {
+      return dispatch.mock.calls.some(([spec]) => {
+        if (!spec || typeof spec !== "object" || !("effects" in spec)) return false;
+        const effects = spec.effects;
+        const list = Array.isArray(effects) ? effects : effects ? [effects] : [];
+        return list.some((effect) => StateEffect.reconfigure.is(effect));
+      });
+    },
+  };
+}
 
 afterEach(cleanup);
 
@@ -67,6 +84,73 @@ describe("EditorPane context menu", () => {
     fireEvent.mouseDown(view.container.querySelector(".cm-content") as Element);
     expect(ref.current?.getSelectedText()).toBe("# Hello");
     expect(view.container.querySelector(".cm-content")?.textContent).toContain("Hello");
+  });
+});
+
+describe("EditorPane snapshots", () => {
+  it("keeps the CodeMirror view when parent callback identities change", async () => {
+    const view = render(
+      <EditorPane
+        content="# Hello"
+        fileName="hello.md"
+        isDark={false}
+        onChange={() => undefined}
+        onOpenNote={() => undefined}
+        settings={DEFAULT_SETTINGS}
+      />,
+    );
+    await waitFor(() => {
+      expect(view.container.querySelector(".cm-md-h1")).toBeTruthy();
+    });
+    const editor = view.container.querySelector(".cm-editor");
+    const heading = view.container.querySelector(".cm-md-h1");
+    expect(editor).toBeTruthy();
+    const cm = EditorView.findFromDOM(editor as HTMLElement);
+    expect(cm).toBeTruthy();
+    const watched = dispatchedReconfigure(cm!);
+    view.rerender(
+      <EditorPane
+        content="# Hello"
+        fileName="hello.md"
+        isDark={false}
+        onChange={() => undefined}
+        onContextMenu={() => undefined}
+        onOpenNote={() => undefined}
+        settings={DEFAULT_SETTINGS}
+      />,
+    );
+    expect(watched.sawReconfigure()).toBe(false);
+    expect(view.container.querySelector(".cm-editor")).toBe(editor);
+    expect(view.container.querySelector(".cm-md-h1")).toBe(heading);
+    expect(view.container.querySelector(".cm-md-h1")).toBeTruthy();
+  });
+
+  it("debounces document snapshots instead of emitting every edit", async () => {
+    const onChange = vi.fn();
+    const ref = createRef<EditorHandle>();
+    const view = render(
+      <EditorPane
+        content="# Hello"
+        fileName="hello.md"
+        isDark={false}
+        onChange={onChange}
+        ref={ref}
+        settings={DEFAULT_SETTINGS}
+      />,
+    );
+    await waitFor(() => {
+      expect(view.container.querySelector(".cm-content")).toBeTruthy();
+    });
+    vi.useFakeTimers();
+    act(() => {
+      ref.current?.insertRaw("!");
+    });
+    expect(onChange).not.toHaveBeenCalled();
+    act(() => {
+      vi.advanceTimersByTime(EDITOR_SNAPSHOT_DEBOUNCE_MS);
+    });
+    expect(onChange.mock.calls.some((call) => String(call[0]).includes("!"))).toBe(true);
+    vi.useRealTimers();
   });
 });
 

@@ -33,6 +33,7 @@ export function PreviewPane({
       <NotePreviewArticle
         articleRef={articleRef}
         content={content}
+        key={activePath || "empty"}
         note={note}
         onContentChange={onContentChange}
         relativePath={activePath}

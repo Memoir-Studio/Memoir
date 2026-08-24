@@ -100,6 +100,13 @@ export const EditorWorkspace = forwardRef<EditorHandle, {
   const setLayout = useAppStore((state) => state.setLayout);
   const isSaving = useAppStore((state) => state.isSaving);
   const setContent = useAppStore((state) => state.setContent);
+  const handleEditorChange = useCallback(
+    (text: string) => {
+      if (useAppStore.getState().activePath !== activePath) return;
+      setContent(text);
+    },
+    [activePath, setContent],
+  );
   const selectNote = useAppStore((state) => state.selectNote);
   const setViewMode = useAppStore((state) => state.setViewMode);
   const saveActiveNote = useAppStore((state) => state.saveActiveNote);
@@ -475,7 +482,8 @@ export const EditorWorkspace = forwardRef<EditorHandle, {
                   content={content}
                   fileName={activeNote?.fileName || untitled}
                   isDark={isDark}
-                  onChange={setContent}
+                  key={activePath || ""}
+                  onChange={handleEditorChange}
                   highlightDrop={nativeDropActive}
                   onContextMenu={openEditorMenu}
                   onOpenNote={(path) => void selectNote(path)}

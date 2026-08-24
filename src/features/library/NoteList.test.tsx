@@ -7,6 +7,7 @@ import { useAppStore } from "../../store/app-store";
 import { createMockGateways } from "../../test/mock-gateways";
 import { exportNotePdf } from "../export/export-note-pdf";
 import { NoteList } from "./NoteList";
+import * as noteUtils from "./note-utils";
 import { resetCollapsedHeadingIds } from "./outline-tree";
 
 vi.mock("../export/export-note-pdf", () => ({
@@ -76,6 +77,39 @@ describe("NoteList", () => {
     expect(view.getByText("beta")).toBeInTheDocument();
     expect(view.getByText("1 篇")).toBeInTheDocument();
     expect(view.getByRole("searchbox", { name: "筛选笔记" })).toHaveValue("beta");
+  });
+
+  it("does not extract headings while the notes panel is showing", () => {
+    const spy = vi.spyOn(noteUtils, "extractHeadings");
+    useAppStore.setState({
+      notes: [
+        {
+          relativePath: "alpha.md",
+          fileName: "alpha.md",
+          extension: "md",
+          modifiedMs: 1,
+          size: 10,
+          title: "Alpha Guide",
+          tags: [],
+          excerpt: "",
+          favorite: false,
+        },
+      ],
+      activePath: "alpha.md",
+      loadedContentPath: "alpha.md",
+      content: "# Alpha Guide\n## Setup\n### Install",
+      savedContent: "# Alpha Guide\n## Setup\n### Install",
+      libraryPanelMode: "notes",
+    });
+    render(
+      <NoteList
+        onCreate={() => undefined}
+        onDelete={() => undefined}
+        onRename={() => undefined}
+      />,
+    );
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
   });
 
   it("sorts notes from the list toolbar", async () => {

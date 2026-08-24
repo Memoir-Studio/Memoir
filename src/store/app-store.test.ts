@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { markdownForAttachments } from "../domain/attachments";
 import { resolveLocale, t } from "../i18n";
-import { AUTOSAVE_INTERVAL_MS, createAppStore } from "./app-store";
+import { AUTOSAVE_INTERVAL_MS, NOTE_METADATA_DEBOUNCE_MS, createAppStore } from "./app-store";
 import { createMockGateways } from "../test/mock-gateways";
 
 function translated(store: ReturnType<typeof createAppStore>, key: "status.draftRestored" | "status.saved") {
@@ -570,6 +570,52 @@ describe("app store actions", () => {
       await Promise.resolve();
     }
     expect(gateways.cloudSync.runCalls).toBe(2);
+  });
+
+  it("marks dirty on body-only edits without remapping title on every call", async () => {
+    const gateways = createMockGateways();
+    const store = createAppStore(gateways);
+    await store.getState().openWorkspace("/workspace");
+    const saved = store.getState().content;
+    expect(store.getState().notes[0]?.title).toBe("One");
+
+    store.getState().setContent(`${saved}!`);
+    expect(store.getState().notes[0]?.title).toBe("One");
+    expect(store.getState().notes[0]?.dirty).toBe(true);
+    const afterDirty = store.getState().notes[0];
+
+    store.getState().setContent(`${saved}!!`);
+    store.getState().setContent(`${saved}!!!`);
+    expect(store.getState().notes[0]).toBe(afterDirty);
+    expect(store.getState().notes[0]?.title).toBe("One");
+
+    vi.advanceTimersByTime(500);
+    await Promise.resolve();
+    expect(gateways.persistence.drafts.get("/workspace:one.md")).toBe(`${saved}!!!`);
+  });
+
+  it("updates title after a heading change once metadata debounce elapses", async () => {
+    const gateways = createMockGateways();
+    const store = createAppStore(gateways);
+    await store.getState().openWorkspace("/workspace");
+
+    store.getState().setContent("# Brand New\n\nBody");
+    expect(store.getState().notes[0]?.title).toBe("One");
+    expect(store.getState().notes[0]?.dirty).toBe(true);
+
+    await vi.advanceTimersByTimeAsync(NOTE_METADATA_DEBOUNCE_MS);
+    expect(store.getState().notes[0]?.title).toBe("Brand New");
+  });
+
+  it("updates title after a frontmatter change once metadata debounce elapses", async () => {
+    const gateways = createMockGateways();
+    const store = createAppStore(gateways);
+    await store.getState().openWorkspace("/workspace");
+
+    store.getState().setContent("---\ntitle: Changed\ntags: [test]\n---\n\n# One\n\nOriginal");
+    expect(store.getState().notes[0]?.title).toBe("One");
+    await vi.advanceTimersByTimeAsync(NOTE_METADATA_DEBOUNCE_MS);
+    expect(store.getState().notes[0]?.title).toBe("Changed");
   });
 
   it("lists drafts once for the current page instead of probing every path", async () => {

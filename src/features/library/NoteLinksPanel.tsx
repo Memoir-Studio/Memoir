@@ -1,28 +1,20 @@
 import { ArrowLeftRight, ArrowUpRight, FileQuestion, Link2 } from "lucide-react";
 import { useMemo, type ReactNode } from "react";
 import { cn } from "../../components/ui";
-import {
-  extractNoteLinks,
-  noteRefsFromGraph,
-  noteStem,
-  type NoteLinkItem,
-} from "../../domain/note-links";
+import { noteRefsFromGraph, noteStem, type NoteLinkItem } from "../../domain/note-links";
 import { useNoteGraph } from "../graph/useNoteGraph";
 import { useAppStore } from "../../store/app-store";
 import { useI18n } from "../../i18n/react";
 
 export function NoteLinksPanel() {
   const activePath = useAppStore((state) => state.activePath);
-  const content = useAppStore((state) => state.content);
-  const savedContent = useAppStore((state) => state.savedContent);
   const selectNote = useAppStore((state) => state.selectNote);
   const { graph } = useNoteGraph();
   const { t, tc } = useI18n();
   const refs = useMemo(() => {
     if (!activePath) return { outgoing: [], incoming: [], unresolved: [] };
-    const live = content !== savedContent ? extractNoteLinks(content) : undefined;
-    return noteRefsFromGraph(graph, activePath, live);
-  }, [activePath, content, graph, savedContent]);
+    return noteRefsFromGraph(graph, activePath);
+  }, [activePath, graph]);
   const outgoing = refs.outgoing.filter((item) => item.targetPath);
 
   if (!activePath) {

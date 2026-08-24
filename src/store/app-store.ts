@@ -41,6 +41,7 @@ import {
   type NoteMeta,
   type RawNoteFile,
 } from "../domain/notes";
+import { flushLiveEditor } from "../domain/live-editor";
 import { parseNote } from "../features/library/note-utils";
 import { resolveLocale } from "../i18n/locale";
 import { t, tc, type MessageKey, type MessageParams } from "../i18n/translate";
@@ -60,6 +61,19 @@ const QUERY_DEBOUNCE_MS = 150;
 const CLOUD_SYNC_DEBOUNCE_MS = 15_000;
 const CLOUD_SYNC_OPEN_DELAY_MS = 2_000;
 export const AUTOSAVE_INTERVAL_MS = 3000;
+export const NOTE_METADATA_DEBOUNCE_MS = 80;
+
+function sameLibraryFields(
+  left: { title: string; tags: string[]; excerpt: string },
+  right: { title: string; tags: string[]; excerpt: string },
+) {
+  return (
+    left.title === right.title &&
+    left.excerpt === right.excerpt &&
+    left.tags.length === right.tags.length &&
+    left.tags.every((tag, index) => tag === right.tags[index])
+  );
+}
 
 function isOpenUnsavedNote(state: {
   workspaceRoot: string | null;
@@ -136,6 +150,8 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
   let cloudSyncTimer: number | null = null;
   let cloudSyncInFlight = false;
   let cloudSyncPending = false;
+  let metadataTimer: number | null = null;
+  let metadataPath: string | null = null;
 
   const store = create<AppStore>((set, get) => {
     const persistPreferences = () => {
@@ -186,6 +202,55 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
           });
         }
       }, DRAFT_DEBOUNCE_MS);
+    };
+
+    const scheduleNoteMetadata = (content: string, path: string | null, fileName: string | null) => {
+      if (metadataTimer !== null) window.clearTimeout(metadataTimer);
+      metadataPath = path;
+      if (!path || !fileName) return;
+      metadataTimer = window.setTimeout(() => {
+        metadataTimer = null;
+        const state = get();
+        if (state.activePath !== path || metadataPath !== path) return;
+        const active = state.notes.find((note) => note.relativePath === path);
+        if (!active) return;
+        const parsed = parseNote(content, fileName);
+        const next = { title: parsed.title, tags: parsed.tags, excerpt: parsed.excerpt };
+        if (sameLibraryFields(active, next)) return;
+        set({
+          notes: state.notes.map((note) =>
+            note.relativePath === path ? { ...note, ...next } : note,
+          ),
+        });
+      }, NOTE_METADATA_DEBOUNCE_MS);
+    };
+
+    const applyContentUpdate = (content: string) => {
+      const state = get();
+      const activeNote = state.notes.find((note) => note.relativePath === state.activePath);
+      const dirty = content !== state.savedContent;
+      const dirtyChanged = Boolean(activeNote && Boolean(activeNote.dirty) !== dirty);
+      if (content !== state.content || dirtyChanged) {
+        set({
+          content,
+          notes: dirtyChanged
+            ? state.notes.map((note) =>
+                note.relativePath === state.activePath ? { ...note, dirty } : note,
+              )
+            : state.notes,
+        });
+      }
+      if (state.workspaceRoot && state.activePath && state.loadedContentPath === state.activePath) {
+        scheduleDraft(state.workspaceRoot, state.activePath, content, state.savedContent);
+      }
+      scheduleNoteMetadata(content, state.activePath, activeNote?.fileName ?? null);
+    };
+
+    const syncLiveEditorContent = () => {
+      const state = get();
+      const latest = flushLiveEditor(state.activePath);
+      if (latest == null || latest === state.content) return;
+      applyContentUpdate(latest);
     };
 
     const scheduleCloudSync = (delayMs = CLOUD_SYNC_DEBOUNCE_MS) => {
@@ -371,6 +436,7 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
       },
 
       async openWorkspace(root) {
+        syncLiveEditorContent();
         const current = get();
         if (isOpenUnsavedNote(current) && current.workspaceRoot && current.activePath) {
           try {
@@ -470,6 +536,7 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
       },
 
       async selectNote(relativePath) {
+        syncLiveEditorContent();
         const root = get().workspaceRoot;
         if (!root) return;
         set({
@@ -504,29 +571,11 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
       },
 
       setContent(content) {
-        const state = get();
-        const activeNote = state.notes.find((note) => note.relativePath === state.activePath);
-        const metadata = activeNote ? parseNote(content, activeNote.fileName) : null;
-        set({
-          content,
-          notes: metadata
-            ? state.notes.map((note) =>
-                note.relativePath === state.activePath
-                  ? {
-                      ...note,
-                      ...metadata,
-                      dirty: content !== state.savedContent,
-                    }
-                  : note,
-              )
-            : state.notes,
-        });
-        if (state.workspaceRoot && state.activePath && state.loadedContentPath === state.activePath) {
-          scheduleDraft(state.workspaceRoot, state.activePath, content, state.savedContent);
-        }
+        applyContentUpdate(content);
       },
 
       async saveActiveNote() {
+        syncLiveEditorContent();
         const { workspaceRoot, activePath, content, loadedContentPath, isSaving } = get();
         if (!workspaceRoot || !activePath || loadedContentPath !== activePath || isSaving) return;
         const saveRoot = workspaceRoot;
@@ -567,6 +616,7 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
       },
 
       async createNote(input) {
+        syncLiveEditorContent();
         const root = get().workspaceRoot;
         if (!root) return;
         set({ isLoading: true, error: "" });
@@ -583,6 +633,7 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
       },
 
       async renameNote(relativePath, newRelativePath) {
+        syncLiveEditorContent();
         const { workspaceRoot, activePath, content, savedContent, notes } = get();
         const trimmed = newRelativePath.trim();
         if (!workspaceRoot || !relativePath || !trimmed || relativePath === trimmed) return;
@@ -644,6 +695,7 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
       },
 
       async deleteNote(relativePath) {
+        syncLiveEditorContent();
         const { workspaceRoot, activePath, notes } = get();
         if (!workspaceRoot || !relativePath) return;
         set({ isLoading: true, error: "" });

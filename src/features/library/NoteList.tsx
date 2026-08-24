@@ -59,9 +59,9 @@ export function NoteList({
 }) {
   const notes = useAppStore((state) => state.notes);
   const activePath = useAppStore((state) => state.activePath);
-  const content = useAppStore((state) => state.content);
-  const query = useAppStore((state) => state.query);
   const mode = useAppStore((state) => state.libraryPanelMode);
+  const content = useAppStore((state) => (state.libraryPanelMode === "outline" ? state.content : ""));
+  const query = useAppStore((state) => state.query);
   const isLoading = useAppStore((state) => state.isLoading);
   const density = useAppStore((state) => state.settings.appearance.density);
   const settings = useAppStore((state) => state.settings);
@@ -96,10 +96,10 @@ export function NoteList({
   };
   const activeNote = notes.find((note) => note.relativePath === activePath);
   const untitled = t("editor.untitledFallback");
-  const headings = useMemo(
-    () => extractHeadings(parseNote(content, activeNote?.fileName || untitled).body),
-    [activeNote?.fileName, content, untitled],
-  );
+  const headings = useMemo(() => {
+    if (mode !== "outline") return [];
+    return extractHeadings(parseNote(content, activeNote?.fileName || untitled).body);
+  }, [activeNote?.fileName, content, mode, untitled]);
 
   return (
     <section

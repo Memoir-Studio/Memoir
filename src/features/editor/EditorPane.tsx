@@ -1,4 +1,3 @@
-import CodeMirror, { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { markdown } from "@codemirror/lang-markdown";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import {
@@ -16,7 +15,9 @@ import { EditorSelection } from "@codemirror/state";
 import { EditorView, highlightActiveLine, highlightActiveLineGutter, keymap, lineNumbers } from "@codemirror/view";
 import { tags as highlightTags } from "@lezer/highlight";
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState, type MutableRefObject } from "react";
+import { bindLiveEditor } from "../../domain/live-editor";
 import { fencedCodeBlockHighlighter, fencedCodeLanguages } from "./code-languages";
+import { CodeMirrorHost, type CodeMirrorHostHandle } from "./code-mirror-host";
 import { clamp } from "./scroll-sync";
 import { collectClipboardImages, padMarkdownBlock } from "../../domain/attachments";
 import { writeClipboardText } from "./clipboard";
@@ -31,6 +32,8 @@ import {
   wikiSourcePath,
   type WikiCatalogNote,
 } from "./wiki-links";
+
+export { EDITOR_SNAPSHOT_DEBOUNCE_MS } from "./code-mirror-host";
 
 function positionFromCoords(view: EditorView, x: number, y: number) {
   try {
@@ -330,6 +333,8 @@ export interface EditorHandle {
   copy: () => Promise<void>;
 }
 
+const EMPTY_WIKI_CATALOG: WikiCatalogNote[] = [];
+
 interface EditorPaneProps {
   content: string;
   settings: AppSettings;
@@ -356,51 +361,64 @@ export const EditorPane = forwardRef<EditorHandle, EditorPaneProps>(function Edi
     onPasteImages,
     highlightDrop = false,
     onContextMenu,
-    wikiCatalog = [],
+    wikiCatalog = EMPTY_WIKI_CATALOG,
     sourcePath = "",
     onOpenNote,
   },
   forwardedRef,
 ) {
   const { t, tc } = useI18n();
-  const editorRef = useRef<ReactCodeMirrorRef>(null);
+  const hostRef = useRef<CodeMirrorHostHandle>(null);
   const [htmlDropActive, setHtmlDropActive] = useState(false);
   const dropDepthRef = useRef(0);
   const ignorePointerUntil = useRef(0);
   const onScrollRef = useRef(onScroll);
   const detachScrollRef = useRef<(() => void) | null>(null);
+  const callbacksRef = useRef({ onPasteImages, onContextMenu, onOpenNote });
+  callbacksRef.current = { onPasteImages, onContextMenu, onOpenNote };
   onScrollRef.current = onScroll;
   const extensions = useMemo(
     () =>
       createEditorExtensions(
         isDark,
         settings.editor,
-        onPasteImages,
-        onContextMenu,
+        callbacksRef.current.onPasteImages
+          ? (files) => callbacksRef.current.onPasteImages?.(files) ?? Promise.resolve("")
+          : undefined,
+        (target) => callbacksRef.current.onContextMenu?.(target),
         ignorePointerUntil,
-        { catalog: wikiCatalog, sourcePath, onOpenNote },
+        {
+          catalog: wikiCatalog,
+          sourcePath,
+          onOpenNote: (path) => callbacksRef.current.onOpenNote?.(path),
+        },
       ),
-    [isDark, onContextMenu, onOpenNote, onPasteImages, settings.editor, sourcePath, wikiCatalog],
+    [isDark, settings.editor, sourcePath, wikiCatalog],
   );
   const parsed = useMemo(() => parseNote(content, fileName), [content, fileName]);
   const stats = useMemo(() => noteStats(content), [content]);
 
   useEffect(() => () => detachScrollRef.current?.(), []);
 
+  useEffect(() => {
+    if (!sourcePath) return;
+    return bindLiveEditor(sourcePath, () => hostRef.current?.flush() ?? "");
+  }, [sourcePath]);
+
   useImperativeHandle(
     forwardedRef,
     () => ({
-      getScrollElement: () => editorRef.current?.view?.scrollDOM || null,
+      getScrollElement: () => hostRef.current?.getView()?.scrollDOM || null,
       getVisibleLine: (offset = 0) => {
-        const view = editorRef.current?.view;
+        const view = hostRef.current?.getView();
         return view ? visibleLineAtOffset(view, offset) : null;
       },
       scrollToLine: (line, offset = 0) => {
-        const view = editorRef.current?.view;
+        const view = hostRef.current?.getView();
         if (view) scrollViewToLine(view, line, offset);
       },
       insertSnippet: (before, after = "", placeholder = "") => {
-        const view = editorRef.current?.view;
+        const view = hostRef.current?.getView();
         if (!view) return;
         const selection = view.state.selection.main;
         const selected = view.state.sliceDoc(selection.from, selection.to);
@@ -413,45 +431,45 @@ export const EditorPane = forwardRef<EditorHandle, EditorPaneProps>(function Edi
         view.focus();
       },
       insertText: (text) => {
-        const view = editorRef.current?.view;
+        const view = hostRef.current?.getView();
         if (!view || !text) return;
         const selection = view.state.selection.main;
         insertMarkdownBlock(view, selection.from, selection.to, text);
       },
       insertTextAtCoords: (x, y, text) => {
-        const view = editorRef.current?.view;
+        const view = hostRef.current?.getView();
         if (!view || !text) return;
         const position = positionFromCoords(view, x, y);
         insertMarkdownBlock(view, position, position, text);
       },
       insertRaw: (text) => {
-        const view = editorRef.current?.view;
+        const view = hostRef.current?.getView();
         if (!view || !text) return;
         const selection = view.state.selection.main;
         insertAt(view, selection.from, selection.to, text);
       },
       undo: () => {
-        const view = editorRef.current?.view;
+        const view = hostRef.current?.getView();
         if (view) undo(view);
       },
       redo: () => {
-        const view = editorRef.current?.view;
+        const view = hostRef.current?.getView();
         if (view) redo(view);
       },
       selectAll: () => {
-        const view = editorRef.current?.view;
+        const view = hostRef.current?.getView();
         if (!view) return;
         ignorePointerUntil.current = performance.now() + 500;
         selectEntireDocument(view);
       },
       getSelectedText: () => {
-        const view = editorRef.current?.view;
+        const view = hostRef.current?.getView();
         if (!view) return "";
         const selection = view.state.selection.main;
         return view.state.sliceDoc(selection.from, selection.to);
       },
       cut: async () => {
-        const view = editorRef.current?.view;
+        const view = hostRef.current?.getView();
         if (!view) return;
         const selection = view.state.selection.main;
         if (selection.empty) return;
@@ -459,7 +477,7 @@ export const EditorPane = forwardRef<EditorHandle, EditorPaneProps>(function Edi
         insertAt(view, selection.from, selection.to, "");
       },
       copy: async () => {
-        const view = editorRef.current?.view;
+        const view = hostRef.current?.getView();
         if (!view) return;
         const selection = view.state.selection.main;
         if (selection.empty) return;
@@ -492,11 +510,10 @@ export const EditorPane = forwardRef<EditorHandle, EditorPaneProps>(function Edi
         setHtmlDropActive(false);
       }}
     >
-      <CodeMirror
-        basicSetup={false}
-        className="h-full"
+      <CodeMirrorHost
+        className="memoir-cm-host h-full min-h-0"
+        doc={content}
         extensions={extensions}
-        height="100%"
         onChange={onChange}
         onCreateEditor={(view) => {
           detachScrollRef.current?.();
@@ -505,8 +522,7 @@ export const EditorPane = forwardRef<EditorHandle, EditorPaneProps>(function Edi
           detachScrollRef.current = () => view.scrollDOM.removeEventListener("scroll", handleScroll);
           handleScroll();
         }}
-        ref={editorRef}
-        value={content}
+        ref={hostRef}
       />
       {showDrop && (
         <div className="editor-drop-overlay" role="status">

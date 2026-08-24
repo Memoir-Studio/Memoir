@@ -85,6 +85,12 @@
   animation: memoir-fade-in var(--memoir-motion-fast) var(--memoir-ease);
 }
 
+.memoir-cm-host,
+.memoir-cm-host .cm-editor,
+.memoir-cm-host .cm-scroller {
+  height: 100%;
+}
+
 .editor-pane .cm-wiki-link {
   color: var(--memoir-accent);
   text-decoration: underline;

@@ -1,20 +1,23 @@
 import { useEffect, useState } from "react";
+import { getCachedMermaidSvg, renderMermaidDiagram } from "./mermaid-runtime";
 
 export default function MermaidBlock({ code }: { code: string }) {
-  const [svg, setSvg] = useState("");
+  const cached = getCachedMermaidSvg(code);
+  const [svg, setSvg] = useState(cached || "");
   const [error, setError] = useState("");
 
   useEffect(() => {
+    const hit = getCachedMermaidSvg(code);
+    if (hit) {
+      setSvg(hit);
+      setError("");
+      return;
+    }
     let cancelled = false;
-    import("mermaid")
-      .then(async ({ default: mermaid }) => {
-        mermaid.initialize({ startOnLoad: false, theme: "neutral", securityLevel: "strict" });
-        const result = await mermaid.render(
-          `memoir-${Math.random().toString(36).slice(2)}`,
-          code,
-        );
+    void renderMermaidDiagram(code)
+      .then((next) => {
         if (!cancelled) {
-          setSvg(result.svg);
+          setSvg(next);
           setError("");
         }
       })
