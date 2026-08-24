@@ -190,7 +190,9 @@ export function cloudSyncChangedActiveNote(
   report: CloudSyncReport,
   activePath: string | null,
 ): boolean {
-  return Boolean(activePath && report.changedLocalPaths.includes(activePath));
+  if (!activePath) return false;
+  const changed = report.changedLocalPaths;
+  return Array.isArray(changed) && changed.includes(activePath);
 }
 
 export function mergeCloudSyncProfile(

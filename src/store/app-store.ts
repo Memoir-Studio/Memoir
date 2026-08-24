@@ -26,6 +26,7 @@ import {
   defaultCloudSyncProfile,
   initialCloudSyncProgress,
   mergeCloudSyncProfile,
+  mergeCloudSyncReport,
   type CloudSyncProfileInput,
 } from "../domain/cloud-sync";
 import {
@@ -1039,22 +1040,23 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
         const activePath = get().activePath;
         try {
           const result = await gateways.cloudSync.runSync(root, profile);
+          const report = mergeCloudSyncReport(result.report) ?? result.report;
           set({
             cloudSyncProfile: mergeCloudSyncProfile(result.profile),
             status: storeT(get().settings, "status.cloudSyncComplete"),
           });
-          if (cloudSyncTouchedLocal(result.report)) {
+          if (cloudSyncTouchedLocal(report)) {
             await get().refreshWorkspace();
           }
           if (
             !unsaved &&
             activePath &&
             get().activePath === activePath &&
-            cloudSyncChangedActiveNote(result.report, activePath)
+            cloudSyncChangedActiveNote(report, activePath)
           ) {
             await get().selectNote(activePath);
           }
-          return result;
+          return { ...result, report };
         } catch (error) {
           set({
             error: storeT(get().settings, "errors.runCloudSync", { message: toMessage(error) }),

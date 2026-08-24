@@ -513,6 +513,31 @@ describe("app store actions", () => {
     expect(gateways.workspace.reconcileCount).toBe(reconciles);
   });
 
+  it("completes cloud sync when the report omits changedLocalPaths", async () => {
+    const gateways = createMockGateways();
+    const store = createAppStore(gateways);
+    await store.getState().openWorkspace("/workspace");
+    await store.getState().saveCloudSyncProfile({
+      enabled: true,
+      provider: "webdav",
+      remotePrefix: "Memoir",
+      webdav: {
+        url: "https://dav.example/dav",
+        username: "ada",
+        password: "secret",
+        insecureTls: false,
+      },
+    });
+    const { changedLocalPaths: _omitted, ...reportWithoutPaths } = gateways.cloudSync.nextReport;
+    gateways.cloudSync.nextReport = reportWithoutPaths as typeof gateways.cloudSync.nextReport;
+
+    await expect(store.getState().runCloudSync()).resolves.toMatchObject({
+      report: { changedLocalPaths: [] },
+    });
+    expect(store.getState().error).toBe("");
+    expect(store.getState().cloudSyncProfile.lastStatus).toBe("ok");
+  });
+
   it("refreshes the library only when sync writes local files", async () => {
     const gateways = createMockGateways();
     const store = createAppStore(gateways);

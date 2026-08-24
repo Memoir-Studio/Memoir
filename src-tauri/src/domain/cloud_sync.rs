@@ -53,7 +53,7 @@ pub struct CloudSyncReport {
     pub completed_ms: u64,
     #[serde(default)]
     pub duration_ms: u64,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[serde(default)]
     pub changed_local_paths: Vec<String>,
 }
 
@@ -469,6 +469,12 @@ mod tests {
 
     fn snap(local: &FileIdentity, remote: &FileIdentity) -> SnapshotEntry {
         snapshot_from_identities(local, remote)
+    }
+
+    #[test]
+    fn serializes_empty_changed_local_paths() {
+        let json = serde_json::to_value(CloudSyncReport::default()).unwrap();
+        assert_eq!(json["changedLocalPaths"], serde_json::json!([]));
     }
 
     #[test]

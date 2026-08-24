@@ -7,6 +7,8 @@ import {
   hasCloudSyncCredentials,
   mergeCloudSyncProfile,
   mergeCloudSyncProgress,
+  mergeCloudSyncReport,
+  type CloudSyncReport,
 } from "./cloud-sync";
 
 describe("cloud sync profile", () => {
@@ -67,6 +69,7 @@ describe("cloud sync profile", () => {
     expect(cloudSyncTouchedLocal(merged.lastReport!)).toBe(true);
     expect(cloudSyncChangedActiveNote(merged.lastReport!, "a.md")).toBe(true);
     expect(cloudSyncChangedActiveNote(merged.lastReport!, "other.md")).toBe(false);
+    expect(cloudSyncChangedActiveNote(merged.lastReport!, null)).toBe(false);
     expect(hasCloudSyncCredentials(merged)).toBe(false);
     expect(
       hasCloudSyncCredentials({
@@ -74,6 +77,27 @@ describe("cloud sync profile", () => {
         webdav: { ...merged.webdav, url: "https://dav.example/remote.php/dav/" },
       }),
     ).toBe(true);
+  });
+
+  it("treats a missing changedLocalPaths field as an empty list", () => {
+    const report = mergeCloudSyncReport({
+      uploaded: 1,
+      downloaded: 0,
+      deletedRemote: 0,
+      deletedLocal: 0,
+      skipped: 0,
+      conflicts: 0,
+      errors: [],
+      completedMs: 1,
+      durationMs: 4,
+    });
+    expect(report?.changedLocalPaths).toEqual([]);
+    expect(
+      cloudSyncChangedActiveNote(
+        { ...(report as CloudSyncReport), changedLocalPaths: undefined as unknown as string[] },
+        "a.md",
+      ),
+    ).toBe(false);
   });
 
   it("parses live sync progress and a determinate ratio", () => {
