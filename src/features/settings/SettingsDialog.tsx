@@ -262,7 +262,7 @@ function AppearanceSettings({
           <p>{t("settings.previewBody")}</p>
           <div>
             <span>Markdown</span>
-            <span>{t("settings.previewTagLocal")}</span>
+            <span>{t("settings.previewTag")}</span>
           </div>
         </article>
       </div>
@@ -400,12 +400,12 @@ export default function SettingsDialog({
           {section === "about" && (
             <div className="settings-about" key="about">
               <img alt="" className="settings-about-mark" height={64} src={logoUrl} width={64} />
-              <span className="settings-about-kicker">LOCAL FIRST WRITING</span>
+              <span className="settings-about-kicker">{t("settings.aboutKicker")}</span>
               <h3>Memoir</h3>
               <p>{t("settings.aboutBody")}</p>
               <div className="settings-about-meta">
                 <span>{t("settings.version", { version: APP_VERSION })}</span>
-                <span>{t("settings.dataLocal")}</span>
+                <span>{t("settings.aboutBadge")}</span>
               </div>
               <a
                 className="settings-about-link"

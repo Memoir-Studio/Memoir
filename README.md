@@ -5,8 +5,8 @@
 <h1 align="center">Memoir</h1>
 
 <p align="center">
-  <strong>A memoir that stays on disk.</strong><br />
-  Open a folder. Write. Preview. Save.<br />
+  <strong>A quiet desktop notebook.</strong><br />
+  Open a folder. Write. Preview. Sync.<br />
   Markdown / MDX — still ordinary files, still yours.
 </p>
 
@@ -31,13 +31,14 @@
   />
 </p>
 
-Memoir is a quiet desktop notebook. Point it at a folder of `.md` / `.mdx` files and you get a library, a CodeMirror editor, and a live preview — without an account, a sync service, or a proprietary vault.
+Memoir is a quiet desktop notebook. Point it at a folder of `.md` / `.mdx` files and you get a library, a CodeMirror editor, and a live preview. Notes stay ordinary files — not a proprietary vault. Optional WebDAV sync keeps the same folder in step with a remote copy.
 
 Notes are ordinary files. You can open the same folder in git, VS Code, or any other editor.
 
 ## Features
 
-- **Local-first** — the workspace is a folder you choose. Memoir never uploads your notes.
+- **Your folder, your files** — the workspace is a folder you choose. Notes stay ordinary Markdown / MDX.
+- **Cloud sync** — optional two-way WebDAV with Nextcloud, Nutstore, Synology, and similar servers.
 - **Markdown and MDX** — GitHub Flavored Markdown, KaTeX, Mermaid, task lists, and a small set of built-in MDX components.
 - **Edit / split / preview** — write source, read the rendered page, or do both with synced scroll.
 - **Library** — folders, frontmatter tags, favorites, recent notes, and a heading outline.
@@ -74,8 +75,8 @@ graph LR
 MDX files can use built-in components. `import` / `export` are disabled on purpose so a note cannot pull in arbitrary modules:
 
 ```mdx
-<Callout type="tip" title="Local-first">
-  The file on disk is the source of truth.
+<Callout type="tip" title="Ordinary files">
+  Notes stay Markdown. Cloud sync is optional.
 </Callout>
 
 <Card title="Built-in">Callout, Badge, Card, Columns, Steps</Card>
@@ -140,7 +141,7 @@ See [`docs/architecture.md`](docs/architecture.md) for the Tauri command contrac
 
 ## Status
 
-Memoir is in early development. The editor, library, preview, and desktop persistence are usable day to day; plugins and sync are not part of this release.
+Memoir is in early development. The editor, library, preview, desktop persistence, and optional WebDAV sync are usable day to day; a plugin market is not part of this release.
 
 ## Contributing
 
@@ -151,7 +152,7 @@ Issues and pull requests are welcome.
 3. Cover helpers, store actions, and Rust filesystem rules with tests.
 4. Run the three commands in [Development](#development).
 
-Please do not add cloud sync, telemetry, or a second persistence path without an issue first.
+Please do not add telemetry or a second persistence path without an issue first.
 
 ## Friend Links
 

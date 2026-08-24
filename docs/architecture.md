@@ -1,6 +1,6 @@
 # Memoir architecture
 
-Memoir is a local-first desktop notebook. The workspace is an ordinary folder of `.md` / `.mdx` files. The frontend never talks to Tauri or `localStorage` directly; Rust stays a thin sandbox around the filesystem and app-data.
+Memoir is a desktop notebook. The workspace is an ordinary folder of `.md` / `.mdx` files, with optional two-way WebDAV sync. The frontend never talks to Tauri or `localStorage` directly; Rust stays a thin sandbox around the filesystem, app-data, and cloud providers.
 
 ## Dependency direction
 

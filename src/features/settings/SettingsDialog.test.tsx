@@ -116,6 +116,9 @@ describe("SettingsDialog", () => {
     );
 
     expect(view.getByText(`版本 ${APP_VERSION}`)).toBeInTheDocument();
+    expect(view.getByText("桌面写作")).toBeInTheDocument();
+    expect(view.getByText("可选云同步")).toBeInTheDocument();
+    expect(view.queryByText("LOCAL FIRST WRITING")).not.toBeInTheDocument();
   });
 
   it("opens the GitHub repository from the about section", async () => {

@@ -5,9 +5,9 @@
 <h1 align="center">Memoir</h1>
 
 <p align="center">
-  <strong>把记忆写在本地</strong><br />
-  打开一个文件夹，写作、预览、保存。<br />
-  Markdown / MDX，始终是你磁盘上的普通文件。
+  <strong>把记忆写下来</strong><br />
+  打开一个文件夹，写作、预览、同步。<br />
+  Markdown / MDX，始终是普通文件，始终是你的。
 </p>
 
 <p align="center">
@@ -31,18 +31,19 @@
   />
 </p>
 
-Memoir 是一款安静的桌面笔记本。把一个装满 `.md` / `.mdx` 的文件夹交给它，就能得到资料库、CodeMirror 编辑器和实时预览——不需要账号，没有同步服务，也不会把笔记锁进专有仓库。
+Memoir 是一款安静的桌面笔记本。把一个装满 `.md` / `.mdx` 的文件夹交给它，就能得到资料库、CodeMirror 编辑器和实时预览。笔记仍是普通文件，不会锁进专有仓库；可选的 WebDAV 同步让同一份文件夹与远程对齐。
 
 笔记就是普通文件。同一个文件夹可以继续用 git、VS Code 或任何编辑器打开。
 
 ## 功能
 
-- **本地优先** — 工作区就是你选的文件夹。Memoir 不会上传笔记。
+- **你的文件夹，你的文件** — 工作区就是你选的文件夹。笔记始终是普通 Markdown / MDX。
+- **云同步** — 可选的 WebDAV 双向同步，支持 Nextcloud、坚果云、群晖等。
 - **Markdown 与 MDX** — GFM、KaTeX、Mermaid、任务列表，以及一组内置 MDX 组件。
 - **编辑 / 分栏 / 预览** — 写源码、看渲染，或两边同时打开并同步滚动。
 - **资料库** — 文件夹、frontmatter 标签、收藏、最近编辑、标题大纲。
 - **默认安全** — 原子写入、可恢复草稿、自动保存；删除进入工作区的 `.memoir-trash/`，而不是直接消失。
-- **资料库加速** — 每个工作区在 `.memoir/index.sqlite` 里放一份可丢弃的索引，打开列表时不必重读每一篇笔记。磁盘上的 Markdown 仍是唯一真相；请把 `.memoir/` 加入 gitignore，并在 iCloud / Dropbox / OneDrive 中排除它。
+- **资料库加速** — 每个工作区在 `.memoir/index.sqlite` 里放一份可丢弃的索引，打开列表时不必重读每一篇笔记。Markdown 文件仍是唯一真相；请把 `.memoir/` 加入 gitignore，并在 iCloud / Dropbox / OneDrive 中排除它。
 - **外观** — 浅色 / 深色 / 跟随系统、强调色、界面密度、字号，以及中英界面。
 - **路径沙箱** — 只允许工作区内的 `.md` / `.mdx`；拒绝 `..`、符号链接，以及隐藏目录和构建目录。
 
@@ -74,8 +75,8 @@ graph LR
 MDX 可以使用内置组件。`import` / `export` 被有意禁用，避免一篇笔记拉取任意模块：
 
 ```mdx
-<Callout type="tip" title="本地优先">
-  磁盘上的文件才是唯一真相。
+<Callout type="tip" title="普通文件">
+  笔记仍是 Markdown。云同步是可选项。
 </Callout>
 
 <Card title="内置组件">Callout、Badge、Card、Columns、Steps</Card>
@@ -140,7 +141,7 @@ Tauri 命令契约、app-data 布局、路径规则和扩展步骤见 [`docs/arc
 
 ## 现状
 
-Memoir 目前处于早期开发阶段。编辑器、资料库、预览和桌面持久化已经可以日常使用；插件市场和同步还不在这个阶段。
+Memoir 目前处于早期开发阶段。编辑器、资料库、预览、桌面持久化和可选的 WebDAV 同步已经可以日常使用；插件市场还不在这个阶段。
 
 ## 参与贡献
 
@@ -151,7 +152,7 @@ Memoir 目前处于早期开发阶段。编辑器、资料库、预览和桌面�
 3. 给 helper、store action 和 Rust 文件系统规则补测试。
 4. 跑通[开发](#开发)里的三条验证命令。
 
-请不要在没有 issue 讨论的情况下加入云同步、遥测，或第二条持久化路径。
+请不要在没有 issue 讨论的情况下加入遥测，或第二条持久化路径。
 
 ## 友情链接
 

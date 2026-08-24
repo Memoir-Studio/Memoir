@@ -2,7 +2,7 @@
 name = "memoir"
 # App, installer, and GitHub release tag all use this field.
 version = "0.1.8"
-description = "A memoir that stays on disk"
+description = "A quiet desktop notebook for Markdown and MDX"
 authors = ["you"]
 edition = "2021"
 

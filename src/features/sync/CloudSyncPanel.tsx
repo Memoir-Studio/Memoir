@@ -253,7 +253,7 @@ export function CloudSyncPanel() {
               >
                 {busy === "sync" ? t("sync.syncing") : t("sync.syncNow")}
               </Button>
-              <p className="cloud-sync-hint">{t("sync.localHint")}</p>
+              <p className="cloud-sync-hint">{t("sync.autoHint")}</p>
             </>
           )}
         </div>
