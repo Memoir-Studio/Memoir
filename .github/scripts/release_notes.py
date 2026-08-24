@@ -40,6 +40,49 @@ def commit_subjects(log_range: str) -> list[str]:
     ]
 
 
+def asset_url(repo: str, version: str, filename: str) -> str:
+    return f"https://github.com/{repo}/releases/download/v{version}/{filename}"
+
+
+def md_link(label: str, url: str) -> str:
+    return f"[{label}]({url})"
+
+
+def downloads_section(version: str, repo: str) -> list[str]:
+    def file_link(label: str, filename: str) -> str:
+        return md_link(label, asset_url(repo, version, filename))
+
+    windows = file_link("64-bit", f"memoir_{version}_x64-setup.exe")
+    mac_apple = file_link("Apple Silicon", f"memoir_{version}_aarch64.dmg")
+    mac_intel = file_link("Intel", f"memoir_{version}_x64.dmg")
+    deb_name = f"memoir_{version}_amd64.deb"
+    rpm_name = f"memoir-{version}-1.x86_64.rpm"
+    linux_deb = file_link("64-bit", deb_name)
+    linux_rpm = file_link("64-bit", rpm_name)
+
+    return [
+        "## Downloads",
+        "",
+        "### Windows (Windows 10+)",
+        "",
+        f"- {windows}",
+        "",
+        "### macOS",
+        "",
+        f"- {mac_apple} | {mac_intel}",
+        "",
+        "### Linux",
+        "",
+        "DEB (Debian / Ubuntu) — `sudo apt install ./path`",
+        "",
+        f"- {linux_deb}",
+        "",
+        "RPM (Fedora / RHEL) — `sudo dnf install ./path`",
+        "",
+        f"- {linux_rpm}",
+    ]
+
+
 def build_body(version: str, previous: str, subjects: list[str], repo: str) -> str:
     lines = ["## What's Changed", ""]
     if subjects:
@@ -52,7 +95,7 @@ def build_body(version: str, previous: str, subjects: list[str], repo: str) -> s
             f"**Full Changelog**: https://github.com/{repo}/compare/{previous}...v{version}"
         )
         lines.append("")
-    lines.append("See the assets to download this version and install.")
+    lines.extend(downloads_section(version, repo))
     return "\n".join(lines) + "\n"
 
 
@@ -69,6 +112,7 @@ def write_output(name: str, value: str) -> None:
 
 
 def self_test() -> None:
+    repo = "Memoir-Studio/Memoir"
     body = build_body(
         "0.1.9",
         "v0.1.8",
@@ -76,17 +120,26 @@ def self_test() -> None:
             "feat(layout): drag to resize the sidebar",
             "fix(sync): bust dir cache",
         ],
-        "Memoir-Studio/Memoir",
+        repo,
     )
     assert body.startswith("## What's Changed\n")
     assert "- feat(layout): drag to resize the sidebar" in body
     assert "- fix(sync): bust dir cache" in body
     assert "compare/v0.1.8...v0.1.9" in body
-    assert "See the assets to download this version and install." in body
+    assert "## Downloads" in body
+    assert "See the assets to download this version and install." not in body
     assert "更新内容" not in body
-    empty = build_body("0.1.0", "", [], "Memoir-Studio/Memoir")
+    prefix = f"https://github.com/{repo}/releases/download/v0.1.9"
+    assert f"[64-bit]({prefix}/memoir_0.1.9_x64-setup.exe)" in body
+    assert f"[Apple Silicon]({prefix}/memoir_0.1.9_aarch64.dmg)" in body
+    assert f"[Intel]({prefix}/memoir_0.1.9_x64.dmg)" in body
+    assert f"[64-bit]({prefix}/memoir_0.1.9_amd64.deb)" in body
+    assert f"[64-bit]({prefix}/memoir-0.1.9-1.x86_64.rpm)" in body
+    empty = build_body("0.1.0", "", [], repo)
     assert "- No user-facing commits since the previous version." in empty
     assert "Full Changelog" not in empty
+    assert "## Downloads" in empty
+    assert "memoir_0.1.0_x64-setup.exe" in empty
     print("self-test ok")
 
 
