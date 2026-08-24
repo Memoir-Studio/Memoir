@@ -146,6 +146,10 @@ export class TauriWorkspaceGateway implements WorkspaceGateway {
     }
   }
 
+  fetchLinkPreviewHtml(url: string) {
+    return call<string>("fetch_link_preview_html", { url });
+  }
+
   resolveMediaPath(path: string) {
     return convertFileSrc(path);
   }

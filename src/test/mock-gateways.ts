@@ -200,6 +200,14 @@ export class MockWorkspaceGateway implements WorkspaceGateway {
   async openPath(_path: string) {}
   async revealPath(_path: string) {}
   async openExternal(_url?: string) {}
+  linkPreviewHtml = new Map<string, string>();
+  async fetchLinkPreviewHtml(url: string) {
+    const html = this.linkPreviewHtml.get(url);
+    if (html === undefined) {
+      throw new GatewayError({ code: "not_found", message: "No link preview." });
+    }
+    return html;
+  }
   resolveMediaPath(path: string) {
     return path;
   }

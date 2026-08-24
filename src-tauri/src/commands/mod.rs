@@ -5,7 +5,7 @@ use crate::{
         LegacyStatePayload, LibraryPage, LibraryQuery, MigrationResult, NoteFile, NoteGraph,
         RenamedNote, WorkspaceIndexInfo, WorkspaceLayout,
     },
-    infrastructure::github_releases,
+    infrastructure::{github_releases, link_preview},
     services::{AppStateService, CloudSyncService, WorkspaceService},
     tray::ClosePolicy,
 };
@@ -418,4 +418,14 @@ pub fn migrate_legacy_state(
     payload: LegacyStatePayload,
 ) -> Result<MigrationResult, AppError> {
     services.app_state.migrate_legacy_state(payload)
+}
+
+#[tauri::command]
+pub async fn fetch_link_preview_html(url: String) -> Result<String, AppError> {
+    tauri::async_runtime::spawn_blocking(move || link_preview::fetch_html(&url))
+        .await
+        .map_err(|error| {
+            AppError::new(crate::domain::ErrorCode::Io, "Link preview interrupted.")
+                .with_details(error.to_string())
+        })?
 }

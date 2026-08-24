@@ -226,6 +226,18 @@ describe("Tauri gateways", () => {
     });
   });
 
+  it("fetches link preview HTML through a host command", async () => {
+    const { TauriWorkspaceGateway } = await import("./tauri");
+    invoke.mockResolvedValue("<html><title>Preview</title></html>");
+    const gateway = new TauriWorkspaceGateway();
+    await expect(gateway.fetchLinkPreviewHtml("https://shiyu.dev/article/320")).resolves.toContain(
+      "Preview",
+    );
+    expect(invoke).toHaveBeenCalledWith("fetch_link_preview_html", {
+      url: "https://shiyu.dev/article/320",
+    });
+  });
+
   it("reveals a path in the system file manager", async () => {
     const { TauriWorkspaceGateway } = await import("./tauri");
     revealItemInDir.mockResolvedValue(undefined);

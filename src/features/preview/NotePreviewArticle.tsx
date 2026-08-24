@@ -33,6 +33,8 @@ import {
 } from "../../domain/note-links";
 import { decodeMediaHref, noteDirectory, resolveWorkspaceFilePath } from "../../domain/paths";
 import { useNoteGraph } from "../graph/useNoteGraph";
+import { LinkCard } from "./LinkCard";
+import { readLinkCardProp, remarkLinkCards } from "./remark-link-cards";
 import { remarkWikiLinks, wikiInnerFromHref } from "./remark-wiki-links";
 import { useAppStore } from "../../store/app-store";
 import { useI18n } from "../../i18n/react";
@@ -44,7 +46,7 @@ const MDX_IMPORT_EXPORT_DISABLED = "MDX_IMPORT_EXPORT_DISABLED";
 export const MARKDOWN_PREVIEW_DELAY_MS = 200;
 
 const MermaidBlock = lazy(() => import("./MermaidBlock"));
-const remarkPlugins = [remarkGfm, remarkMath, remarkWikiLinks];
+const remarkPlugins = [remarkGfm, remarkMath, remarkWikiLinks, remarkLinkCards];
 const highlightCode: [typeof rehypeHighlight, { detect: boolean; plainText: string[] }] = [
   rehypeHighlight,
   { detect: false, plainText: ["mermaid"] },
@@ -118,6 +120,30 @@ function previewComponents(
     Card,
     Columns,
     Steps,
+    div: ({
+      className,
+      children,
+      node: _node,
+      ...props
+    }: ComponentPropsWithoutRef<"div"> & { node?: unknown }) => {
+      const url = readLinkCardProp({ ...props, node: _node }, "url");
+      if (url) {
+        return (
+          <div {...props} className={className}>
+            <LinkCard
+              label={readLinkCardProp({ ...props, node: _node }, "label")}
+              onOpen={(href) => void gateway.openExternal(href)}
+              url={url}
+            />
+          </div>
+        );
+      }
+      return (
+        <div {...props} className={className}>
+          {children}
+        </div>
+      );
+    },
     a: ({ href, children, className, node: _node, ...props }: ComponentPropsWithoutRef<"a"> & { node?: unknown }) => {
       const wikiInner = href ? wikiInnerFromHref(href) : null;
       const targetRef = wikiInner

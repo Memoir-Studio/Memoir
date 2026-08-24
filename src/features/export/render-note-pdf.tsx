@@ -16,7 +16,8 @@ async function waitForPreviewReady(host: HTMLElement, timeoutMs = 10_000) {
     const pending =
       !article ||
       host.querySelector("[data-mdx-pending]") ||
-      host.querySelector("[data-mermaid-pending]");
+      host.querySelector("[data-mermaid-pending]") ||
+      host.querySelector("[data-link-card-pending]");
     const imagesPending = [...host.querySelectorAll("img")].some((image) => !image.complete);
     if (article && !pending && !imagesPending) {
       await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));

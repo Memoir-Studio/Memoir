@@ -7,6 +7,7 @@ import { useAppStore } from "../../store/app-store";
 import { createMockGateways } from "../../test/mock-gateways";
 import { MARKDOWN_PREVIEW_DELAY_MS } from "./NotePreviewArticle";
 import { PreviewPane } from "./PreviewPane";
+import { resetLinkPreviewCache } from "./link-preview-cache";
 import { resetMermaidRuntime } from "./mermaid-runtime";
 
 const mermaidMock = vi.hoisted(() => ({
@@ -21,6 +22,7 @@ vi.mock("mermaid", () => ({
 afterEach(() => {
   cleanup();
   resetMermaidRuntime();
+  resetLinkPreviewCache();
   mermaidMock.initialize.mockClear();
   mermaidMock.render.mockClear();
   setGatewaysForTests(null);
@@ -43,6 +45,69 @@ const note: NoteMeta = {
   excerpt: "",
   favorite: false,
 };
+
+describe("PreviewPane link cards", () => {
+  it("renders a standalone http(s) URL as a metadata card", async () => {
+    const url = "https://shiyu.dev/article/320";
+    const gateways = createMockGateways();
+    gateways.workspace.linkPreviewHtml.set(
+      url,
+      [
+        "<html><head>",
+        '<meta property="og:title" content="面壁实习" />',
+        '<meta property="og:description" content="十月假期后我开始找实习，面试顺利并选择了面壁智能。" />',
+        '<meta property="og:image" content="https://shiyu.dev/cover.png" />',
+        '<meta property="og:site_name" content="shiyu.dev" />',
+        "</head></html>",
+      ].join(""),
+    );
+    setGatewaysForTests(gateways);
+    const view = render(
+      <PreviewPane
+        activePath="memoir.mdx"
+        content={`${url}\n`}
+        note={note}
+        onContentChange={() => undefined}
+        root="/notes"
+      />,
+    );
+
+    const card = await waitFor(() => {
+      const link = view.getByRole("link", { name: /面壁实习/ });
+      expect(link).toHaveClass("memoir-link-card");
+      return link;
+    });
+    expect(card).toHaveAttribute("href", url);
+    expect(card.querySelector(".memoir-link-card__desc")?.textContent).toContain(
+      "十月假期后我开始找实习",
+    );
+    expect(card.querySelector(".memoir-link-card__host")?.textContent).toBe("shiyu.dev");
+    expect(view.container.querySelector(".memoir-link-card__image")).toHaveAttribute(
+      "src",
+      "https://shiyu.dev/cover.png",
+    );
+
+    const user = userEvent.setup();
+    const openExternal = vi.spyOn(gateways.workspace, "openExternal");
+    await user.click(card);
+    expect(openExternal).toHaveBeenCalledWith(url);
+  });
+
+  it("keeps an inline URL as a normal link", () => {
+    const view = render(
+      <PreviewPane
+        activePath="tasks.md"
+        content={"See https://example.com/docs for more.\n"}
+        note={note}
+        onContentChange={() => undefined}
+        root="/notes"
+      />,
+    );
+    const link = view.getByRole("link", { name: "https://example.com/docs" });
+    expect(link).not.toHaveClass("memoir-link-card");
+    expect(view.container.querySelector(".memoir-link-card")).toBeNull();
+  });
+});
 
 describe("PreviewPane wiki links", () => {
   it("opens a resolved wiki link in the workspace", async () => {

@@ -49,6 +49,7 @@ export interface WorkspaceGateway {
   openPath(path: string): Promise<void>;
   revealPath(path: string): Promise<void>;
   openExternal(url: string): Promise<void>;
+  fetchLinkPreviewHtml(url: string): Promise<string>;
   resolveMediaPath(path: string): string;
   chooseExportPath(input: { defaultPath: string; title?: string }): Promise<string | null>;
   writeExportFile(path: string, bytesBase64: string): Promise<void>;

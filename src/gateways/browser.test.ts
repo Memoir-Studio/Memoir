@@ -129,4 +129,24 @@ describe("BrowserWorkspaceGateway", () => {
     await gateway.deleteAttachment("demo://memoir", saved.relativePath);
     expect(await gateway.scanAttachments("demo://memoir")).toEqual([]);
   });
+
+  it("rejects non-http URLs before fetching a link preview", async () => {
+    const gateway = new BrowserWorkspaceGateway();
+    await expect(gateway.fetchLinkPreviewHtml("file:///tmp/note.md")).rejects.toMatchObject({
+      code: "invalid_path",
+    });
+  });
+
+  it("reads link preview HTML from fetch", async () => {
+    const gateway = new BrowserWorkspaceGateway();
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("<html><title>Hello</title></html>", { status: 200 }),
+    );
+    await expect(gateway.fetchLinkPreviewHtml("https://example.com")).resolves.toContain("Hello");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://example.com",
+      expect.objectContaining({ headers: { Accept: "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8" } }),
+    );
+    fetchMock.mockRestore();
+  });
 });

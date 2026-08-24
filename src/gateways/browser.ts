@@ -1,4 +1,5 @@
 import type { AppState, LegacyStatePayload } from "../domain/app-state";
+import { isPreviewableHttpUrl, LINK_PREVIEW_HTML_LIMIT } from "../domain/link-preview";
 import type { AppUpdateCheck } from "../domain/app-update";
 import { APP_STATE_VERSION } from "../domain/app-state";
 import { DEFAULT_WORKSPACE_LAYOUT, mergeLayout, type WorkspaceLayoutState } from "../domain/layout";
@@ -325,6 +326,25 @@ export class BrowserWorkspaceGateway implements WorkspaceGateway {
 
   async openExternal(url: string) {
     window.open(url, "_blank", "noopener,noreferrer");
+  }
+
+  async fetchLinkPreviewHtml(url: string) {
+    if (!isPreviewableHttpUrl(url)) {
+      throw new GatewayError({ code: "invalid_path", message: "Only http(s) URLs can be previewed." });
+    }
+    const response = await fetch(url, {
+      headers: { Accept: "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8" },
+      signal: AbortSignal.timeout(8_000),
+    });
+    if (!response.ok) {
+      throw new GatewayError({
+        code: "io",
+        message: "Unable to load the link preview.",
+        details: `HTTP ${response.status}`,
+      });
+    }
+    const text = await response.text();
+    return text.slice(0, LINK_PREVIEW_HTML_LIMIT);
   }
 
   resolveMediaPath(path: string) {
