@@ -1,7 +1,8 @@
 name: Draft release on version bump
 
 # `chore: bump version to x.y.z` on `dev` triggers Build Installers
-# for every platform and uploads a draft GitHub Release (tag vX.Y.Z).
+# for every platform and uploads a draft GitHub Release (tag vX.Y.Z)
+# whose body lists commits since the previous version tag.
 on:
   push:
     branches: [dev]

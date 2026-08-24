@@ -33,6 +33,31 @@ jobs:
     name: Test
     uses: ./.github/workflows/test.yml
 
+  changelog:
+    name: Release notes
+    needs: test
+    runs-on: ubuntu-24.04
+    outputs:
+      body: ${{ steps.notes.outputs.body }}
+    steps:
+      - name: Checkout
+        if: ${{ inputs.draft_release }}
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Generate changelog
+        id: notes
+        env:
+          DRAFT: ${{ inputs.draft_release }}
+        run: |
+          if [ "${DRAFT}" != "true" ]; then
+            echo "body=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          python3 .github/scripts/release_notes.py
+
   prepare:
     name: Prepare matrix
     needs: test
@@ -89,7 +114,7 @@ jobs:
 
   build:
     name: ${{ matrix.name }}
-    needs: prepare
+    needs: [prepare, changelog]
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     strategy:
@@ -149,7 +174,7 @@ jobs:
           workflowArtifactNamePattern: memoir-[platform]-[arch]-[bundle]
           tagName: ${{ inputs.draft_release && 'v__VERSION__' || '' }}
           releaseName: ${{ inputs.draft_release && 'Memoir v__VERSION__' || '' }}
-          releaseBody: ${{ inputs.draft_release && 'See the assets to download this version and install.' || '' }}
+          releaseBody: ${{ inputs.draft_release && needs.changelog.outputs.body || '' }}
           releaseDraft: ${{ inputs.draft_release }}
           prerelease: false
 

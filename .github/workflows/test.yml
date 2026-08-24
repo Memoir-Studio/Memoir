@@ -45,6 +45,9 @@ jobs:
       - name: Test
         run: bun run test
 
+      - name: Release notes self-test
+        run: python3 .github/scripts/release_notes.py --self-test
+
       - name: Typecheck and build
         run: bun run build
 
