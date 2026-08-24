@@ -169,6 +169,7 @@ impl CloudSyncService {
         }
     }
 
+    #[cfg(test)]
     pub fn run_sync_with(
         &self,
         workspace_root: &str,
