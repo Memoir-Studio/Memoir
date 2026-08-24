@@ -15,7 +15,20 @@ function dispatchedReconfigure(view: EditorView) {
         if (!spec || typeof spec !== "object" || !("effects" in spec)) return false;
         const effects = spec.effects;
         const list = Array.isArray(effects) ? effects : effects ? [effects] : [];
-        return list.some((effect) => StateEffect.reconfigure.is(effect));
+        return list.some((effect) => {
+          if (typeof effect !== "object" || effect === null || typeof effect.is !== "function") {
+            return false;
+          }
+          if (effect.is(StateEffect.reconfigure)) return true;
+          // CodeMirrorHost reconfigures via Compartment.reconfigure(), not StateEffect.reconfigure.
+          const value = "value" in effect ? effect.value : null;
+          return Boolean(
+            value &&
+              typeof value === "object" &&
+              "compartment" in value &&
+              "extension" in value,
+          );
+        });
       });
     },
   };
