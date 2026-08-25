@@ -85,6 +85,150 @@
   animation: memoir-fade-in var(--memoir-motion-fast) var(--memoir-ease);
 }
 
+.editor-pane .cm-editor .cm-panels {
+  background: color-mix(in srgb, var(--memoir-elevated) 78%, var(--memoir-canvas));
+  color: var(--memoir-text);
+}
+
+.editor-pane .cm-panels-top {
+  border-bottom: 1px solid color-mix(in srgb, var(--memoir-border) 88%, transparent);
+}
+
+.editor-pane .cm-panel.memoir-search,
+.memoir-search {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto auto;
+  gap: 6px 8px;
+  align-items: center;
+  padding: 8px 10px 9px;
+}
+
+.memoir-search-field-wrap {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  align-items: center;
+}
+
+.memoir-search-field-wrap svg {
+  position: absolute;
+  top: 50%;
+  left: 9px;
+  z-index: 1;
+  color: var(--memoir-muted);
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+.memoir-search-field {
+  width: 100%;
+  min-width: 0;
+  height: 28px;
+  padding-left: 28px;
+  font-size: 12px;
+}
+
+.memoir-search-field.is-invalid {
+  border-color: color-mix(in srgb, var(--memoir-danger) 62%, var(--memoir-border));
+}
+
+.memoir-search-count {
+  min-width: 4.25em;
+  color: var(--memoir-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.memoir-search-count.is-empty {
+  color: color-mix(in srgb, var(--memoir-muted) 55%, transparent);
+}
+
+.memoir-search-count.is-invalid {
+  color: var(--memoir-danger);
+}
+
+.memoir-search-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.memoir-search-group + .memoir-search-group {
+  margin-left: 2px;
+  padding-left: 6px;
+  border-left: 1px solid color-mix(in srgb, var(--memoir-border) 82%, transparent);
+}
+
+.memoir-search-icon,
+.memoir-search-toggle,
+.memoir-search-action {
+  user-select: none;
+}
+
+.memoir-search-icon,
+.memoir-search-toggle {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--memoir-muted);
+  font-size: 11px;
+  font-weight: 620;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  transition:
+    color 150ms var(--memoir-ease),
+    background-color 150ms var(--memoir-ease),
+    box-shadow 150ms var(--memoir-ease);
+}
+
+.memoir-search-toggle {
+  font-family: var(--memoir-mono-font);
+  font-size: 10px;
+}
+
+.memoir-search-icon:hover,
+.memoir-search-toggle:hover {
+  background: color-mix(in srgb, var(--memoir-elevated) 70%, transparent);
+  color: var(--memoir-text);
+}
+
+.memoir-search-toggle.is-active {
+  background: color-mix(in srgb, var(--memoir-accent-soft) 88%, transparent);
+  color: var(--memoir-text);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--memoir-border) 72%, transparent);
+}
+
+.memoir-search-icon:focus-visible,
+.memoir-search-toggle:focus-visible,
+.memoir-search-action:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--memoir-accent) 58%, transparent);
+  outline-offset: 1px;
+}
+
+.memoir-search-icon[name="close"] {
+  margin-left: 2px;
+  color: color-mix(in srgb, var(--memoir-muted) 88%, transparent);
+}
+
+.memoir-search-replace-actions {
+  grid-column: 2 / -1;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.memoir-search-action {
+  min-width: 0;
+  height: 26px;
+  padding: 0 10px;
+}
+
 .memoir-cm-host,
 .memoir-cm-host .cm-editor,
 .memoir-cm-host .cm-scroller {

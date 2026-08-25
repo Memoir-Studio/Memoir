@@ -10,7 +10,7 @@ import {
   undo,
   undoDepth,
 } from "@codemirror/commands";
-import { searchKeymap } from "@codemirror/search";
+import { search, searchKeymap } from "@codemirror/search";
 import { EditorSelection } from "@codemirror/state";
 import { EditorView, highlightActiveLine, highlightActiveLineGutter, keymap, lineNumbers } from "@codemirror/view";
 import { tags as highlightTags } from "@lezer/highlight";
@@ -22,8 +22,9 @@ import { clamp } from "./scroll-sync";
 import { collectClipboardImages, padMarkdownBlock } from "../../domain/attachments";
 import { writeClipboardText } from "./clipboard";
 import type { EditorMenuTarget } from "./EditorContextMenu";
-import type { AppSettings } from "../../domain/settings";
+import type { AppLocale, AppSettings } from "../../domain/settings";
 import { useI18n } from "../../i18n/react";
+import { createMemoirSearchPanel, searchPanelLabels } from "./search-panel";
 import { noteStats, parseNote } from "../library/note-utils";
 import { cn, Tag } from "../../components/ui";
 import {
@@ -183,7 +184,9 @@ function createEditorExtensions(
     sourcePath: string;
     onOpenNote?: (path: string) => void;
   },
+  locale: AppLocale = "zh",
 ) {
+  const labels = searchPanelLabels(locale);
   return [
     history(),
     markdown({ codeLanguages: fencedCodeLanguages }),
@@ -195,6 +198,10 @@ function createEditorExtensions(
     ...wikiLinkExtensions(wiki?.onOpenNote),
     ...(settings.lineWrapping ? [EditorView.lineWrapping] : []),
     ...(settings.lineNumbers ? [lineNumbers(), highlightActiveLineGutter()] : []),
+    search({
+      top: true,
+      createPanel: createMemoirSearchPanel(labels),
+    }),
     keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap, indentWithTab]),
     EditorView.domEventHandlers({
       mousedown(event) {
@@ -298,6 +305,20 @@ function createEditorExtensions(
           backgroundColor: "color-mix(in srgb, var(--memoir-text) 4%, transparent)",
         },
         ".cm-focused": { outline: "none" },
+        ".cm-panels": {
+          backgroundColor: "color-mix(in srgb, var(--memoir-elevated) 82%, var(--memoir-canvas))",
+          color: "var(--memoir-text)",
+        },
+        ".cm-panels-top": {
+          borderBottom: "1px solid color-mix(in srgb, var(--memoir-border) 88%, transparent)",
+        },
+        ".cm-searchMatch": {
+          backgroundColor: "color-mix(in srgb, var(--memoir-code-number) 32%, transparent)",
+          borderRadius: "2px",
+        },
+        ".cm-searchMatch-selected": {
+          backgroundColor: "color-mix(in srgb, var(--memoir-code-number) 52%, transparent)",
+        },
         ".cm-cursor, .cm-dropCursor": {
           borderLeftColor: "var(--memoir-text)",
           borderLeftWidth: "1.5px",
@@ -367,7 +388,7 @@ export const EditorPane = forwardRef<EditorHandle, EditorPaneProps>(function Edi
   },
   forwardedRef,
 ) {
-  const { t, tc } = useI18n();
+  const { t, tc, locale } = useI18n();
   const hostRef = useRef<CodeMirrorHostHandle>(null);
   const [htmlDropActive, setHtmlDropActive] = useState(false);
   const dropDepthRef = useRef(0);
@@ -392,8 +413,9 @@ export const EditorPane = forwardRef<EditorHandle, EditorPaneProps>(function Edi
           sourcePath,
           onOpenNote: (path) => callbacksRef.current.onOpenNote?.(path),
         },
+        locale,
       ),
-    [isDark, settings.editor, sourcePath, wikiCatalog],
+    [isDark, locale, settings.editor, sourcePath, wikiCatalog],
   );
   const parsed = useMemo(() => parseNote(content, fileName), [content, fileName]);
   const stats = useMemo(() => noteStats(content), [content]);

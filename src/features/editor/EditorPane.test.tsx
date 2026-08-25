@@ -1,3 +1,4 @@
+import { openSearchPanel } from "@codemirror/search";
 import { StateEffect } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react";
@@ -164,6 +165,35 @@ describe("EditorPane snapshots", () => {
     });
     expect(onChange.mock.calls.some((call) => String(call[0]).includes("!"))).toBe(true);
     vi.useRealTimers();
+  });
+});
+
+describe("EditorPane search panel", () => {
+  it("opens the themed find bar instead of CodeMirror's default form", async () => {
+    const view = render(
+      <EditorPane
+        content={"Hello\nHello world"}
+        fileName="hello.md"
+        isDark={false}
+        onChange={() => undefined}
+        settings={DEFAULT_SETTINGS}
+      />,
+    );
+    await waitFor(() => {
+      expect(view.container.querySelector(".cm-editor")).toBeTruthy();
+    });
+    const editor = view.container.querySelector(".cm-editor") as HTMLElement;
+    const cm = EditorView.findFromDOM(editor);
+    expect(cm).toBeTruthy();
+    act(() => {
+      openSearchPanel(cm!);
+    });
+    expect(view.container.querySelector(".memoir-search")).toBeTruthy();
+    expect(view.container.querySelector(".cm-panels-top .memoir-search")).toBeTruthy();
+    expect(view.getByRole("search", { name: "查找和替换" })).toBeTruthy();
+    expect(view.getByPlaceholderText("查找")).toBeTruthy();
+    expect(view.getByRole("button", { name: "区分大小写" })).toBeTruthy();
+    expect(view.container.querySelector(".cm-button")).toBeNull();
   });
 });
 
