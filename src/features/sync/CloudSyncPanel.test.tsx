@@ -90,7 +90,7 @@ describe("CloudSyncPanel", () => {
     await openSetup(user, view);
 
     await user.click(view.getByRole("combobox", { name: "同步方式" }));
-    await user.click(view.getByRole("option", { name: "S3 兼容对象存储" }));
+    await user.click(view.getByRole("option", { name: "S3 对象存储" }));
     const endpoint = view.getByPlaceholderText("https://s3.example.com");
     await user.clear(endpoint);
     await user.type(endpoint, "https://minio.example");
