@@ -105,6 +105,14 @@ function sourceHost(url: string) {
   }
 }
 
+function providerSourceLabel(profile: CloudSyncProfile) {
+  if (profile.provider === "s3") {
+    const endpoint = profile.s3.endpoint.trim();
+    return endpoint ? sourceHost(endpoint) : profile.s3.bucket;
+  }
+  return profile.webdav.url ? sourceHost(profile.webdav.url) : "";
+}
+
 export function CloudSyncPanel() {
   const profile = useAppStore((state) => state.cloudSyncProfile);
   const progress = useAppStore((state) => state.cloudSyncProgress);
@@ -127,6 +135,8 @@ export function CloudSyncPanel() {
   const savedInput = useMemo(() => toCloudSyncProfileInput(profile), [profile]);
   const canConnect = hasCloudSyncCredentials(input);
   const configured = hasCloudSyncCredentials(savedInput);
+  const providerLabel = profile.provider === "s3" ? t("sync.providerS3") : t("sync.providerWebdav");
+  const providerSource = providerSourceLabel(profile);
   const lastSyncLabel = profile.lastSyncMs
     ? formatRelativeTime(profile.lastSyncMs, locale)
     : t("sync.lastSyncNever");
@@ -159,7 +169,7 @@ export function CloudSyncPanel() {
   const onTest = async () => {
     if (!canConnect) {
       setProbeOk(false);
-      setProbeMessage(t("sync.needsUrl"));
+      setProbeMessage(t("sync.needsConfiguration"));
       return;
     }
     setBusy("test");
@@ -186,7 +196,7 @@ export function CloudSyncPanel() {
     if (!configured) {
       setSection("setup");
       setProbeOk(false);
-      setProbeMessage(t("sync.needsUrl"));
+      setProbeMessage(t("sync.needsConfiguration"));
       return;
     }
     setBusy("sync");
@@ -273,8 +283,8 @@ export function CloudSyncPanel() {
                 {profile.lastError && <span>{profile.lastError}</span>}
                 <p className="cloud-sync-row-description">
                   {[
-                    t("sync.providerWebdav"),
-                    profile.webdav.url ? sourceHost(profile.webdav.url) : "",
+                    providerLabel,
+                    providerSource,
                     profile.remotePrefix,
                   ]
                     .filter(Boolean)
@@ -330,7 +340,10 @@ export function CloudSyncPanel() {
             <Select<CloudProviderId>
               label={t("sync.provider")}
               onChange={(provider) => update({ provider })}
-              options={[{ value: "webdav", label: t("sync.providerWebdav") }]}
+              options={[
+                { value: "webdav", label: t("sync.providerWebdav") },
+                { value: "s3", label: t("sync.providerS3") },
+              ]}
               value={form.provider}
             />
           </Field>
@@ -380,14 +393,6 @@ export function CloudSyncPanel() {
                   value={form.webdav.password}
                 />
               </Field>
-              <Field hint={t("sync.remotePrefixHint")} label={t("sync.remotePrefix")}>
-                <Input
-                  onChange={(event) => update({ remotePrefix: event.target.value })}
-                  placeholder={t("sync.remotePrefixPlaceholder")}
-                  spellCheck={false}
-                  value={form.remotePrefix}
-                />
-              </Field>
               <div className="cloud-sync-row">
                 <div>
                   <div className="cloud-sync-row-label">{t("sync.insecureTls")}</div>
@@ -403,6 +408,93 @@ export function CloudSyncPanel() {
               </div>
             </>
           )}
+
+          {form.provider === "s3" && (
+            <>
+              <Field hint={t("sync.s3EndpointHint")} label={t("sync.s3Endpoint")}>
+                <Input
+                  autoComplete="url"
+                  onChange={(event) => update({ s3: { ...form.s3, endpoint: event.target.value } })}
+                  placeholder={t("sync.s3EndpointPlaceholder")}
+                  spellCheck={false}
+                  type="url"
+                  value={form.s3.endpoint}
+                />
+              </Field>
+              <Field hint={t("sync.s3RegionHint")} label={t("sync.s3Region")}>
+                <Input
+                  autoComplete="off"
+                  onChange={(event) => update({ s3: { ...form.s3, region: event.target.value } })}
+                  placeholder={t("sync.s3RegionPlaceholder")}
+                  spellCheck={false}
+                  value={form.s3.region}
+                />
+              </Field>
+              <Field label={t("sync.s3Bucket")}>
+                <Input
+                  autoComplete="off"
+                  onChange={(event) => update({ s3: { ...form.s3, bucket: event.target.value } })}
+                  spellCheck={false}
+                  value={form.s3.bucket}
+                />
+              </Field>
+              <Field label={t("sync.s3AccessKeyId")}>
+                <Input
+                  autoComplete="username"
+                  onChange={(event) => update({ s3: { ...form.s3, accessKeyId: event.target.value } })}
+                  spellCheck={false}
+                  value={form.s3.accessKeyId}
+                />
+              </Field>
+              <Field label={t("sync.s3SecretAccessKey")}>
+                <Input
+                  autoComplete="current-password"
+                  onChange={(event) => update({ s3: { ...form.s3, secretAccessKey: event.target.value } })}
+                  type="password"
+                  value={form.s3.secretAccessKey}
+                />
+              </Field>
+              <Field hint={t("sync.s3SessionTokenHint")} label={t("sync.s3SessionToken")}>
+                <Input
+                  autoComplete="off"
+                  onChange={(event) => update({ s3: { ...form.s3, sessionToken: event.target.value } })}
+                  type="password"
+                  value={form.s3.sessionToken}
+                />
+              </Field>
+              <div className="cloud-sync-row">
+                <div>
+                  <div className="cloud-sync-row-label">{t("sync.s3PathStyle")}</div>
+                  <p className="cloud-sync-row-description">{t("sync.s3PathStyleHint")}</p>
+                </div>
+                <Toggle
+                  checked={form.s3.forcePathStyle}
+                  label={t("sync.s3PathStyle")}
+                  onChange={(forcePathStyle) => update({ s3: { ...form.s3, forcePathStyle } })}
+                />
+              </div>
+              <div className="cloud-sync-row">
+                <div>
+                  <div className="cloud-sync-row-label">{t("sync.insecureTls")}</div>
+                  <p className="cloud-sync-row-description">{t("sync.insecureTlsHint")}</p>
+                </div>
+                <Toggle
+                  checked={form.s3.insecureTls}
+                  label={t("sync.insecureTls")}
+                  onChange={(insecureTls) => update({ s3: { ...form.s3, insecureTls } })}
+                />
+              </div>
+            </>
+          )}
+
+          <Field hint={t("sync.remotePrefixHint")} label={t("sync.remotePrefix")}>
+            <Input
+              onChange={(event) => update({ remotePrefix: event.target.value })}
+              placeholder={t("sync.remotePrefixPlaceholder")}
+              spellCheck={false}
+              value={form.remotePrefix}
+            />
+          </Field>
 
           {probeMessage && (
             <p className="cloud-sync-probe" data-ok={probeOk === null ? undefined : String(probeOk)}>

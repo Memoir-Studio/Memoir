@@ -736,7 +736,7 @@ fn unique_sidecar_path(workspace_root: &str, filesystem: &LocalFileSystem, path:
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::cloud_sync::WEBDAV_PROVIDER_ID;
+    use crate::domain::cloud_sync::{S3Settings, S3_PROVIDER_ID, WEBDAV_PROVIDER_ID};
     use std::fs;
     use std::sync::Mutex;
     use tempfile::tempdir;
@@ -1096,5 +1096,39 @@ mod tests {
         assert_eq!(saved.webdav.url, "https://dav.example/dav");
         assert_eq!(saved.webdav.username, "ada");
         assert_eq!(service.profile(&root).unwrap().webdav.password, "secret");
+    }
+
+    #[test]
+    fn persists_an_s3_profile_per_workspace() {
+        let (_dir, service, root) = setup();
+        let saved = service
+            .save_profile(
+                &root,
+                CloudSyncProfile {
+                    enabled: true,
+                    provider: S3_PROVIDER_ID.into(),
+                    remote_prefix: " /Memoir/ ".into(),
+                    s3: S3Settings {
+                        endpoint: " https://minio.example/ ".into(),
+                        region: " ap-southeast-1 ".into(),
+                        bucket: " memoir ".into(),
+                        access_key_id: " key ".into(),
+                        secret_access_key: "secret".into(),
+                        session_token: " token ".into(),
+                        force_path_style: true,
+                        insecure_tls: false,
+                    },
+                    ..CloudSyncProfile::default()
+                },
+            )
+            .unwrap();
+        assert_eq!(saved.remote_prefix, "Memoir");
+        assert_eq!(saved.s3.endpoint, "https://minio.example");
+        assert_eq!(saved.s3.region, "ap-southeast-1");
+        assert_eq!(saved.s3.bucket, "memoir");
+        assert_eq!(
+            service.profile(&root).unwrap().s3.secret_access_key,
+            "secret"
+        );
     }
 }

@@ -1,6 +1,6 @@
 # Memoir architecture
 
-Memoir is a desktop notebook. The workspace is an ordinary folder of `.md` / `.mdx` files, with optional two-way WebDAV sync. The frontend never talks to Tauri or `localStorage` directly; Rust stays a thin sandbox around the filesystem, app-data, and cloud providers.
+Memoir is a desktop notebook. The workspace is an ordinary folder of `.md` / `.mdx` files, with optional two-way WebDAV or S3-compatible sync. The frontend never talks to Tauri or `localStorage` directly; Rust stays a thin sandbox around the filesystem, app-data, and cloud providers.
 
 ## Dependency direction
 
@@ -59,7 +59,7 @@ tray.rs         system tray and close-to-tray
 
 `getGateways()` in `src/gateways/index.ts` picks Tauri or browser from `isTauriRuntime()`. Tests inject mocks with `setGatewaysForTests`.
 
-The store is five slices: `workspace`, `document`, `library`, `settings`, `ui`. Preferences persist on a short debounce; unsaved edits write a draft; a longer interval autosaves the file. Optional cloud sync is a third gateway (`CloudSyncGateway`): the planner is provider-agnostic, and WebDAV is the first `CloudProvider`.
+The store is five slices: `workspace`, `document`, `library`, `settings`, `ui`. Preferences persist on a short debounce; unsaved edits write a draft; a longer interval autosaves the file. Optional cloud sync is a third gateway (`CloudSyncGateway`): the planner is provider-agnostic. WebDAV and S3-compatible storage are `CloudProvider` implementations selected through a small backend provider registry.
 
 ## Tauri contract
 
@@ -98,7 +98,7 @@ Cloud sync commands:
 - `get_cloud_sync_profile`
 - `save_cloud_sync_profile`
 - `test_cloud_sync`
-- `run_cloud_sync` — two-way WebDAV sync; emits `cloud-sync-progress` (`scanning` / `listing` / `planning` / `working` / `finishing`, plus the current path) while the run is in flight
+- `run_cloud_sync` — two-way provider-backed sync; emits `cloud-sync-progress` (`scanning` / `listing` / `planning` / `working` / `finishing`, plus the current path) while the run is in flight
 
 These are not commands. They go through plugins or Tauri helpers, still behind `WorkspaceGateway`:
 
@@ -146,7 +146,7 @@ app-data/
 - `sidebarCollapsed`
 - `favorites` — relative paths keyed by canonical workspace root
 - `folderAppearances` — emoji/color keyed by workspace, then folder
-- `cloudSync` — per-workspace provider settings (WebDAV URL and credentials stay here, not in the vault)
+- `cloudSync` — per-workspace provider settings (WebDAV URL/credentials or S3 endpoint, bucket, region, and credentials stay here, not in the vault)
 - `window` — logical width, height, maximized
 - `skippedUpdateVersion` — last GitHub release the user chose to skip; a newer tag prompts again
 
@@ -192,4 +192,4 @@ New Tauri command:
 5. Register it in `lib.rs`.
 6. Cover the filesystem rules with temp-dir tests in `src-tauri/src/tests.rs`, and the DTO / error mapping in the frontend gateway tests.
 
-A new cloud provider is a `CloudProvider` impl plus a profile variant. Do not add a second persistence path or telemetry without an issue first.
+A new cloud provider is a `CloudProvider` implementation, a profile settings variant, and one `CloudProviderFactory` registry entry. The sync planner, conflict policy, snapshots, progress events, and frontend gateway remain unchanged. Do not add a second persistence path or telemetry without an issue first.

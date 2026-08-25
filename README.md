@@ -31,14 +31,14 @@
   />
 </p>
 
-Memoir is a quiet desktop notebook. Point it at a folder of `.md` / `.mdx` files and you get a library, a CodeMirror editor, and a live preview. Notes stay ordinary files — not a proprietary vault. Optional WebDAV sync keeps the same folder in step with a remote copy.
+Memoir is a quiet desktop notebook. Point it at a folder of `.md` / `.mdx` files and you get a library, a CodeMirror editor, and a live preview. Notes stay ordinary files — not a proprietary vault. Optional WebDAV or S3-compatible sync keeps the same folder in step with a remote copy.
 
 Notes are ordinary files. You can open the same folder in git, VS Code, or any other editor.
 
 ## Features
 
 - **Your folder, your files** — the workspace is a folder you choose. Notes stay ordinary Markdown / MDX.
-- **Cloud sync** — optional two-way WebDAV with Nextcloud, Nutstore, Synology, and similar servers.
+- **Cloud sync** — optional two-way WebDAV, AWS S3, and S3-compatible storage such as MinIO, R2, or COS.
 - **Markdown and MDX** — GitHub Flavored Markdown, KaTeX, Mermaid, task lists, and a small set of built-in MDX components.
 - **Edit / split / preview** — write source, read the rendered page, or do both with synced scroll.
 - **Library** — folders, frontmatter tags, favorites, recent notes, and a heading outline.
@@ -144,7 +144,7 @@ See [`docs/architecture.md`](docs/architecture.md) for the Tauri command contrac
 
 ## Status
 
-Memoir is in early development. The editor, library, preview, desktop persistence, and optional WebDAV sync are usable day to day; a plugin market is not part of this release.
+Memoir is in early development. The editor, library, preview, desktop persistence, and optional WebDAV / S3-compatible sync are usable day to day; a plugin market is not part of this release.
 
 ## Contributing
 

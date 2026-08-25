@@ -1,11 +1,14 @@
+pub mod s3;
 pub mod webdav;
 
 use crate::domain::{
     cloud_sync::{
-        validate_profile_for_connect, CloudSyncProfile, FileIdentity, WEBDAV_PROVIDER_ID,
+        validate_profile_for_connect, CloudSyncProfile, FileIdentity, S3_PROVIDER_ID,
+        WEBDAV_PROVIDER_ID,
     },
     AppError, AppResult,
 };
+use s3::S3Provider;
 use webdav::WebDavProvider;
 
 pub trait CloudProvider: Send + Sync {
@@ -25,13 +28,55 @@ pub trait CloudProvider: Send + Sync {
     fn delete(&self, relative_path: &str) -> AppResult<()>;
 }
 
+/// Provider construction is isolated from the sync planner. New remote
+/// protocols only need an implementation of `CloudProvider`, a settings
+/// variant, and one registry entry here.
+pub trait CloudProviderFactory: Send + Sync {
+    fn id(&self) -> &'static str;
+    fn create(&self, profile: &CloudSyncProfile) -> AppResult<Box<dyn CloudProvider>>;
+}
+
+struct WebDavProviderFactory;
+
+impl CloudProviderFactory for WebDavProviderFactory {
+    fn id(&self) -> &'static str {
+        WEBDAV_PROVIDER_ID
+    }
+
+    fn create(&self, profile: &CloudSyncProfile) -> AppResult<Box<dyn CloudProvider>> {
+        Ok(Box::new(WebDavProvider::from_profile(profile)?))
+    }
+}
+
+struct S3ProviderFactory;
+
+impl CloudProviderFactory for S3ProviderFactory {
+    fn id(&self) -> &'static str {
+        S3_PROVIDER_ID
+    }
+
+    fn create(&self, profile: &CloudSyncProfile) -> AppResult<Box<dyn CloudProvider>> {
+        Ok(Box::new(S3Provider::from_profile(profile)?))
+    }
+}
+
+static WEBDAV_FACTORY: WebDavProviderFactory = WebDavProviderFactory;
+static S3_FACTORY: S3ProviderFactory = S3ProviderFactory;
+
+fn provider_factories() -> [&'static dyn CloudProviderFactory; 2] {
+    [&WEBDAV_FACTORY, &S3_FACTORY]
+}
+
 pub fn provider_from_profile(profile: &CloudSyncProfile) -> AppResult<Box<dyn CloudProvider>> {
     validate_profile_for_connect(profile)?;
-    match profile.provider.as_str() {
-        WEBDAV_PROVIDER_ID => Ok(Box::new(WebDavProvider::from_profile(profile)?)),
-        other => Err(AppError::new(
-            crate::domain::ErrorCode::Io,
-            format!("Unsupported cloud provider: {other}."),
-        )),
-    }
+    provider_factories()
+        .into_iter()
+        .find(|factory| factory.id() == profile.provider)
+        .ok_or_else(|| {
+            AppError::new(
+                crate::domain::ErrorCode::Io,
+                format!("Unsupported cloud provider: {}.", profile.provider),
+            )
+        })?
+        .create(profile)
 }

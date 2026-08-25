@@ -12,11 +12,11 @@ import {
 } from "./cloud-sync";
 
 describe("cloud sync profile", () => {
-  it("defaults an empty profile and ignores unknown providers", () => {
+  it("defaults an empty profile, accepts S3, and ignores unknown providers", () => {
     expect(mergeCloudSyncProfile(null)).toEqual(defaultCloudSyncProfile());
     expect(
       mergeCloudSyncProfile({
-        provider: "s3" as never,
+        provider: "ftp" as never,
         remotePrefix: "/Memoir/notes/",
         enabled: true,
         webdav: { url: " https://dav.example/ ", username: "ada", password: "secret", insecureTls: true },
@@ -31,11 +31,56 @@ describe("cloud sync profile", () => {
         password: "secret",
         insecureTls: true,
       },
+      s3: defaultCloudSyncProfile().s3,
       lastSyncMs: null,
       lastStatus: "idle",
       lastError: null,
       lastReport: null,
     });
+    expect(
+      mergeCloudSyncProfile({
+        provider: "s3",
+        remotePrefix: " /Memoir/notes/ ",
+        s3: {
+          endpoint: " https://minio.example/ ",
+          region: " ap-southeast-1 ",
+          bucket: " memoir ",
+          accessKeyId: " key ",
+          secretAccessKey: "secret",
+          sessionToken: " token ",
+          forcePathStyle: true,
+          insecureTls: false,
+        },
+      }),
+    ).toMatchObject({
+      provider: "s3",
+      remotePrefix: "Memoir/notes",
+      s3: {
+        endpoint: "https://minio.example/",
+        region: "ap-southeast-1",
+        bucket: "memoir",
+        accessKeyId: "key",
+        secretAccessKey: "secret",
+        sessionToken: "token",
+        forcePathStyle: true,
+      },
+    });
+  });
+
+  it("requires bucket credentials for S3", () => {
+    const profile = mergeCloudSyncProfile({ provider: "s3" });
+    expect(hasCloudSyncCredentials(profile)).toBe(false);
+    expect(
+      hasCloudSyncCredentials({
+        ...profile,
+        s3: {
+          ...profile.s3,
+          bucket: "memoir",
+          accessKeyId: "key",
+          secretAccessKey: "secret",
+        },
+      }),
+    ).toBe(true);
   });
 
   it("keeps last sync metadata and treats a WebDAV URL as enough to connect", () => {

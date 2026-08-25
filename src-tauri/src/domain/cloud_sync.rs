@@ -10,6 +10,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 pub const CLOUD_SYNC_SNAPSHOT_VERSION: u32 = 1;
 pub const WEBDAV_PROVIDER_ID: &str = "webdav";
+pub const S3_PROVIDER_ID: &str = "s3";
 pub const CLOUD_SYNC_PROGRESS_EVENT: &str = "cloud-sync-progress";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -23,6 +24,48 @@ pub struct WebDavSettings {
     pub password: String,
     #[serde(default)]
     pub insecure_tls: bool,
+}
+
+/// Connection settings for any endpoint speaking the S3 API. `endpoint` is
+/// optional for AWS S3 and is required for S3-compatible services.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct S3Settings {
+    #[serde(default)]
+    pub endpoint: String,
+    #[serde(default = "default_s3_region")]
+    pub region: String,
+    #[serde(default)]
+    pub bucket: String,
+    #[serde(default)]
+    pub access_key_id: String,
+    #[serde(default)]
+    pub secret_access_key: String,
+    #[serde(default)]
+    pub session_token: String,
+    #[serde(default)]
+    pub force_path_style: bool,
+    #[serde(default)]
+    pub insecure_tls: bool,
+}
+
+impl Default for S3Settings {
+    fn default() -> Self {
+        Self {
+            endpoint: String::new(),
+            region: default_s3_region(),
+            bucket: String::new(),
+            access_key_id: String::new(),
+            secret_access_key: String::new(),
+            session_token: String::new(),
+            force_path_style: false,
+            insecure_tls: false,
+        }
+    }
+}
+
+fn default_s3_region() -> String {
+    "us-east-1".into()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -93,6 +136,8 @@ pub struct CloudSyncProfile {
     #[serde(default)]
     pub webdav: WebDavSettings,
     #[serde(default)]
+    pub s3: S3Settings,
+    #[serde(default)]
     pub last_sync_ms: Option<u64>,
     #[serde(default)]
     pub last_status: Option<String>,
@@ -113,6 +158,7 @@ impl Default for CloudSyncProfile {
             provider: default_provider(),
             remote_prefix: String::new(),
             webdav: WebDavSettings::default(),
+            s3: S3Settings::default(),
             last_sync_ms: None,
             last_status: Some("idle".into()),
             last_error: None,
@@ -214,7 +260,7 @@ pub fn sanitize_remote_prefix(value: &str) -> AppResult<String> {
 
 pub fn sanitize_profile(profile: CloudSyncProfile) -> AppResult<CloudSyncProfile> {
     let provider = profile.provider.trim().to_ascii_lowercase();
-    if provider != WEBDAV_PROVIDER_ID {
+    if provider != WEBDAV_PROVIDER_ID && provider != S3_PROVIDER_ID {
         return Err(AppError::new(
             crate::domain::ErrorCode::Io,
             format!("Unsupported cloud provider: {}.", profile.provider),
@@ -236,6 +282,16 @@ pub fn sanitize_profile(profile: CloudSyncProfile) -> AppResult<CloudSyncProfile
             password: profile.webdav.password,
             insecure_tls: profile.webdav.insecure_tls,
         },
+        s3: S3Settings {
+            endpoint: profile.s3.endpoint.trim().trim_end_matches('/').to_string(),
+            region: profile.s3.region.trim().to_string(),
+            bucket: profile.s3.bucket.trim().to_string(),
+            access_key_id: profile.s3.access_key_id.trim().to_string(),
+            secret_access_key: profile.s3.secret_access_key,
+            session_token: profile.s3.session_token.trim().to_string(),
+            force_path_style: profile.s3.force_path_style,
+            insecure_tls: profile.s3.insecure_tls,
+        },
         last_sync_ms: profile.last_sync_ms,
         last_status,
         last_error: profile
@@ -247,14 +303,32 @@ pub fn sanitize_profile(profile: CloudSyncProfile) -> AppResult<CloudSyncProfile
 }
 
 pub fn validate_profile_for_connect(profile: &CloudSyncProfile) -> AppResult<()> {
-    if profile.provider != WEBDAV_PROVIDER_ID {
-        return Err(AppError::new(
-            crate::domain::ErrorCode::Io,
-            format!("Unsupported cloud provider: {}.", profile.provider),
-        ));
-    }
-    if profile.webdav.url.trim().is_empty() {
-        return Err(AppError::invalid_path("WebDAV URL is required."));
+    match profile.provider.as_str() {
+        WEBDAV_PROVIDER_ID => {
+            if profile.webdav.url.trim().is_empty() {
+                return Err(AppError::invalid_path("WebDAV URL is required."));
+            }
+        }
+        S3_PROVIDER_ID => {
+            if profile.s3.region.trim().is_empty() {
+                return Err(AppError::invalid_path("S3 region is required."));
+            }
+            if profile.s3.bucket.trim().is_empty() {
+                return Err(AppError::invalid_path("S3 bucket is required."));
+            }
+            if profile.s3.access_key_id.trim().is_empty() {
+                return Err(AppError::invalid_path("S3 access key ID is required."));
+            }
+            if profile.s3.secret_access_key.trim().is_empty() {
+                return Err(AppError::invalid_path("S3 secret access key is required."));
+            }
+        }
+        _ => {
+            return Err(AppError::new(
+                crate::domain::ErrorCode::Io,
+                format!("Unsupported cloud provider: {}.", profile.provider),
+            ));
+        }
     }
     Ok(())
 }
@@ -621,14 +695,35 @@ mod tests {
     }
 
     #[test]
-    fn sanitizes_prefix_and_rejects_unknown_providers() {
+    fn sanitizes_webdav_and_s3_profiles() {
         assert_eq!(
             sanitize_remote_prefix(" /Memoir/notes/ ").unwrap(),
             "Memoir/notes"
         );
         assert!(sanitize_remote_prefix("../outside").is_err());
+        let profile = sanitize_profile(CloudSyncProfile {
+            provider: " S3 ".into(),
+            s3: S3Settings {
+                endpoint: " https://minio.example/ ".into(),
+                region: " ap-southeast-1 ".into(),
+                bucket: " memoir ".into(),
+                access_key_id: " key ".into(),
+                secret_access_key: "secret".into(),
+                session_token: " token ".into(),
+                force_path_style: true,
+                insecure_tls: false,
+            },
+            ..CloudSyncProfile::default()
+        })
+        .unwrap();
+        assert_eq!(profile.s3.endpoint, "https://minio.example");
+        assert_eq!(profile.s3.region, "ap-southeast-1");
+        assert_eq!(profile.s3.bucket, "memoir");
+        assert_eq!(profile.s3.session_token, "token");
+        validate_profile_for_connect(&profile).unwrap();
+
         let err = sanitize_profile(CloudSyncProfile {
-            provider: "s3".into(),
+            provider: "ftp".into(),
             ..CloudSyncProfile::default()
         })
         .unwrap_err();

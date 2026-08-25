@@ -34,11 +34,11 @@ describe("CloudSyncPanel", () => {
 
     expect(view.getByRole("button", { name: "同步" })).toHaveAttribute("aria-pressed", "true");
     expect(view.getByText("还没有配置同步源")).toBeInTheDocument();
-    expect(view.queryByText(/目前支持 WebDAV/)).not.toBeInTheDocument();
+    expect(view.queryByText(/支持 WebDAV 和 S3/)).not.toBeInTheDocument();
 
     await user.click(view.getByRole("button", { name: "去配置" }));
     expect(view.getByRole("button", { name: "配置" })).toHaveAttribute("aria-pressed", "true");
-    expect(view.getByText(/目前支持 WebDAV/)).toBeInTheDocument();
+    expect(view.getByText(/支持 WebDAV 和 S3/)).toBeInTheDocument();
   });
 
   it("collects WebDAV settings and saves through the store", async () => {
@@ -52,7 +52,7 @@ describe("CloudSyncPanel", () => {
     const view = render(<CloudSyncPanel />);
     await openSetup(user, view);
 
-    expect(view.getByText(/目前支持 WebDAV/)).toBeInTheDocument();
+    expect(view.getByText(/支持 WebDAV 和 S3/)).toBeInTheDocument();
 
     await user.type(
       view.getByPlaceholderText("https://dav.example.com/remote.php/dav/"),
@@ -72,6 +72,51 @@ describe("CloudSyncPanel", () => {
         url: "https://dav.example/dav",
         username: "ada",
         password: "secret",
+        insecureTls: false,
+      },
+      s3: defaultCloudSyncProfile().s3,
+    });
+  });
+
+  it("collects S3-compatible settings and saves an isolated provider profile", async () => {
+    const saveCloudSyncProfile = vi.fn().mockResolvedValue(undefined);
+    useAppStore.setState({
+      workspaceRoot: "/workspace",
+      cloudSyncProfile: defaultCloudSyncProfile(),
+      saveCloudSyncProfile,
+    });
+    const user = userEvent.setup();
+    const view = render(<CloudSyncPanel />);
+    await openSetup(user, view);
+
+    await user.click(view.getByRole("combobox", { name: "同步方式" }));
+    await user.click(view.getByRole("option", { name: "S3 兼容对象存储" }));
+    const endpoint = view.getByPlaceholderText("https://s3.example.com");
+    await user.clear(endpoint);
+    await user.type(endpoint, "https://minio.example");
+    const region = view.getByPlaceholderText("us-east-1");
+    await user.clear(region);
+    await user.type(region, "ap-southeast-1");
+    await user.type(view.getByLabelText("Bucket"), "memoir");
+    await user.type(view.getByLabelText("Access Key ID"), "key");
+    await user.type(view.getByLabelText("Secret Access Key"), "secret");
+    await user.type(view.getByPlaceholderText("Memoir"), "Notes");
+    await user.click(view.getByRole("switch", { name: "启用同步" }));
+    await user.click(view.getByRole("button", { name: "保存" }));
+
+    expect(saveCloudSyncProfile).toHaveBeenCalledWith({
+      enabled: true,
+      provider: "s3",
+      remotePrefix: "Notes",
+      webdav: defaultCloudSyncProfile().webdav,
+      s3: {
+        endpoint: "https://minio.example",
+        region: "ap-southeast-1",
+        bucket: "memoir",
+        accessKeyId: "key",
+        secretAccessKey: "secret",
+        sessionToken: "",
+        forcePathStyle: false,
         insecureTls: false,
       },
     });

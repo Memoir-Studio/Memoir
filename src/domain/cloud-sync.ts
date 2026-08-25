@@ -1,4 +1,9 @@
-export const CLOUD_PROVIDER_IDS = ["webdav"] as const;
+/**
+ * Identifiers are deliberately kept at the domain boundary. UI, gateways and
+ * the Rust provider registry all use the same small set, while the sync
+ * planner itself only deals in files.
+ */
+export const CLOUD_PROVIDER_IDS = ["webdav", "s3"] as const;
 export type CloudProviderId = (typeof CLOUD_PROVIDER_IDS)[number];
 
 export type CloudSyncStatus = "idle" | "ok" | "error";
@@ -26,6 +31,22 @@ export type WebDavSettings = {
   insecureTls: boolean;
 };
 
+/**
+ * S3 Signature V4 settings. An empty endpoint uses AWS S3 for the selected
+ * region; a custom endpoint makes MinIO, Cloudflare R2 and other S3-compatible
+ * stores possible without another sync implementation.
+ */
+export type S3Settings = {
+  endpoint: string;
+  region: string;
+  bucket: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+  sessionToken: string;
+  forcePathStyle: boolean;
+  insecureTls: boolean;
+};
+
 export type CloudSyncFileError = {
   path: string;
   message: string;
@@ -49,6 +70,7 @@ export type CloudSyncProfile = {
   provider: CloudProviderId;
   remotePrefix: string;
   webdav: WebDavSettings;
+  s3: S3Settings;
   lastSyncMs: number | null;
   lastStatus: CloudSyncStatus;
   lastError: string | null;
@@ -60,6 +82,8 @@ export type CloudSyncProfileInput = {
   provider: CloudProviderId;
   remotePrefix: string;
   webdav: WebDavSettings;
+  /** Optional for profiles saved before S3 support; the backend supplies defaults. */
+  s3?: S3Settings;
 };
 
 export type CloudSyncProbe = {
@@ -79,12 +103,24 @@ export const DEFAULT_WEBDAV_SETTINGS: WebDavSettings = {
   insecureTls: false,
 };
 
+export const DEFAULT_S3_SETTINGS: S3Settings = {
+  endpoint: "",
+  region: "us-east-1",
+  bucket: "",
+  accessKeyId: "",
+  secretAccessKey: "",
+  sessionToken: "",
+  forcePathStyle: false,
+  insecureTls: false,
+};
+
 export function defaultCloudSyncProfile(): CloudSyncProfile {
   return {
     enabled: false,
     provider: "webdav",
     remotePrefix: "",
     webdav: { ...DEFAULT_WEBDAV_SETTINGS },
+    s3: { ...DEFAULT_S3_SETTINGS },
     lastSyncMs: null,
     lastStatus: "idle",
     lastError: null,
@@ -156,6 +192,26 @@ export function mergeWebDavSettings(settings?: Partial<WebDavSettings> | null): 
   };
 }
 
+export function mergeS3Settings(settings?: Partial<S3Settings> | null): S3Settings {
+  return {
+    // Keep a partially typed URL/region intact in the setup form. The Rust
+    // service normalizes the final saved profile, after the user is finished
+    // entering `https://` or replacing a default region.
+    endpoint: asTrimmedString(settings?.endpoint),
+    region:
+      typeof settings?.region === "string"
+        ? asTrimmedString(settings.region)
+        : DEFAULT_S3_SETTINGS.region,
+    bucket: asTrimmedString(settings?.bucket),
+    accessKeyId: asTrimmedString(settings?.accessKeyId),
+    secretAccessKey:
+      typeof settings?.secretAccessKey === "string" ? settings.secretAccessKey : "",
+    sessionToken: typeof settings?.sessionToken === "string" ? settings.sessionToken.trim() : "",
+    forcePathStyle: asBoolean(settings?.forcePathStyle, DEFAULT_S3_SETTINGS.forcePathStyle),
+    insecureTls: asBoolean(settings?.insecureTls, DEFAULT_S3_SETTINGS.insecureTls),
+  };
+}
+
 export function mergeCloudSyncReport(report?: Partial<CloudSyncReport> | null): CloudSyncReport | null {
   if (!report) return null;
   const errors = Array.isArray(report.errors)
@@ -204,6 +260,7 @@ export function mergeCloudSyncProfile(
     provider: isCloudProviderId(profile?.provider) ? profile.provider : defaults.provider,
     remotePrefix: asTrimmedString(profile?.remotePrefix).replace(/^\/+|\/+$/g, ""),
     webdav: mergeWebDavSettings(profile?.webdav),
+    s3: mergeS3Settings(profile?.s3),
     lastSyncMs: asFiniteNumber(profile?.lastSyncMs),
     lastStatus: isCloudSyncStatus(profile?.lastStatus) ? profile.lastStatus : defaults.lastStatus,
     lastError: typeof profile?.lastError === "string" && profile.lastError.trim()
@@ -219,12 +276,19 @@ export function toCloudSyncProfileInput(profile: CloudSyncProfile): CloudSyncPro
     provider: profile.provider,
     remotePrefix: profile.remotePrefix,
     webdav: { ...profile.webdav },
+    s3: { ...profile.s3 },
   };
 }
 
 export function hasCloudSyncCredentials(profile: CloudSyncProfileInput): boolean {
   if (profile.provider === "webdav") {
     return Boolean(profile.webdav.url);
+  }
+  if (profile.provider === "s3") {
+    const s3 = mergeS3Settings(profile.s3);
+    return Boolean(
+      s3.region && s3.bucket && s3.accessKeyId && s3.secretAccessKey,
+    );
   }
   return false;
 }
