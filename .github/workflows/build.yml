@@ -140,6 +140,10 @@ jobs:
         with:
           workspaces: ./src-tauri -> target
           shared-key: ${{ matrix.name }}
+          prefix-key: v1-rust
+          # Cleaning workspace crate-types (rlib/staticlib/cdylib) can drop
+          # dependency rlibs while leaving their fingerprints intact.
+          cache-all-crates: true
 
       - name: Install Linux build dependencies
         if: matrix.family == 'linux'
