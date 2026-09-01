@@ -54,6 +54,7 @@ import { useNoteGraph } from "../graph/useNoteGraph";
 
 const EditorPane = lazy(() => import("./EditorPane"));
 const PreviewPane = lazy(() => import("../preview/PreviewPane"));
+type ScrollPane = "editor" | "preview";
 
 function PaneFallback({ label }: { label: string }) {
   return (
@@ -79,9 +80,12 @@ export const EditorWorkspace = forwardRef<EditorHandle, {
 ) {
   const editorRef = useRef<EditorHandle>(null);
   const previewPaneRef = useRef<HTMLElement>(null);
-  const ignoreScrollRef = useRef(false);
-  const lastScrollSourceRef = useRef<"editor" | "preview" | null>(null);
-  const pendingScrollRef = useRef<"editor" | "preview" | null>(null);
+  const programmaticScrollTopRef = useRef<Record<ScrollPane, number | null>>({
+    editor: null,
+    preview: null,
+  });
+  const lastScrollSourceRef = useRef<ScrollPane | null>(null);
+  const pendingScrollRef = useRef<ScrollPane | null>(null);
   const scrollRafRef = useRef(0);
   const anchorCacheRef = useRef<{
     content: string;
@@ -144,18 +148,23 @@ export const EditorWorkspace = forwardRef<EditorHandle, {
     return () => observer.disconnect();
   }, [hasDocument, viewMode]);
 
-  const lockForeignScroll = useCallback(() => {
-    ignoreScrollRef.current = true;
-    window.requestAnimationFrame(() => {
-      ignoreScrollRef.current = false;
-    });
-  }, []);
+  const applyScrollTop = useCallback(
+    (pane: ScrollPane, element: HTMLElement, nextTop: number) => {
+      if (Math.abs(element.scrollTop - nextTop) < 1) return;
+      element.scrollTop = nextTop;
+      programmaticScrollTopRef.current[pane] = element.scrollTop;
+    },
+    [],
+  );
 
-  const applyScrollTop = useCallback((element: HTMLElement, nextTop: number) => {
-    if (Math.abs(element.scrollTop - nextTop) < 1) return;
-    lockForeignScroll();
-    element.scrollTop = nextTop;
-  }, [lockForeignScroll]);
+  const consumeProgrammaticScroll = useCallback((source: ScrollPane) => {
+    const expectedTop = programmaticScrollTopRef.current[source];
+    if (expectedTop === null) return false;
+    programmaticScrollTopRef.current[source] = null;
+    const scroller =
+      source === "editor" ? editorRef.current?.getScrollElement() : previewPaneRef.current;
+    return Boolean(scroller && Math.abs(scroller.scrollTop - expectedTop) < 1);
+  }, []);
 
   const getPreviewAnchors = useCallback(() => {
     const previewScroller = previewPaneRef.current;
@@ -177,7 +186,7 @@ export const EditorWorkspace = forwardRef<EditorHandle, {
   }, [content, parsed.body]);
 
   const performScrollSync = useCallback(
-    (source: "editor" | "preview") => {
+    (source: ScrollPane) => {
       const editor = editorRef.current;
       const editorScroller = editor?.getScrollElement();
       const previewScroller = previewPaneRef.current;
@@ -191,23 +200,27 @@ export const EditorWorkspace = forwardRef<EditorHandle, {
         const line = editor.getVisibleLine(editorOffset);
         if (line == null) return;
         applyScrollTop(
+          "preview",
           previewScroller,
           scrollTopForLine(line, anchors, previewScroller, lastLine, previewOffset),
         );
         return;
       }
-      lockForeignScroll();
+      const previousTop = editorScroller.scrollTop;
       editor.scrollToLine(
         lineForScrollTop(previewScroller.scrollTop, anchors, previewScroller, lastLine, previewOffset),
         editorOffset,
       );
+      if (Math.abs(editorScroller.scrollTop - previousTop) >= 1) {
+        programmaticScrollTopRef.current.editor = editorScroller.scrollTop;
+      }
     },
-    [applyScrollTop, content, getPreviewAnchors, lockForeignScroll],
+    [applyScrollTop, content, getPreviewAnchors],
   );
 
   const syncScroll = useCallback(
-    (source: "editor" | "preview") => {
-      if (ignoreScrollRef.current) return;
+    (source: ScrollPane) => {
+      if (consumeProgrammaticScroll(source)) return;
       pendingScrollRef.current = source;
       if (scrollRafRef.current) return;
       scrollRafRef.current = window.requestAnimationFrame(() => {
@@ -217,8 +230,14 @@ export const EditorWorkspace = forwardRef<EditorHandle, {
         if (pending) performScrollSync(pending);
       });
     },
-    [performScrollSync],
+    [consumeProgrammaticScroll, performScrollSync],
   );
+
+  useEffect(() => {
+    programmaticScrollTopRef.current.editor = null;
+    programmaticScrollTopRef.current.preview = null;
+    anchorCacheRef.current = null;
+  }, [activePath]);
 
   const viewModeRef = useRef(viewMode);
   viewModeRef.current = viewMode;
@@ -232,7 +251,7 @@ export const EditorWorkspace = forwardRef<EditorHandle, {
       const observer = new ResizeObserver(() => {
         if (viewModeRef.current !== "split") return;
         anchorCacheRef.current = null;
-        if (lastScrollSourceRef.current === "preview" || ignoreScrollRef.current) return;
+        if (lastScrollSourceRef.current === "preview") return;
         performScrollSync("editor");
       });
       observer.observe(node);

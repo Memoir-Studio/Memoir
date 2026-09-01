@@ -5,7 +5,6 @@ import {
   FileText,
   Link2,
   ListTree,
-  Loader2,
   Plus,
   Search,
   Star,
@@ -62,7 +61,6 @@ export function NoteList({
   const mode = useAppStore((state) => state.libraryPanelMode);
   const content = useAppStore((state) => (state.libraryPanelMode === "outline" ? state.content : ""));
   const query = useAppStore((state) => state.query);
-  const isLoading = useAppStore((state) => state.isLoading);
   const density = useAppStore((state) => state.settings.appearance.density);
   const settings = useAppStore((state) => state.settings);
   const setQuery = useAppStore((state) => state.setQuery);
@@ -187,22 +185,18 @@ export function NoteList({
           </label>
           <div className="flex items-center justify-between px-4 pb-2 pt-3 text-[11px] font-medium text-muted">
             <span>{tc("library.filteredCount", filteredNotes.length)}</span>
-            {isLoading ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <IconButton
-                aria-expanded={Boolean(sortMenu)}
-                aria-haspopup="menu"
-                className="h-7 w-7"
-                label={t("library.sort")}
-                onClick={(event) => {
-                  const rect = event.currentTarget.getBoundingClientRect();
-                  setSortMenu({ x: rect.right - 8, y: rect.bottom + 4 });
-                }}
-              >
-                <ArrowDownWideNarrow className="h-3.5 w-3.5" />
-              </IconButton>
-            )}
+            <IconButton
+              aria-expanded={Boolean(sortMenu)}
+              aria-haspopup="menu"
+              className="h-7 w-7"
+              label={t("library.sort")}
+              onClick={(event) => {
+                const rect = event.currentTarget.getBoundingClientRect();
+                setSortMenu({ x: rect.right - 8, y: rect.bottom + 4 });
+              }}
+            >
+              <ArrowDownWideNarrow className="h-3.5 w-3.5" />
+            </IconButton>
           </div>
           <NoteCardWindow
             activePath={activePath}

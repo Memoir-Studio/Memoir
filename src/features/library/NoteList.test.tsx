@@ -39,6 +39,7 @@ afterEach(() => {
     scopedFilter: null,
     libraryPanelMode: "notes",
     attachments: [],
+    isLoading: false,
     settings: DEFAULT_SETTINGS,
   });
 });
@@ -169,6 +170,21 @@ describe("NoteList", () => {
     await user.click(view.getByRole("button", { name: "排序" }));
     await user.click(view.getByRole("menuitemradio", { name: "标题" }));
     expect(cards()).toEqual(["zebra.md", "alpha.md"]);
+  });
+
+  it("keeps the list toolbar stable while a note is loading", () => {
+    useAppStore.setState({ isLoading: true });
+
+    const view = render(
+      <NoteList
+        onCreate={() => undefined}
+        onDelete={() => undefined}
+        onRename={() => undefined}
+      />,
+    );
+
+    expect(view.getByRole("button", { name: "排序" })).toBeInTheDocument();
+    expect(view.container.querySelector(".animate-spin")).not.toBeInTheDocument();
   });
 
   it("mounts only the virtual window when the page is long", () => {
