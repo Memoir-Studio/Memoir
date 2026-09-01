@@ -91,7 +91,9 @@ Download an installer from [Releases](https://github.com/Memoir-Studio/Memoir/re
 
 - **Windows** — `memoir_*_x64-setup.exe`
 - **macOS** — `memoir_*_aarch64.dmg` (Apple Silicon) or `memoir_*_x64.dmg` (Intel)
-- **Linux** — `memoir_*_amd64.deb` or `memoir-*-1.x86_64.rpm`
+- **Linux** — `memoir_*_amd64.AppImage`, `memoir_*_amd64.deb`, or `memoir-*-1.x86_64.rpm`
+
+The AppImage runs without installation. Make it executable first: `chmod +x memoir_*_amd64.AppImage`.
 
 Open the app, then choose a folder of Markdown / MDX files. That folder is the workspace.
 

@@ -77,9 +77,9 @@ jobs:
               {
                   "name": "linux-x86_64",
                   "family": "linux",
-                  "runner": "ubuntu-24.04",
+                  "runner": "ubuntu-22.04",
                   "rust_target": "",
-                  "args": "--bundles deb,rpm",
+                  "args": "--bundles deb,rpm,appimage",
               },
               {
                   "name": "windows-x86_64",

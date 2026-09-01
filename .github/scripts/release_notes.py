@@ -57,8 +57,10 @@ def downloads_section(version: str, repo: str) -> list[str]:
     mac_intel = file_link("Intel", f"memoir_{version}_x64.dmg")
     deb_name = f"memoir_{version}_amd64.deb"
     rpm_name = f"memoir-{version}-1.x86_64.rpm"
+    appimage_name = f"memoir_{version}_amd64.AppImage"
     linux_deb = file_link("64-bit", deb_name)
     linux_rpm = file_link("64-bit", rpm_name)
+    linux_appimage = file_link("64-bit", appimage_name)
 
     return [
         "## Downloads",
@@ -72,6 +74,10 @@ def downloads_section(version: str, repo: str) -> list[str]:
         f"- {mac_apple} | {mac_intel}",
         "",
         "### Linux",
+        "",
+        "AppImage (portable) — `chmod +x ./path && ./path`",
+        "",
+        f"- {linux_appimage}",
         "",
         "DEB (Debian / Ubuntu) — `sudo apt install ./path`",
         "",
@@ -135,6 +141,7 @@ def self_test() -> None:
     assert f"[Intel]({prefix}/memoir_0.1.9_x64.dmg)" in body
     assert f"[64-bit]({prefix}/memoir_0.1.9_amd64.deb)" in body
     assert f"[64-bit]({prefix}/memoir-0.1.9-1.x86_64.rpm)" in body
+    assert f"[64-bit]({prefix}/memoir_0.1.9_amd64.AppImage)" in body
     empty = build_body("0.1.0", "", [], repo)
     assert "- No user-facing commits since the previous version." in empty
     assert "Full Changelog" not in empty

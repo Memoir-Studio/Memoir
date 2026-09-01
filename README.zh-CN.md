@@ -91,7 +91,9 @@ MDX 可以使用内置组件。`import` / `export` 被有意禁用，避免一�
 
 - **Windows** — `memoir_*_x64-setup.exe`
 - **macOS** — `memoir_*_aarch64.dmg`（Apple Silicon）或 `memoir_*_x64.dmg`（Intel）
-- **Linux** — `memoir_*_amd64.deb` 或 `memoir-*-1.x86_64.rpm`
+- **Linux** — `memoir_*_amd64.AppImage`、`memoir_*_amd64.deb` 或 `memoir-*-1.x86_64.rpm`
+
+AppImage 无需安装即可运行，首次使用前请先执行：`chmod +x memoir_*_amd64.AppImage`。
 
 打开应用，选择一个包含 Markdown / MDX 的文件夹，它就是工作区。
 
