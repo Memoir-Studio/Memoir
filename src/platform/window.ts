@@ -30,6 +30,8 @@ export function applyHostWindowChrome(
   root.dataset.os = os;
   if (isTauriRuntime() && os === "windows") {
     root.dataset.windowFrame = "flush";
+  } else if (isTauriRuntime() && os === "macos") {
+    root.dataset.windowFrame = "native";
   } else {
     delete root.dataset.windowFrame;
   }

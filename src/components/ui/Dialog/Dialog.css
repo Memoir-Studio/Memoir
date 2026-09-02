@@ -84,3 +84,18 @@
     0 8px 24px rgb(0 0 0 / 26%),
     inset 0 1px rgb(255 255 255 / 5%);
 }
+
+:root[data-os="macos"] .memoir-dialog,
+:root[data-os="macos"] .settings-dialog {
+  border: 0;
+  box-shadow:
+    0 24px 80px rgb(0 0 0 / 28%),
+    0 8px 24px rgb(0 0 0 / 14%);
+}
+
+:root[data-os="macos"][data-theme="dark"] .memoir-dialog,
+:root[data-os="macos"][data-theme="dark"] .settings-dialog {
+  box-shadow:
+    0 24px 80px rgb(0 0 0 / 52%),
+    0 8px 24px rgb(0 0 0 / 28%);
+}

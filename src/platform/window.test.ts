@@ -36,13 +36,24 @@ describe("applyHostWindowChrome", () => {
     expect(root.dataset.windowFrame).toBe("flush");
   });
 
-  it("keeps the floating inset frame on other desktop hosts", () => {
+  it("uses the native macOS frame so CSS does not stroke the window", () => {
     Object.defineProperty(window, "__TAURI_INTERNALS__", {
       value: {},
       configurable: true,
     });
     const root = document.createElement("html");
     applyHostWindowChrome(root, "macos");
+    expect(root.dataset.os).toBe("macos");
+    expect(root.dataset.windowFrame).toBe("native");
+  });
+
+  it("keeps the floating inset frame on Linux", () => {
+    Object.defineProperty(window, "__TAURI_INTERNALS__", {
+      value: {},
+      configurable: true,
+    });
+    const root = document.createElement("html");
+    applyHostWindowChrome(root, "linux");
     expect(root.dataset.windowFrame).toBeUndefined();
   });
 
