@@ -43,6 +43,39 @@ describe("UpdateNotice", () => {
     await user.click(view.getByRole("button", { name: "前往下载" }));
     expect(onDownload).toHaveBeenCalledOnce();
   });
+
+  it("renders GitHub-flavored Markdown and opens external links", async () => {
+    const gateways = createMockGateways();
+    const openExternal = vi.spyOn(gateways.workspace, "openExternal");
+    setGatewaysForTests(gateways);
+    const user = userEvent.setup();
+    const view = render(
+      <UpdateNotice
+        latestVersion="0.1.7"
+        onClose={vi.fn()}
+        onDownload={vi.fn()}
+        onSkip={vi.fn()}
+        open
+        releaseNotes={[
+          "## What's Changed",
+          "",
+          "- **Improved** update notes",
+          "- [x] Added Markdown support",
+          "",
+          "[Full changelog](https://github.com/Memoir-Studio/Memoir/compare/v0.1.6...v0.1.7)",
+        ].join("\n")}
+      />,
+    );
+
+    expect(view.getByRole("heading", { name: "What's Changed", level: 2 })).toBeInTheDocument();
+    expect(view.getByText("Improved").tagName).toBe("STRONG");
+    expect(view.getByRole("checkbox")).toBeChecked();
+
+    await user.click(view.getByRole("link", { name: "Full changelog" }));
+    expect(openExternal).toHaveBeenCalledWith(
+      "https://github.com/Memoir-Studio/Memoir/compare/v0.1.6...v0.1.7",
+    );
+  });
 });
 
 describe("AppUpdateNotice", () => {

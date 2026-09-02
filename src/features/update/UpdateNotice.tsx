@@ -1,5 +1,30 @@
+import type { ComponentPropsWithoutRef } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { Button, Dialog } from "../../components/ui";
+import { getGateways } from "../../gateways";
 import { useI18n } from "../../i18n/react";
+
+function ReleaseNotesLink({
+  href,
+  children,
+  ...props
+}: ComponentPropsWithoutRef<"a">) {
+  return (
+    <a
+      {...props}
+      href={href}
+      onClick={(event) => {
+        event.preventDefault();
+        if (href && /^https?:\/\//i.test(href)) {
+          void getGateways().workspace.openExternal(href);
+        }
+      }}
+    >
+      {children}
+    </a>
+  );
+}
 
 export function UpdateNotice({
   open,
@@ -36,7 +61,16 @@ export function UpdateNotice({
       open={open}
       title={t("update.title")}
     >
-      {releaseNotes ? <pre className="update-notes">{releaseNotes}</pre> : null}
+      {releaseNotes ? (
+        <div className="update-notes">
+          <ReactMarkdown
+            components={{ a: ReleaseNotesLink }}
+            remarkPlugins={[remarkGfm]}
+          >
+            {releaseNotes}
+          </ReactMarkdown>
+        </div>
+      ) : null}
     </Dialog>
   );
 }

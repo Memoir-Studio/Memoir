@@ -1,16 +1,143 @@
 .update-dialog {
-  max-width: 420px;
+  max-width: 520px;
 }
 
 .update-notes {
-  max-height: 12rem;
+  max-height: min(22rem, 50vh);
   overflow: auto;
-  margin: 0;
-  color: var(--memoir-muted);
-  font-family: inherit;
-  font-size: 12px;
+  margin: -2px -8px -4px 0;
+  padding-right: 12px;
+  color: color-mix(in srgb, var(--memoir-text) 88%, var(--memoir-muted));
+  font-size: 13px;
   line-height: 1.65;
-  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  scrollbar-gutter: stable;
+}
+
+.update-notes > :first-child {
+  margin-top: 0;
+}
+
+.update-notes > :last-child {
+  margin-bottom: 0;
+}
+
+.update-notes h1,
+.update-notes h2,
+.update-notes h3,
+.update-notes h4 {
+  margin: 1.35em 0 0.55em;
+  color: var(--memoir-text);
+  font-weight: 700;
+  letter-spacing: -0.018em;
+  line-height: 1.35;
+}
+
+.update-notes h1 {
+  font-size: 1.3em;
+}
+
+.update-notes h2 {
+  padding-bottom: 0.35em;
+  border-bottom: 1px solid color-mix(in srgb, var(--memoir-border) 72%, transparent);
+  font-size: 1.16em;
+}
+
+.update-notes h3,
+.update-notes h4 {
+  font-size: 1em;
+}
+
+.update-notes p,
+.update-notes ul,
+.update-notes ol,
+.update-notes blockquote,
+.update-notes pre,
+.update-notes table {
+  margin: 0.7em 0;
+}
+
+.update-notes ul,
+.update-notes ol {
+  padding-left: 1.55em;
+}
+
+.update-notes li + li {
+  margin-top: 0.28em;
+}
+
+.update-notes a {
+  color: var(--memoir-accent);
+  text-decoration-color: color-mix(in srgb, var(--memoir-accent) 45%, transparent);
+  text-underline-offset: 3px;
+}
+
+.update-notes a:hover {
+  text-decoration-color: currentColor;
+}
+
+.update-notes blockquote {
+  padding-left: 0.9em;
+  border-left: 3px solid color-mix(in srgb, var(--memoir-border) 72%, var(--memoir-muted));
+  color: var(--memoir-muted);
+}
+
+.update-notes code {
+  padding: 0.12em 0.35em;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--memoir-panel) 88%, transparent);
+  color: var(--memoir-text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.9em;
+}
+
+.update-notes pre {
+  overflow-x: auto;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--memoir-border) 74%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--memoir-panel) 72%, transparent);
+}
+
+.update-notes pre code {
+  padding: 0;
+  background: none;
+}
+
+.update-notes table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.update-notes th,
+.update-notes td {
+  padding: 6px 8px;
+  border: 1px solid var(--memoir-border);
+  text-align: left;
+}
+
+.update-notes th {
+  background: color-mix(in srgb, var(--memoir-panel) 72%, transparent);
+  color: var(--memoir-text);
+  font-weight: 650;
+}
+
+.update-notes img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0.85em auto;
+  border-radius: 8px;
+}
+
+.update-notes hr {
+  margin: 1.1em 0;
+  border: 0;
+  border-top: 1px solid var(--memoir-border);
+}
+
+.update-notes input[type="checkbox"] {
+  margin: 0 0.45em 0 0;
 }
 
 .settings-update {
