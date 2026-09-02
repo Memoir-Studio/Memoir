@@ -1,5 +1,6 @@
 import { X } from "lucide-react";
 import { useEffect, useId, useRef, type FormEvent, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { useI18n } from "../../../i18n/react";
 import { cn } from "../cn";
 import { IconButton } from "../IconButton";
@@ -124,9 +125,9 @@ export function Dialog({
     containerRef.current = node;
   };
 
-  return (
+  return createPortal(
     <div
-      className={cn("memoir-overlay fixed inset-0 z-50 grid place-items-center bg-text/30 p-4 backdrop-blur-sm", visible && "is-open")}
+      className={cn("memoir-overlay fixed z-50 grid place-items-center bg-text/30 p-4 backdrop-blur-sm", visible && "is-open")}
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
@@ -141,6 +142,7 @@ export function Dialog({
           {body}
         </div>
       )}
-    </div>
+    </div>,
+    document.body,
   );
 }

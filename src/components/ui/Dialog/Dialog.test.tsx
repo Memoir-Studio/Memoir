@@ -31,6 +31,22 @@ function DialogHarness({ onClose }: { onClose: () => void }) {
 }
 
 describe("Dialog", () => {
+  it("portals the overlay so the window frame can bound it independently", () => {
+    const view = render(
+      <div data-testid="clipping-layout">
+        <Dialog onClose={() => undefined} open title="测试对话框">
+          内容
+        </Dialog>
+      </div>,
+    );
+
+    const layout = view.getByTestId("clipping-layout");
+    const overlay = view.getByRole("dialog").parentElement;
+    expect(overlay).toHaveClass("memoir-overlay");
+    expect(overlay?.parentElement).toBe(document.body);
+    expect(layout).not.toContainElement(overlay);
+  });
+
   it("traps tab focus, closes on Escape and restores trigger focus", async () => {
     const onClose = vi.fn();
     const user = userEvent.setup();

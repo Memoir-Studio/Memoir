@@ -8,8 +8,20 @@
 }
 
 .memoir-overlay {
+  inset: var(--memoir-window-inset);
+  overflow: clip;
+  border-radius: 16px;
   opacity: 0;
   transition: opacity var(--memoir-motion) var(--memoir-ease);
+}
+
+:root[data-window-frame="native"] .memoir-overlay {
+  border-radius: 10px;
+}
+
+:root[data-maximized="true"] .memoir-overlay,
+:root[data-window-frame="flush"] .memoir-overlay {
+  border-radius: 0;
 }
 
 .memoir-overlay.is-open {
@@ -98,4 +110,10 @@
   box-shadow:
     0 24px 80px rgb(0 0 0 / 52%),
     0 8px 24px rgb(0 0 0 / 28%);
+}
+
+@media (max-width: 760px) {
+  .memoir-overlay {
+    border-radius: 0;
+  }
 }
