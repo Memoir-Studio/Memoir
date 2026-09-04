@@ -10,6 +10,7 @@ export function PreviewPane({
   articleRef,
   paneRef,
   onScroll,
+  onScrollIntent,
   onContentChange,
 }: {
   root: string | null;
@@ -19,6 +20,7 @@ export function PreviewPane({
   articleRef?: React.Ref<HTMLElement | null>;
   paneRef?: React.RefObject<HTMLElement | null>;
   onScroll?: () => void;
+  onScrollIntent?: () => void;
   onContentChange: (content: string) => void;
 }) {
   const { t } = useI18n();
@@ -28,7 +30,11 @@ export function PreviewPane({
       ref={paneRef}
       aria-label={t("preview.label")}
       className="preview-pane min-h-0 min-w-0 overflow-auto bg-canvas max-[760px]:min-h-[calc(100vh-138px)] max-[760px]:border-r-0"
+      onKeyDownCapture={onScrollIntent}
+      onPointerDownCapture={onScrollIntent}
       onScroll={onScroll}
+      onTouchStartCapture={onScrollIntent}
+      onWheelCapture={onScrollIntent}
     >
       <NotePreviewArticle
         articleRef={articleRef}

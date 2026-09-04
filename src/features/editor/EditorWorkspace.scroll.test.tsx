@@ -12,7 +12,7 @@ const scrollHarness = vi.hoisted(() => ({
 vi.mock("./EditorPane", async () => {
   const React = await import("react");
   const MockEditorPane = React.forwardRef(function MockEditorPane(
-    props: { onScroll?: () => void },
+    props: { onScroll?: () => void; onScrollIntent?: () => void },
     ref: React.ForwardedRef<unknown>,
   ) {
     const scrollerRef = React.useRef<HTMLDivElement>(null);
@@ -42,7 +42,9 @@ vi.mock("./EditorPane", async () => {
     }, []);
     return React.createElement("div", {
       "data-testid": "editor-scroller",
+      onPointerDown: props.onScrollIntent,
       onScroll: props.onScroll,
+      onWheel: props.onScrollIntent,
       ref: scrollerRef,
     });
   });
@@ -54,13 +56,16 @@ vi.mock("../preview/PreviewPane", async () => {
   function MockPreviewPane(props: {
     articleRef?: React.Ref<HTMLElement | null>;
     onScroll?: () => void;
+    onScrollIntent?: () => void;
     paneRef?: React.RefObject<HTMLElement | null>;
   }) {
     return React.createElement(
       "section",
       {
         "data-testid": "preview-scroller",
+        onPointerDown: props.onScrollIntent,
         onScroll: props.onScroll,
+        onWheel: props.onScrollIntent,
         ref: props.paneRef,
       },
       React.createElement("article", { ref: props.articleRef }),
@@ -71,6 +76,8 @@ vi.mock("../preview/PreviewPane", async () => {
 
 import { EditorWorkspace } from "./EditorWorkspace";
 
+const defaultResizeObserver = window.ResizeObserver;
+
 function setScrollGeometry(element: HTMLElement, clientHeight: number, scrollHeight: number) {
   Object.defineProperties(element, {
     clientHeight: { configurable: true, value: clientHeight },
@@ -80,7 +87,9 @@ function setScrollGeometry(element: HTMLElement, clientHeight: number, scrollHei
 
 afterEach(() => {
   cleanup();
+  window.ResizeObserver = defaultResizeObserver;
   scrollHarness.scrollToLine.mockReset();
+  scrollHarness.visibleLine = 20;
   useAppStore.setState({
     workspaceRoot: null,
     notes: [],
@@ -95,6 +104,16 @@ afterEach(() => {
 describe("EditorWorkspace synchronized scrolling", () => {
   it("keeps both user-controlled directions active", async () => {
     const frames: FrameRequestCallback[] = [];
+    const resizeCallbacks: ResizeObserverCallback[] = [];
+    window.ResizeObserver = class ResizeObserverMock implements ResizeObserver {
+      constructor(callback: ResizeObserverCallback) {
+        resizeCallbacks.push(callback);
+      }
+      disconnect() {}
+      observe() {}
+      takeRecords() { return []; }
+      unobserve() {}
+    };
     vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
       frames.push(callback);
       return frames.length;
@@ -135,13 +154,33 @@ describe("EditorWorkspace synchronized scrolling", () => {
     act(() => frames.shift()?.(0));
     expect(preview.scrollTop).toBeGreaterThan(0);
 
-    // Consume only the preview event produced by the editor-driven update.
+    // Consume every preview event produced by the editor-driven update.
     fireEvent.scroll(preview);
+    // Repeated events from the same programmatic write must also stay suppressed.
+    fireEvent.scroll(preview);
+    fireEvent.wheel(preview);
     preview.scrollTop = 1200;
     fireEvent.scroll(preview);
+    act(() => {
+      for (const callback of resizeCallbacks) callback([], {} as ResizeObserver);
+    });
+    expect(preview.scrollTop).toBe(1200);
     act(() => frames.shift()?.(16));
 
     expect(scrollHarness.scrollToLine).toHaveBeenCalledTimes(1);
-    expect(scrollHarness.scrollToLine.mock.calls[0]?.[0]).toBeGreaterThan(1);
+    expect(scrollHarness.scrollToLine.mock.calls[0]?.[0]).toBeGreaterThan(25);
+
+    // CodeMirror may emit multiple scroll events while correcting its virtual viewport.
+    fireEvent.scroll(editor);
+    fireEvent.scroll(editor);
+    expect(frames).toHaveLength(0);
+
+    // Explicit interaction transfers ownership immediately, even while a guard is active.
+    fireEvent.wheel(editor);
+    scrollHarness.visibleLine = 32;
+    fireEvent.scroll(editor);
+    expect(frames).toHaveLength(1);
+    act(() => frames.shift()?.(32));
+    expect(preview.scrollTop).toBeGreaterThan(1200);
   });
 });

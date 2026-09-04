@@ -363,6 +363,7 @@ interface EditorPaneProps {
   fileName: string;
   onChange: (content: string) => void;
   onScroll?: () => void;
+  onScrollIntent?: () => void;
   onPasteImages?: (files: File[]) => Promise<string>;
   highlightDrop?: boolean;
   onContextMenu?: (target: EditorMenuTarget) => void;
@@ -379,6 +380,7 @@ export const EditorPane = forwardRef<EditorHandle, EditorPaneProps>(function Edi
     fileName,
     onChange,
     onScroll,
+    onScrollIntent,
     onPasteImages,
     highlightDrop = false,
     onContextMenu,
@@ -531,6 +533,10 @@ export const EditorPane = forwardRef<EditorHandle, EditorPaneProps>(function Edi
         dropDepthRef.current = 0;
         setHtmlDropActive(false);
       }}
+      onKeyDownCapture={onScrollIntent}
+      onPointerDownCapture={onScrollIntent}
+      onTouchStartCapture={onScrollIntent}
+      onWheelCapture={onScrollIntent}
     >
       <CodeMirrorHost
         className="memoir-cm-host h-full min-h-0"
