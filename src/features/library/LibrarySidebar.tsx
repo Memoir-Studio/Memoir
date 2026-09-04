@@ -68,7 +68,9 @@ function NavButton({
       <span className="sidebar-nav-icon" aria-hidden="true">
         {icon}
       </span>
-      <span className={cn("truncate", collapsed && "min-[761px]:hidden")}>{label}</span>
+      <span className={cn("sidebar-nav-label truncate", collapsed && "min-[761px]:hidden")}>
+        {label}
+      </span>
       {typeof count === "number" ? (
         <span
           className={cn(
@@ -145,6 +147,7 @@ function FolderNavItem({
   onContextMenu: (event: MouseEvent) => void;
 }) {
   const { t } = useI18n();
+  const reservesToggleSlot = hasChildren || depth > 0;
   return (
     <div
       className={cn(
@@ -153,28 +156,33 @@ function FolderNavItem({
           ? "min-[761px]:grid-cols-1 min-[761px]:justify-items-center min-[761px]:gap-0 min-[761px]:px-0"
           : cn(
               "is-tree gap-1 px-2",
-              hasChildren ? "grid-cols-[14px_minmax(0,1fr)_auto]" : "grid-cols-[minmax(0,1fr)_auto]",
+              reservesToggleSlot
+                ? "grid-cols-[14px_minmax(0,1fr)_auto]"
+                : "grid-cols-[minmax(0,1fr)_auto]",
             ),
         active && "is-active",
       )}
       data-folder-color={appearance?.color}
       style={collapsed ? undefined : ({ "--folder-depth": depth } as CSSProperties)}
     >
-      {!collapsed && hasChildren && (
-        <button
-          aria-expanded={expanded}
-          aria-label={expanded ? t("folder.collapse", { name: label }) : t("folder.expand", { name: label })}
-          className="sidebar-folder-toggle"
-          onClick={onToggle}
-          type="button"
-        >
-          <ChevronRight
-            aria-hidden
-            className={cn("sidebar-folder-chevron", expanded && "is-open")}
-            strokeWidth={2}
-          />
-        </button>
-      )}
+      {!collapsed &&
+        (hasChildren ? (
+          <button
+            aria-expanded={expanded}
+            aria-label={expanded ? t("folder.collapse", { name: label }) : t("folder.expand", { name: label })}
+            className="sidebar-folder-toggle"
+            onClick={onToggle}
+            type="button"
+          >
+            <ChevronRight
+              aria-hidden
+              className={cn("sidebar-folder-chevron", expanded && "is-open")}
+              strokeWidth={2}
+            />
+          </button>
+        ) : depth > 0 ? (
+          <span aria-hidden className="sidebar-folder-toggle-spacer" />
+        ) : null)}
       <button
         aria-current={active ? "page" : undefined}
         aria-label={collapsed ? label : undefined}
@@ -192,7 +200,9 @@ function FolderNavItem({
         <span className="sidebar-nav-icon" aria-hidden="true">
           <FolderGlyph appearance={appearance} folder={folder} />
         </span>
-        <span className={cn("truncate", collapsed && "min-[761px]:hidden")}>{label}</span>
+        <span className={cn("sidebar-nav-label truncate", collapsed && "min-[761px]:hidden")}>
+          {label}
+        </span>
       </button>
       {!collapsed && (
         <>

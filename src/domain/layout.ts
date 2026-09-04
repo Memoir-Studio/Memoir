@@ -1,6 +1,6 @@
 export const COLLAPSED_SIDEBAR_WIDTH = 52;
-export const DEFAULT_SIDEBAR_WIDTH = 164;
-export const MIN_SIDEBAR_WIDTH = 148;
+export const DEFAULT_SIDEBAR_WIDTH = 200;
+export const MIN_SIDEBAR_WIDTH = 180;
 export const MAX_SIDEBAR_WIDTH = 360;
 export const DEFAULT_LIBRARY_WIDTH = 280;
 export const MIN_LIBRARY_WIDTH = 200;

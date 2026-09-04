@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
-import { DEFAULT_WORKSPACE_LAYOUT } from "../domain/layout";
+import { DEFAULT_SIDEBAR_WIDTH, DEFAULT_WORKSPACE_LAYOUT } from "../domain/layout";
 import { resetAppUpdateCheckForTests } from "../features/update/useAppUpdateCheck";
 import { setGatewaysForTests } from "../gateways";
 import { useAppStore } from "../store/app-store";
@@ -126,10 +126,10 @@ describe("AppShell layout resize", () => {
     const sidebar = await view.findByRole("separator", {
       name: /调整导航栏宽度|resize navigation/i,
     });
-    dispatchPointer(sidebar, "pointerdown", 164);
-    dispatchPointer(sidebar, "pointermove", 204);
-    dispatchPointer(sidebar, "pointerup", 204);
-    expect(useAppStore.getState().layout.sidebarWidth).toBe(204);
+    dispatchPointer(sidebar, "pointerdown", DEFAULT_SIDEBAR_WIDTH);
+    dispatchPointer(sidebar, "pointermove", DEFAULT_SIDEBAR_WIDTH + 40);
+    dispatchPointer(sidebar, "pointerup", DEFAULT_SIDEBAR_WIDTH + 40);
+    expect(useAppStore.getState().layout.sidebarWidth).toBe(DEFAULT_SIDEBAR_WIDTH + 40);
 
     const library = view.getByRole("separator", { name: /调整笔记列表宽度|resize notes/i });
     dispatchPointer(library, "pointerdown", 280);

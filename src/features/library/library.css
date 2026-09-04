@@ -66,6 +66,12 @@
   min-height: 34px;
 }
 
+/* `truncate` clips on both axes. Give Latin descenders (g, p, q, y) enough
+   vertical room so folder and navigation labels are only truncated horizontally. */
+.sidebar-nav-label {
+  line-height: 1.5;
+}
+
 .sidebar-folder-emoji {
   display: grid;
   width: 16px;
@@ -117,12 +123,16 @@
   padding-left: calc(8px + (var(--folder-depth, 0) * 10px));
 }
 
-.sidebar-folder-toggle {
+.sidebar-folder-toggle,
+.sidebar-folder-toggle-spacer {
   display: grid;
   width: 14px;
   height: 14px;
   flex: none;
   place-items: center;
+}
+
+.sidebar-folder-toggle {
   border: 0;
   border-radius: 4px;
   background: transparent;

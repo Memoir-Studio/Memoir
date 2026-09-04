@@ -181,6 +181,8 @@ describe("LibrarySidebar folders", () => {
     expect(view.getByRole("button", { name: "diary 2" })).toBeInTheDocument();
     expect(view.getByText("3")).toBeInTheDocument();
     expect(view.getByRole("button", { name: "最近编辑 2" })).toBeInTheDocument();
+    expect(view.getByText("日记")).toHaveClass("sidebar-nav-label");
+    expect(view.getByText("最近编辑")).toHaveClass("sidebar-nav-label");
   });
 
   it("nests child folders beside the workspace root, not inside it", async () => {
@@ -210,6 +212,7 @@ describe("LibrarySidebar folders", () => {
     expect(view.getByRole("button", { name: "week1" })).toBeInTheDocument();
     const leafRow = view.getByRole("button", { name: "week1" }).closest(".sidebar-folder-item");
     expect(leafRow?.querySelector(".sidebar-folder-toggle")).toBeNull();
+    expect(leafRow?.querySelector(".sidebar-folder-toggle-spacer")).toBeInTheDocument();
     expect(view.getAllByText("3")).toHaveLength(2);
 
     await user.click(view.getByRole("button", { name: "折叠“lessons”" }));
