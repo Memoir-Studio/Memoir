@@ -6,6 +6,7 @@ import { setGatewaysForTests } from "../../gateways";
 import { useAppStore } from "../../store/app-store";
 import { createMockGateways } from "../../test/mock-gateways";
 import { MARKDOWN_PREVIEW_DELAY_MS } from "./NotePreviewArticle";
+import { LONG_NOTE_DEFER_THRESHOLD } from "../editor/editor-performance";
 import { PreviewPane } from "./PreviewPane";
 import { resetLinkPreviewCache } from "./link-preview-cache";
 import { resetMermaidRuntime } from "./mermaid-runtime";
@@ -47,6 +48,23 @@ const note: NoteMeta = {
 };
 
 describe("PreviewPane link cards", () => {
+  it("paints a lightweight pending state before rendering a long note", () => {
+    const content = `# Long note\n\n${"x".repeat(LONG_NOTE_DEFER_THRESHOLD)}`;
+    const view = render(
+      <PreviewPane
+        activePath="long.md"
+        content={content}
+        note={{ ...note, relativePath: "long.md", fileName: "long.md", size: content.length }}
+        onContentChange={() => undefined}
+        root={null}
+      />,
+    );
+
+    expect(view.container.querySelector("[data-preview-pending]")).toHaveTextContent(
+      "正在生成预览…",
+    );
+  });
+
   it("renders a standalone http(s) URL as a metadata card", async () => {
     const url = "https://shiyu.dev/article/320";
     const gateways = createMockGateways();

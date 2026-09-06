@@ -237,6 +237,42 @@ describe("app store actions", () => {
     expect(store.getState().savedContent).toBe("# Second");
   });
 
+  it("reuses recently loaded note content when switching back", async () => {
+    const gateways = createMockGateways();
+    gateways.workspace.files.set("two.md", `# Two\n\n${"long text\n".repeat(10_000)}`);
+    const readNote = vi.spyOn(gateways.workspace, "readNote");
+    const readDraft = vi.spyOn(gateways.persistence, "readDraft");
+    const store = createAppStore(gateways);
+
+    await store.getState().openWorkspace("/workspace");
+    await store.getState().selectNote("two.md");
+    await store.getState().selectNote("one.md");
+
+    expect(readNote.mock.calls.map((call) => call[1])).toEqual(["one.md", "two.md"]);
+    expect(readDraft.mock.calls.map((call) => call[1])).toEqual(["one.md", "two.md"]);
+    expect(store.getState().content).toContain("# One");
+  });
+
+  it("invalidates cached content when refreshed metadata is newer", async () => {
+    const gateways = createMockGateways();
+    gateways.workspace.files.set("two.md", "# Two");
+    const readNote = vi.spyOn(gateways.workspace, "readNote");
+    const store = createAppStore(gateways);
+
+    await store.getState().openWorkspace("/workspace");
+    await store.getState().selectNote("two.md");
+    gateways.workspace.files.set("one.md", "# One updated externally");
+    store.setState((state) => ({
+      notes: state.notes.map((note) =>
+        note.relativePath === "one.md" ? { ...note, modifiedMs: note.modifiedMs + 1 } : note,
+      ),
+    }));
+    await store.getState().selectNote("one.md");
+
+    expect(readNote.mock.calls.map((call) => call[1])).toEqual(["one.md", "two.md", "one.md"]);
+    expect(store.getState().content).toBe("# One updated externally");
+  });
+
   it("does not apply a finished save to a different note", async () => {
     const gateways = createMockGateways();
     let releaseWrite!: () => void;

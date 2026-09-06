@@ -199,6 +199,7 @@ export const en = {
   "editor.toolbar": "Markdown toolbar",
   "editor.loadingEditor": "Loading editor…",
   "editor.loadingPreview": "Loading preview…",
+  "editor.loadingNote": "Opening note…",
   "editor.markdownEditor": "Markdown editor",
   "editor.dropImages": "Drop to save in the attachment library",
   "editor.contextMenu": "Editor actions",
@@ -270,6 +271,7 @@ export const en = {
   "preview.label": "Live preview",
   "preview.toggleTask": "Toggle task",
   "preview.loadingMermaid": "Loading Mermaid…",
+  "preview.rendering": "Rendering preview…",
   "preview.mdxImportDisabled": "MDX import/export is disabled. Use the built-in components instead.",
   "preview.missingWikiLink": "Couldn’t find “{name}”",
 

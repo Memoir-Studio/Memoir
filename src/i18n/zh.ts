@@ -196,6 +196,7 @@ export const zh = {
   "editor.toolbar": "Markdown 工具栏",
   "editor.loadingEditor": "正在加载编辑器…",
   "editor.loadingPreview": "正在加载预览…",
+  "editor.loadingNote": "正在打开笔记…",
   "editor.markdownEditor": "Markdown 编辑器",
   "editor.dropImages": "松开以保存到附件库",
   "editor.contextMenu": "编辑器操作",
@@ -267,6 +268,7 @@ export const zh = {
   "preview.label": "实时预览",
   "preview.toggleTask": "切换任务状态",
   "preview.loadingMermaid": "正在加载 Mermaid…",
+  "preview.rendering": "正在生成预览…",
   "preview.mdxImportDisabled": "MDX import/export 已禁用，请直接使用内置组件。",
   "preview.missingWikiLink": "未找到“{name}”",
 

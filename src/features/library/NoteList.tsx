@@ -11,7 +11,7 @@ import {
   Star,
   Upload,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ContextMenu,
   ContextMenuItem,
@@ -35,7 +35,7 @@ import { NoteLinksPanel } from "./NoteLinksPanel";
 import { NoteContextMenu, type NoteMenuTarget } from "./NoteContextMenu";
 import { NoteOutline } from "./NoteOutline";
 import type { NoteSortDirection, NoteSortField } from "../../domain/settings";
-import { extractHeadings, noteDisplayName, parseNote, sortLibraryNotes } from "./note-utils";
+import { extractHeadings, noteDisplayName, sortLibraryNotes, stripFrontmatter } from "./note-utils";
 import type { NoteMeta } from "../../domain/notes";
 import { noteListStyles, sharedLibraryStyles } from "./library-styles.stylex";
 
@@ -83,6 +83,10 @@ export function NoteList({
       ),
     [locale, noteSort, noteSortDirection, notes],
   );
+  const selectNoteFromList = useCallback(
+    (path: string) => void selectNote(path),
+    [selectNote],
+  );
   const applyNoteSort = (field: NoteSortField, direction: NoteSortDirection) => {
     setSettings({
       ...settings,
@@ -93,12 +97,10 @@ export function NoteList({
       },
     });
   };
-  const activeNote = notes.find((note) => note.relativePath === activePath);
-  const untitled = t("editor.untitledFallback");
   const headings = useMemo(() => {
     if (mode !== "outline") return [];
-    return extractHeadings(parseNote(content, activeNote?.fileName || untitled).body);
-  }, [activeNote?.fileName, content, mode, untitled]);
+    return extractHeadings(stripFrontmatter(content));
+  }, [content, mode]);
 
   return (
     <section data-note-list-panel="" {...stylex.props(noteListStyles.panel, style)}>
@@ -213,7 +215,7 @@ export function NoteList({
             menuPath={menuTarget?.path ?? null}
             notes={filteredNotes}
             onOpenMenu={setMenuTarget}
-            onSelect={(path) => void selectNote(path)}
+            onSelect={selectNoteFromList}
           />
           {!filteredNotes.length && (
             <p {...stylex.props(noteListStyles.empty)}>{t("library.noMatches")}</p>
@@ -356,7 +358,7 @@ function NoteCardWindow({
   );
 }
 
-function NoteCard({
+const NoteCard = memo(function NoteCard({
   note,
   active,
   menuOpen,
@@ -439,4 +441,4 @@ function NoteCard({
       </div>
     </Surface>
   );
-}
+});

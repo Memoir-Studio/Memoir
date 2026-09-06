@@ -64,6 +64,13 @@ const CLOUD_SYNC_DEBOUNCE_MS = 15_000;
 const CLOUD_SYNC_OPEN_DELAY_MS = 2_000;
 export const AUTOSAVE_INTERVAL_MS = 3000;
 export const NOTE_METADATA_DEBOUNCE_MS = 80;
+const NOTE_CONTENT_CACHE_LIMIT = 6;
+
+type CachedNoteContent = {
+  content: string;
+  savedContent: string;
+  modifiedMs: number | null;
+};
 
 function sameLibraryFields(
   left: { title: string; tags: string[]; excerpt: string },
@@ -155,6 +162,25 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
   let cloudSyncProgressWatch: Promise<void> | null = null;
   let metadataTimer: number | null = null;
   let metadataPath: string | null = null;
+  const noteContentCache = new Map<string, CachedNoteContent>();
+
+  const contentCacheKey = (root: string, relativePath: string) => `${root}\0${relativePath}`;
+  const cacheNoteContent = (
+    root: string,
+    relativePath: string,
+    content: string,
+    savedContent: string,
+    modifiedMs: number | null,
+  ) => {
+    const key = contentCacheKey(root, relativePath);
+    noteContentCache.delete(key);
+    noteContentCache.set(key, { content, savedContent, modifiedMs });
+    while (noteContentCache.size > NOTE_CONTENT_CACHE_LIMIT) {
+      const oldest = noteContentCache.keys().next().value;
+      if (oldest === undefined) break;
+      noteContentCache.delete(oldest);
+    }
+  };
 
   const store = create<AppStore>((set, get) => {
     const persistPreferences = () => {
@@ -499,6 +525,7 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
             scheduleCloudSync(CLOUD_SYNC_OPEN_DELAY_MS);
             return;
           }
+          noteContentCache.clear();
           set({
             workspaceRoot,
             recentWorkspaces,
@@ -553,8 +580,47 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
 
       async selectNote(relativePath) {
         syncLiveEditorContent();
-        const root = get().workspaceRoot;
+        const current = get();
+        const root = current.workspaceRoot;
         if (!root) return;
+        if (current.activePath === relativePath && current.loadedContentPath === relativePath) {
+          if (current.mobilePanel !== "editor") set({ mobilePanel: "editor" });
+          return;
+        }
+
+        if (current.activePath && current.loadedContentPath === current.activePath) {
+          cacheNoteContent(
+            root,
+            current.activePath,
+            current.content,
+            current.savedContent,
+            current.notes.find((note) => note.relativePath === current.activePath)?.modifiedMs ?? null,
+          );
+        }
+        const targetModifiedMs =
+          current.notes.find((note) => note.relativePath === relativePath)?.modifiedMs ?? null;
+        const cacheKey = contentCacheKey(root, relativePath);
+        const cached = noteContentCache.get(cacheKey);
+        if (cached && cached.modifiedMs === targetModifiedMs) {
+          noteContentCache.delete(cacheKey);
+          noteContentCache.set(cacheKey, cached);
+          set({
+            activePath: relativePath,
+            content: cached.content,
+            savedContent: cached.savedContent,
+            loadedContentPath: relativePath,
+            isLoading: false,
+            error: "",
+            mobilePanel: "editor",
+            isSaving: false,
+            status:
+              cached.content !== cached.savedContent
+                ? storeT(current.settings, "status.draftRestored")
+                : storeT(current.settings, "status.loaded"),
+          });
+          return;
+        }
+        noteContentCache.delete(cacheKey);
         set({
           activePath: relativePath,
           isLoading: true,
@@ -568,6 +634,7 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
             gateways.persistence.readDraft(root, relativePath),
           ]);
           if (get().activePath !== relativePath) return;
+          cacheNoteContent(root, relativePath, draft ?? savedContent, savedContent, targetModifiedMs);
           set({
             content: draft ?? savedContent,
             savedContent,

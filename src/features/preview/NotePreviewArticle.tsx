@@ -4,6 +4,7 @@ import {
   createElement,
   lazy,
   Suspense,
+  useDeferredValue,
   useEffect,
   useMemo,
   useRef,
@@ -39,10 +40,11 @@ import { readLinkCardProp, remarkLinkCards } from "./remark-link-cards";
 import { remarkWikiLinks, wikiInnerFromHref } from "./remark-wiki-links";
 import { useAppStore } from "../../store/app-store";
 import { useI18n } from "../../i18n/react";
-import { parseNote } from "../library/note-utils";
+import { stripFrontmatter } from "../library/note-utils";
 import { rehypeSourceLines } from "./source-line";
 import { rehypeTaskOffsets, toggleTaskAtOffset } from "./task-list";
 import { accents, colors, typography } from "../../styles/tokens.stylex";
+import { LONG_NOTE_DEFER_THRESHOLD } from "../editor/editor-performance";
 
 const MDX_IMPORT_EXPORT_DISABLED = "MDX_IMPORT_EXPORT_DISABLED";
 export const MARKDOWN_PREVIEW_DELAY_MS = 200;
@@ -267,6 +269,7 @@ export function NotePreviewArticle({
   relativePath,
   note,
   content,
+  body,
   articleRef,
   style,
   exportMode = false,
@@ -277,6 +280,7 @@ export function NotePreviewArticle({
   relativePath: string | null;
   note: NoteMeta | null;
   content: string;
+  body?: string;
   articleRef?: Ref<HTMLElement | null>;
   style?: stylex.StyleXStyles;
   exportMode?: boolean;
@@ -284,15 +288,11 @@ export function NotePreviewArticle({
   onContentChange?: (content: string) => void;
 }) {
   const { t } = useI18n();
-  const untitled = t("editor.untitledFallback");
   const { graph } = useNoteGraph();
   const selectNote = useAppStore((state) => state.selectNote);
   const viewMode = useAppStore((state) => state.viewMode);
-  const parsed = useMemo(
-    () => parseNote(content, note?.fileName || untitled),
-    [content, note?.fileName, untitled],
-  );
-  const bodyOffset = content.endsWith(parsed.body) ? content.length - parsed.body.length : 0;
+  const markdownBody = useMemo(() => body ?? stripFrontmatter(content), [body, content]);
+  const bodyOffset = content.endsWith(markdownBody) ? content.length - markdownBody.length : 0;
   const toggleTaskLabel = t("preview.toggleTask");
   const loadingMermaidLabel = t("preview.loadingMermaid");
   const contentRef = useRef(content);
@@ -335,22 +335,32 @@ export function NotePreviewArticle({
   }> | null>(null);
   const [error, setError] = useState("");
   const shouldCompileMdx =
-    note?.extension === "mdx" && (/<[A-Z][\w.:-]*(\s|>|\/>)/.test(parsed.body) || /\{[^}\n]+\}/.test(parsed.body));
+    note?.extension === "mdx" && (/<[A-Z][\w.:-]*(\s|>|\/>)/.test(markdownBody) || /\{[^}\n]+\}/.test(markdownBody));
   const mdxPending = shouldCompileMdx && !mdxComponent && !error;
   const markdownDelay = compileDelay === 0 ? 0 : MARKDOWN_PREVIEW_DELAY_MS;
-  const [previewBody, setPreviewBody] = useState(parsed.body);
+  const deferInitialMarkdown =
+    !shouldCompileMdx &&
+    !exportMode &&
+    markdownDelay > 0 &&
+    markdownBody.length >= LONG_NOTE_DEFER_THRESHOLD;
+  const [previewBody, setPreviewBody] = useState(
+    deferInitialMarkdown ? "" : markdownBody,
+  );
+  const deferredPreviewBody = useDeferredValue(previewBody);
+  const markdownPending =
+    !shouldCompileMdx && !deferredPreviewBody && Boolean(markdownBody);
 
   useEffect(() => {
     if (shouldCompileMdx) return;
-    if (parsed.body === previewBody) return;
+    if (markdownBody === previewBody) return;
     if (skipPreviewDelayRef.current || markdownDelay === 0) {
       skipPreviewDelayRef.current = false;
-      setPreviewBody(parsed.body);
+      setPreviewBody(markdownBody);
       return;
     }
-    const timer = window.setTimeout(() => setPreviewBody(parsed.body), markdownDelay);
+    const timer = window.setTimeout(() => setPreviewBody(markdownBody), markdownDelay);
     return () => window.clearTimeout(timer);
-  }, [markdownDelay, parsed.body, previewBody, shouldCompileMdx]);
+  }, [markdownBody, markdownDelay, previewBody, shouldCompileMdx]);
 
   useEffect(() => {
     let cancelled = false;
@@ -360,7 +370,7 @@ export function NotePreviewArticle({
       return;
     }
     const timer = window.setTimeout(() => {
-      compileMdx(parsed.body)
+      compileMdx(markdownBody)
         .then((component) => {
           if (!cancelled) {
             setMdxComponent(() => component);
@@ -379,7 +389,7 @@ export function NotePreviewArticle({
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [compileDelay, parsed.body, shouldCompileMdx, t]);
+  }, [compileDelay, markdownBody, shouldCompileMdx, t]);
 
   return (
     <article
@@ -400,13 +410,17 @@ export function NotePreviewArticle({
         <MDXProvider components={components}>
           {createElement(mdxComponent, { components })}
         </MDXProvider>
+      ) : markdownPending ? (
+        <p data-preview-pending="" {...stylex.props(styles.pending)}>
+          {t("preview.rendering")}
+        </p>
       ) : (
         <ReactMarkdown
           components={components as MarkdownComponents}
           rehypePlugins={markdownRehypePlugins}
           remarkPlugins={remarkPlugins}
         >
-          {shouldCompileMdx ? parsed.body : previewBody}
+          {shouldCompileMdx ? markdownBody : deferredPreviewBody}
         </ReactMarkdown>
       )}
     </article>

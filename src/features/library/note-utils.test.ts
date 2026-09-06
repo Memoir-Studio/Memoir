@@ -81,6 +81,11 @@ describe("note utilities", () => {
     expect(parsed.excerpt).toContain("Useful summary");
   });
 
+  it("reuses parsed metadata for the same document content", () => {
+    const content = `# Long note\n\n${"paragraph ".repeat(10_000)}`;
+    expect(parseNote(content, "long.md")).toBe(parseNote(content, "long.md"));
+  });
+
   it("resolves title from frontmatter, then first h1, then filename", () => {
     expect(
       parseNote("---\ntitle: 今天吃什么\ntags: []\n---\n\n# Two Sum\n\nbody", "memoir.mdx").title,

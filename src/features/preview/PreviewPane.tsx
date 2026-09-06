@@ -9,6 +9,7 @@ export function PreviewPane({
   activePath,
   note,
   content,
+  body,
   articleRef,
   paneRef,
   onScroll,
@@ -19,6 +20,7 @@ export function PreviewPane({
   activePath: string | null;
   note: NoteMeta | null;
   content: string;
+  body?: string;
   articleRef?: React.Ref<HTMLElement | null>;
   paneRef?: React.RefObject<HTMLElement | null>;
   onScroll?: () => void;
@@ -41,6 +43,7 @@ export function PreviewPane({
     >
       <NotePreviewArticle
         articleRef={articleRef}
+        body={body}
         content={content}
         key={activePath || "empty"}
         note={note}

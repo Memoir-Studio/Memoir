@@ -15,6 +15,12 @@ import {
 
 export { addUniqueTags, normalizeTag, parseTagTokens } from "../../domain/notes";
 
+const PARSED_NOTE_CACHE_LIMIT = 6;
+const parsedNoteCache = new Map<
+  string,
+  { fallbackTitle: string; value: { body: string; title: string; tags: string[]; excerpt: string } }
+>();
+
 export function stripFrontmatter(content: string) {
   return content.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, "");
 }
@@ -103,7 +109,7 @@ export function buildExcerpt(content: string) {
   return sliced;
 }
 
-export function parseNote(content: string, fallbackTitle: string) {
+function parseNoteUncached(content: string, fallbackTitle: string) {
   try {
     const parsed = matter(content);
     const body = stripFrontmatter(parsed.content);
@@ -128,6 +134,25 @@ export function parseNote(content: string, fallbackTitle: string) {
       excerpt: buildExcerpt(body),
     };
   }
+}
+
+export function parseNote(content: string, fallbackTitle: string) {
+  const cached = parsedNoteCache.get(content);
+  if (cached?.fallbackTitle === fallbackTitle) {
+    // Refresh insertion order so alternating between a few long notes stays hot.
+    parsedNoteCache.delete(content);
+    parsedNoteCache.set(content, cached);
+    return cached.value;
+  }
+
+  const value = parseNoteUncached(content, fallbackTitle);
+  parsedNoteCache.set(content, { fallbackTitle, value });
+  while (parsedNoteCache.size > PARSED_NOTE_CACHE_LIMIT) {
+    const oldest = parsedNoteCache.keys().next().value;
+    if (oldest === undefined) break;
+    parsedNoteCache.delete(oldest);
+  }
+  return value;
 }
 
 export function countWords(content: string) {

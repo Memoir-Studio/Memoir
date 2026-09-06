@@ -20,6 +20,7 @@ import {
   List,
   ListOrdered,
   ListTodo,
+  LoaderCircle,
   MessageSquareQuote,
   Minus,
   Pilcrow,
@@ -46,7 +47,7 @@ import {
 import { LayoutResizeHandle } from "../layout/LayoutResizeHandle";
 import { useAppStore } from "../../store/app-store";
 import { useI18n } from "../../i18n/react";
-import { parseNote } from "../library/note-utils";
+import { stripFrontmatter } from "../library/note-utils";
 import { handleWindowDragMouseDown } from "../window/window-drag";
 import { markdownForAttachments } from "../../domain/attachments";
 import { mapGatewayError } from "../../domain/errors";
@@ -120,6 +121,7 @@ export const EditorWorkspace = forwardRef<EditorHandle, {
   const editorSplit = useAppStore((state) => state.layout.editorSplit);
   const setLayout = useAppStore((state) => state.setLayout);
   const isSaving = useAppStore((state) => state.isSaving);
+  const isLoading = useAppStore((state) => state.isLoading);
   const setContent = useAppStore((state) => state.setContent);
   const handleEditorChange = useCallback(
     (text: string) => {
@@ -147,9 +149,22 @@ export const EditorWorkspace = forwardRef<EditorHandle, {
   const untitled = t("editor.untitledFallback");
   const activeNote = notes.find((note) => note.relativePath === activePath) || null;
   const hasDocument = Boolean(activeNote && loadedContentPath === activePath);
-  const parsed = useMemo(
-    () => parseNote(hasDocument ? content : "", activeNote?.fileName || untitled),
-    [activeNote?.fileName, content, hasDocument, untitled],
+  const lastLoadedNoteRef = useRef(activeNote);
+  if (hasDocument) lastLoadedNoteRef.current = activeNote;
+  const loadedNote =
+    notes.find((note) => note.relativePath === loadedContentPath) ||
+    (lastLoadedNoteRef.current?.relativePath === loadedContentPath
+      ? lastLoadedNoteRef.current
+      : null);
+  const isOpeningNote = Boolean(
+    isLoading && activePath && activePath !== loadedContentPath,
+  );
+  const isSwitchingNote = Boolean(isOpeningNote && loadedContentPath);
+  const renderedNote = hasDocument ? activeNote : isSwitchingNote ? loadedNote : null;
+  const hasRenderedDocument = Boolean(renderedNote && loadedContentPath);
+  const body = useMemo(
+    () => stripFrontmatter(hasRenderedDocument ? content : ""),
+    [content, hasRenderedDocument],
   );
   const isDirty = hasDocument && content !== savedContent;
 
@@ -216,7 +231,7 @@ export const EditorWorkspace = forwardRef<EditorHandle, {
     }
     const items = collectPreviewAnchors(
       previewScroller,
-      bodySourceLineOffset(content, parsed.body),
+      bodySourceLineOffset(content, body),
     );
     anchorCacheRef.current = {
       content,
@@ -224,7 +239,7 @@ export const EditorWorkspace = forwardRef<EditorHandle, {
       items,
     };
     return items;
-  }, [content, parsed.body]);
+  }, [body, content]);
 
   const performScrollSync = useCallback(
     (source: ScrollPane) => {
@@ -463,7 +478,7 @@ export const EditorWorkspace = forwardRef<EditorHandle, {
       >
         <div {...stylex.props(editorStyles.minWidth)}>
           <h2 {...stylex.props(editorStyles.title)}>
-            {hasDocument ? parsed.title : t("editor.noNoteTitle")}
+            {hasDocument ? activeNote?.title || untitled : t("editor.noNoteTitle")}
           </h2>
           <p {...stylex.props(editorStyles.subtitle)}>
             {hasDocument ? activePath : t("editor.noNoteSubtitle")}
@@ -519,7 +534,7 @@ export const EditorWorkspace = forwardRef<EditorHandle, {
           <IconButton active={activeNote?.favorite} label={t("editor.favorite")} onClick={() => void toggleFavorite()}>
             <Star {...stylex.props(editorStyles.favoriteIcon, activeNote?.favorite && editorStyles.favoriteIconActive)} />
           </IconButton>
-          <IconButton label={t("editor.save")} onClick={() => void saveActiveNote()}>
+          <IconButton disabled={!hasDocument} label={t("editor.save")} onClick={() => void saveActiveNote()}>
             <Save {...stylex.props(editorStyles.icon)} />
           </IconButton>
           <IconButton
@@ -629,15 +644,24 @@ export const EditorWorkspace = forwardRef<EditorHandle, {
         <ContextMenuItem icon={<Minus />} label={t("toolbar.rule")} onSelect={() => editorRef.current?.insertText("---")} />
       </ContextMenu>
 
-      {!hasDocument ? (
+      {!hasRenderedDocument ? (
         <div {...stylex.props(editorStyles.empty)}>
-          <div>
-            <h2 {...stylex.props(editorStyles.emptyTitle)}>{t("editor.emptyTitle")}</h2>
-            <p {...stylex.props(editorStyles.emptyBody)}>{t("editor.emptyBody")}</p>
-          </div>
+          {isOpeningNote ? (
+            <div aria-live="polite" role="status">
+              <LoaderCircle {...stylex.props(editorStyles.emptyLoadingIcon)} />
+              <p {...stylex.props(editorStyles.emptyBody)}>{t("editor.loadingNote")}</p>
+            </div>
+          ) : (
+            <div>
+              <h2 {...stylex.props(editorStyles.emptyTitle)}>{t("editor.emptyTitle")}</h2>
+              <p {...stylex.props(editorStyles.emptyBody)}>{t("editor.emptyBody")}</p>
+            </div>
+          )}
         </div>
       ) : (
         <div
+          aria-busy={isSwitchingNote}
+          data-switching-note={isSwitchingNote ? "" : undefined}
           ref={splitRef}
           {...stylex.props(
             editorStyles.content,
@@ -645,13 +669,13 @@ export const EditorWorkspace = forwardRef<EditorHandle, {
           )}
         >
           {viewMode !== "preview" && (
-            <div {...stylex.props(editorStyles.paneContainer)}>
+            <div inert={isSwitchingNote} {...stylex.props(editorStyles.paneContainer)}>
               <Suspense fallback={<PaneFallback label={t("editor.loadingEditor")} />}>
                 <EditorPane
                   content={content}
-                  fileName={activeNote?.fileName || untitled}
+                  fileName={renderedNote?.fileName || untitled}
                   isDark={isDark}
-                  key={activePath || ""}
+                  key={loadedContentPath || ""}
                   onChange={handleEditorChange}
                   highlightDrop={nativeDropActive}
                   onContextMenu={openEditorMenu}
@@ -661,7 +685,8 @@ export const EditorWorkspace = forwardRef<EditorHandle, {
                   onScrollIntent={() => markScrollIntent("editor")}
                   ref={editorRef}
                   settings={settings}
-                  sourcePath={activePath || ""}
+                  sourcePath={loadedContentPath || ""}
+                  tags={renderedNote?.tags}
                   wikiCatalog={graph.nodes}
                 />
               </Suspense>
@@ -682,19 +707,30 @@ export const EditorWorkspace = forwardRef<EditorHandle, {
             </div>
           )}
           {viewMode !== "edit" && (
-            <Suspense fallback={<PaneFallback label={t("editor.loadingPreview")} />}>
-              <PreviewPane
-                activePath={activePath}
-                articleRef={attachPreviewArticle}
-                content={content}
-                note={activeNote}
-                onContentChange={setContent}
-                onScroll={() => syncScroll("preview")}
-                onScrollIntent={() => markScrollIntent("preview")}
-                paneRef={previewPaneRef}
-                root={workspaceRoot}
-              />
-            </Suspense>
+            <div inert={isSwitchingNote} {...stylex.props(editorStyles.paneContainer)}>
+              <Suspense fallback={<PaneFallback label={t("editor.loadingPreview")} />}>
+                <PreviewPane
+                  activePath={loadedContentPath}
+                  articleRef={attachPreviewArticle}
+                  body={body}
+                  content={content}
+                  note={renderedNote}
+                  onContentChange={setContent}
+                  onScroll={() => syncScroll("preview")}
+                  onScrollIntent={() => markScrollIntent("preview")}
+                  paneRef={previewPaneRef}
+                  root={workspaceRoot}
+                />
+              </Suspense>
+            </div>
+          )}
+          {isSwitchingNote && (
+            <div aria-live="polite" role="status" {...stylex.props(editorStyles.noteLoadingOverlay)}>
+              <span {...stylex.props(editorStyles.noteLoadingPill)}>
+                <LoaderCircle {...stylex.props(editorStyles.noteLoadingIcon)} />
+                {t("editor.loadingNote")}
+              </span>
+            </div>
           )}
         </div>
       )}

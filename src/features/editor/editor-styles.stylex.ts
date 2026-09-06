@@ -10,6 +10,10 @@ const savePulse = stylex.keyframes({
   "50%": { opacity: 0.45, transform: "scale(0.82)" },
 });
 
+const loadingSpin = stylex.keyframes({
+  to: { transform: "rotate(360deg)" },
+});
+
 export const editorStyles = stylex.create({
   fallback: {
     display: "grid",
@@ -182,11 +186,61 @@ export const editorStyles = stylex.create({
     color: colors.muted,
     fontSize: "14px",
   },
+  emptyLoadingIcon: {
+    width: "20px",
+    height: "20px",
+    color: colors.muted,
+    animationName: {
+      default: loadingSpin,
+      "@media (prefers-reduced-motion: reduce)": "none",
+    },
+    animationDuration: "900ms",
+    animationIterationCount: "infinite",
+    animationTimingFunction: "linear",
+  },
   content: {
+    position: "relative",
     display: "grid",
     minHeight: 0,
     minWidth: 0,
     overflow: "hidden",
+  },
+  noteLoadingOverlay: {
+    position: "absolute",
+    inset: 0,
+    zIndex: 5,
+    display: "grid",
+    placeItems: "start center",
+    paddingTop: "14px",
+    backgroundColor: `color-mix(in srgb, ${colors.canvas} 12%, transparent)`,
+    backdropFilter: "blur(1px)",
+  },
+  noteLoadingPill: {
+    display: "inline-flex",
+    height: "28px",
+    alignItems: "center",
+    gap: "7px",
+    paddingInline: "11px",
+    borderWidth: "1px",
+    borderStyle: "solid",
+    borderColor: colors.border,
+    borderRadius: "999px",
+    backgroundColor: `color-mix(in srgb, ${colors.elevated} 94%, transparent)`,
+    boxShadow: "0 4px 14px rgb(35 33 29 / 10%)",
+    color: colors.muted,
+    fontSize: "10px",
+    fontWeight: 600,
+  },
+  noteLoadingIcon: {
+    width: "13px",
+    height: "13px",
+    animationName: {
+      default: loadingSpin,
+      "@media (prefers-reduced-motion: reduce)": "none",
+    },
+    animationDuration: "900ms",
+    animationIterationCount: "infinite",
+    animationTimingFunction: "linear",
   },
   singlePane: { gridTemplateColumns: "minmax(0, 1fr)" },
   splitPane: (ratio: number) => ({

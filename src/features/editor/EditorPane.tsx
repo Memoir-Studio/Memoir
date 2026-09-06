@@ -15,7 +15,7 @@ import { search, searchKeymap } from "@codemirror/search";
 import { EditorSelection } from "@codemirror/state";
 import { EditorView, highlightActiveLine, highlightActiveLineGutter, keymap, lineNumbers } from "@codemirror/view";
 import { tags as highlightTags } from "@lezer/highlight";
-import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState, type MutableRefObject } from "react";
+import { forwardRef, useDeferredValue, useEffect, useImperativeHandle, useMemo, useRef, useState, type MutableRefObject } from "react";
 import { bindLiveEditor } from "../../domain/live-editor";
 import { fencedCodeBlockHighlighter, fencedCodeLanguages } from "./code-languages";
 import { CodeMirrorHost, type CodeMirrorHostHandle } from "./code-mirror-host";
@@ -26,7 +26,7 @@ import type { EditorMenuTarget } from "./EditorContextMenu";
 import type { AppLocale, AppSettings } from "../../domain/settings";
 import { useI18n } from "../../i18n/react";
 import { createMemoirSearchPanel, searchPanelLabels } from "./search-panel";
-import { noteStats, parseNote } from "../library/note-utils";
+import { noteStats } from "../library/note-utils";
 import { Tag } from "../../components/ui";
 import { accents, colors, typography } from "../../styles/tokens.stylex";
 import { editorStyles } from "./editor-styles.stylex";
@@ -37,6 +37,7 @@ import {
   type WikiCatalogNote,
 } from "./wiki-links";
 import { formatMarkdownLines, type MarkdownLineFormat } from "./markdown-format";
+import { LONG_NOTE_DEFER_THRESHOLD } from "./editor-performance";
 
 export { EDITOR_SNAPSHOT_DEBOUNCE_MS } from "./code-mirror-host";
 
@@ -453,6 +454,7 @@ interface EditorPaneProps {
   wikiCatalog?: WikiCatalogNote[];
   sourcePath?: string;
   onOpenNote?: (path: string) => void;
+  tags?: string[];
 }
 
 export const EditorPane = forwardRef<EditorHandle, EditorPaneProps>(function EditorPane(
@@ -460,7 +462,6 @@ export const EditorPane = forwardRef<EditorHandle, EditorPaneProps>(function Edi
     content,
     settings,
     isDark,
-    fileName,
     onChange,
     onScroll,
     onScrollIntent,
@@ -470,6 +471,7 @@ export const EditorPane = forwardRef<EditorHandle, EditorPaneProps>(function Edi
     wikiCatalog = EMPTY_WIKI_CATALOG,
     sourcePath = "",
     onOpenNote,
+    tags = [],
   },
   forwardedRef,
 ) {
@@ -502,8 +504,11 @@ export const EditorPane = forwardRef<EditorHandle, EditorPaneProps>(function Edi
       ),
     [isDark, locale, settings, sourcePath, wikiCatalog],
   );
-  const parsed = useMemo(() => parseNote(content, fileName), [content, fileName]);
-  const stats = useMemo(() => noteStats(content), [content]);
+  const statsContent = useDeferredValue(
+    content,
+    content.length >= LONG_NOTE_DEFER_THRESHOLD ? "" : content,
+  );
+  const stats = useMemo(() => noteStats(statsContent), [statsContent]);
 
   useEffect(() => () => detachScrollRef.current?.(), []);
 
@@ -658,7 +663,7 @@ export const EditorPane = forwardRef<EditorHandle, EditorPaneProps>(function Edi
         <span>{tc("editor.words", stats.words)}</span>
         <span>{tc("editor.chars", stats.chars)}</span>
         <span>{tc("editor.minutes", stats.minutes)}</span>
-        {parsed.tags.slice(0, 3).map((tag) => (
+        {tags.slice(0, 3).map((tag) => (
           <Tag key={tag}>#{tag}</Tag>
         ))}
       </footer>

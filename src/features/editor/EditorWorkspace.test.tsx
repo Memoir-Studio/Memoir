@@ -18,6 +18,7 @@ afterEach(() => {
     loadedContentPath: null,
     content: "",
     savedContent: "",
+    isLoading: false,
   });
 });
 
@@ -79,7 +80,7 @@ describe("EditorWorkspace PDF export", () => {
       <EditorWorkspace isDark={false} onDelete={() => undefined} onRename={() => undefined} />,
     );
 
-    await view.findByRole("region", { name: "Markdown 编辑器" });
+    await waitFor(() => expect(view.container.querySelector("[data-editor-pane]")).toBeTruthy());
     expect(view.getByRole("button", { name: "任务列表" })).toBeEnabled();
     expect(view.getByRole("button", { name: "代码块" })).toBeEnabled();
     expect(view.getByRole("button", { name: "表格" })).toBeEnabled();
@@ -124,6 +125,52 @@ describe("EditorWorkspace PDF export", () => {
     expect(view.getByRole("button", { name: "粗体" })).toBeDisabled();
     expect(view.getByRole("button", { name: "标题样式" })).toBeDisabled();
     expect(view.getByRole("button", { name: "更多格式" })).toBeDisabled();
+  });
+
+  it("keeps the previous document visible while the next note is loading", async () => {
+    useAppStore.setState({
+      workspaceRoot: "/workspace",
+      notes: [
+        {
+          relativePath: "alpha.md",
+          fileName: "alpha.md",
+          extension: "md",
+          modifiedMs: 1,
+          size: 10,
+          title: "Alpha",
+          tags: [],
+          excerpt: "",
+          favorite: false,
+        },
+        {
+          relativePath: "beta.md",
+          fileName: "beta.md",
+          extension: "md",
+          modifiedMs: 2,
+          size: 10,
+          title: "Beta",
+          tags: [],
+          excerpt: "",
+          favorite: false,
+        },
+      ],
+      activePath: "beta.md",
+      loadedContentPath: "alpha.md",
+      content: "# Alpha",
+      savedContent: "# Alpha",
+      isLoading: true,
+      viewMode: "split",
+    });
+    const view = render(
+      <EditorWorkspace isDark={false} onDelete={() => undefined} onRename={() => undefined} />,
+    );
+
+    await waitFor(() => expect(view.container.querySelector("[data-editor-pane]")).toBeTruthy());
+    const content = view.container.querySelector("[data-switching-note]");
+    expect(content?.querySelector('[role="status"]')).toHaveTextContent("正在打开笔记…");
+    expect(content).toHaveAttribute("aria-busy", "true");
+    expect(content?.querySelector("[data-editor-pane]")?.closest("[inert]")).toBeTruthy();
+    expect(view.getByRole("button", { name: "保存" })).toBeDisabled();
   });
 
   it("invokes header delete and rename without passing the click event", async () => {
