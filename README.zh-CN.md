@@ -25,7 +25,7 @@
 
 <p align="center">
   <img
-    src="docs/assets/hero.webp"
+    src="https://cdn.nodeimage.com/i/7TIu1ohGcXg3ZN56dlXBq5BaP1G5D5mQ.webp"
     alt="Memoir 桌面端：资料库、Markdown 编辑器与实时预览"
     width="960"
   />

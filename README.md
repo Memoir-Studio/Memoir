@@ -25,7 +25,7 @@
 
 <p align="center">
   <img
-    src="docs/assets/hero.webp"
+    src="https://cdn.nodeimage.com/i/7TIu1ohGcXg3ZN56dlXBq5BaP1G5D5mQ.webp"
     alt="Memoir desktop app: library, Markdown editor, and live preview"
     width="960"
   />
