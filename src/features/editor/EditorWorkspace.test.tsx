@@ -1,4 +1,4 @@
-import { cleanup, render } from "@testing-library/react";
+import { cleanup, render, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useAppStore } from "../../store/app-store";
@@ -50,6 +50,80 @@ describe("EditorWorkspace PDF export", () => {
 
     await user.click(view.getByRole("button", { name: "导出 PDF" }));
     expect(exportNotePdf).toHaveBeenCalledWith("alpha.md");
+  });
+
+  it("offers expanded Markdown formatting and applies a selected heading level", async () => {
+    useAppStore.setState({
+      workspaceRoot: "/workspace",
+      notes: [
+        {
+          relativePath: "alpha.md",
+          fileName: "alpha.md",
+          extension: "md",
+          modifiedMs: 1,
+          size: 10,
+          title: "Alpha Guide",
+          tags: [],
+          excerpt: "",
+          favorite: false,
+        },
+      ],
+      activePath: "alpha.md",
+      loadedContentPath: "alpha.md",
+      content: "# Alpha Guide",
+      savedContent: "# Alpha Guide",
+      viewMode: "split",
+    });
+    const user = userEvent.setup();
+    const view = render(
+      <EditorWorkspace isDark={false} onDelete={() => undefined} onRename={() => undefined} />,
+    );
+
+    await view.findByRole("region", { name: "Markdown 编辑器" });
+    expect(view.getByRole("button", { name: "任务列表" })).toBeEnabled();
+    expect(view.getByRole("button", { name: "代码块" })).toBeEnabled();
+    expect(view.getByRole("button", { name: "表格" })).toBeEnabled();
+
+    await user.click(view.getByRole("button", { name: "标题样式" }));
+    await user.click(view.getByRole("menuitem", { name: "2 级标题" }));
+    await waitFor(() => expect(useAppStore.getState().content).toBe("## Alpha Guide"));
+
+    await user.click(view.getByRole("button", { name: "更多格式" }));
+    expect(view.getByRole("menuitem", { name: "公式块" })).toBeInTheDocument();
+    expect(view.getByRole("menuitem", { name: "提示块" })).toBeInTheDocument();
+    expect(view.getByRole("menuitem", { name: "分隔线" })).toBeInTheDocument();
+  });
+
+  it("disables formatting controls when only the preview is visible", async () => {
+    useAppStore.setState({
+      workspaceRoot: "/workspace",
+      notes: [
+        {
+          relativePath: "alpha.md",
+          fileName: "alpha.md",
+          extension: "md",
+          modifiedMs: 1,
+          size: 10,
+          title: "Alpha Guide",
+          tags: [],
+          excerpt: "",
+          favorite: false,
+        },
+      ],
+      activePath: "alpha.md",
+      loadedContentPath: "alpha.md",
+      content: "# Alpha Guide",
+      savedContent: "# Alpha Guide",
+      viewMode: "preview",
+    });
+    const view = render(
+      <EditorWorkspace isDark={false} onDelete={() => undefined} onRename={() => undefined} />,
+    );
+
+    await view.findByRole("region", { name: "实时预览" });
+    expect(view.getByRole("button", { name: "粗体" })).toBeDisabled();
+    expect(view.getByRole("button", { name: "标题样式" })).toBeDisabled();
+    expect(view.getByRole("button", { name: "更多格式" })).toBeDisabled();
   });
 
   it("invokes header delete and rename without passing the click event", async () => {

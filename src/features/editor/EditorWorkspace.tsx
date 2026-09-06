@@ -3,9 +3,15 @@ import {
   Bold,
   BookOpen,
   Braces,
+  ChevronDown,
+  Code2,
+  Ellipsis,
   ExternalLink,
   FileDown,
+  FileCode2,
+  Heading1,
   Heading2,
+  Heading3,
   Image,
   Italic,
   LayoutPanelLeft,
@@ -13,16 +19,23 @@ import {
   Link2,
   List,
   ListOrdered,
+  ListTodo,
+  MessageSquareQuote,
   Minus,
+  Pilcrow,
   Quote,
+  Redo2,
   Save,
   SplitSquareHorizontal,
+  SquareSigma,
   Star,
   Strikethrough,
+  Table2,
   Trash2,
+  Undo2,
 } from "lucide-react";
 import { forwardRef, lazy, Suspense, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { IconButton } from "../../components/ui";
+import { ContextMenu, ContextMenuItem, ContextMenuSeparator, IconButton } from "../../components/ui";
 import { fileDropTargetFromPoint, watchNativeFileDrop } from "../../platform/file-drop";
 import { isTauriRuntime } from "../../platform/runtime";
 import {
@@ -53,6 +66,7 @@ import {
 import { exportNotePdf } from "../export/export-note-pdf";
 import { useNoteGraph } from "../graph/useNoteGraph";
 import { editorStyles } from "./editor-styles.stylex";
+import type { MarkdownLineFormat } from "./markdown-format";
 
 const EditorPane = lazy(() => import("./EditorPane"));
 const PreviewPane = lazy(() => import("../preview/PreviewPane"));
@@ -127,6 +141,8 @@ export const EditorWorkspace = forwardRef<EditorHandle, {
   const [isExporting, setIsExporting] = useState(false);
   const [nativeDropActive, setNativeDropActive] = useState(false);
   const [editorMenu, setEditorMenu] = useState<EditorMenuTarget | null>(null);
+  const [headingMenu, setHeadingMenu] = useState<{ x: number; y: number } | null>(null);
+  const [moreMenu, setMoreMenu] = useState<{ x: number; y: number } | null>(null);
   const { graph } = useNoteGraph();
   const untitled = t("editor.untitledFallback");
   const activeNote = notes.find((note) => note.relativePath === activePath) || null;
@@ -364,6 +380,7 @@ export const EditorWorkspace = forwardRef<EditorHandle, {
       insertText: (text) => editorRef.current?.insertText(text),
       insertTextAtCoords: (x, y, text) => editorRef.current?.insertTextAtCoords(x, y, text),
       insertRaw: (text) => editorRef.current?.insertRaw(text),
+      formatLines: (format, placeholder) => editorRef.current?.formatLines(format, placeholder),
       undo: () => editorRef.current?.undo(),
       redo: () => editorRef.current?.redo(),
       selectAll: () => editorRef.current?.selectAll(),
@@ -396,6 +413,13 @@ export const EditorWorkspace = forwardRef<EditorHandle, {
     [],
   );
 
+  const formatLines = useCallback(
+    (format: MarkdownLineFormat, placeholder = "") => {
+      editorRef.current?.formatLines(format, placeholder);
+    },
+    [],
+  );
+
   const exportActivePdf = useCallback(async () => {
     if (!activePath || isExporting) return;
     setIsExporting(true);
@@ -413,18 +437,21 @@ export const EditorWorkspace = forwardRef<EditorHandle, {
   }, [importAttachments]);
 
   const toolbar = [
-    { label: t("toolbar.heading2"), icon: Heading2, action: () => insertSnippet("## ", "", t("toolbar.placeholderHeading")) },
+    { label: t("editor.undo"), icon: Undo2, action: () => editorRef.current?.undo() },
+    { label: t("editor.redo"), icon: Redo2, action: () => editorRef.current?.redo() },
     { label: t("toolbar.bold"), icon: Bold, action: () => insertSnippet("**", "**", t("toolbar.placeholderText")), divider: true },
     { label: t("toolbar.italic"), icon: Italic, action: () => insertSnippet("_", "_", t("toolbar.placeholderText")) },
     { label: t("toolbar.strikethrough"), icon: Strikethrough, action: () => insertSnippet("~~", "~~", t("toolbar.placeholderText")) },
+    { label: t("toolbar.inlineCode"), icon: Code2, action: () => insertSnippet("`", "`", t("toolbar.placeholderCode")) },
     { label: t("toolbar.link"), icon: Link, action: () => insertSnippet("[", "](https://)", t("toolbar.placeholderLink")) },
     { label: t("toolbar.wikiLink"), icon: Link2, action: () => insertSnippet("[[", "]]", t("toolbar.placeholderWikiLink")), divider: true },
     { label: t("toolbar.image"), icon: Image, action: () => void insertImportedImages() },
-    { label: t("toolbar.quote"), icon: Quote, action: () => insertSnippet("> ", "", t("toolbar.placeholderQuote")), divider: true },
-    { label: t("toolbar.bulletList"), icon: List, action: () => insertSnippet("- ", "", t("toolbar.placeholderItem")) },
-    { label: t("toolbar.orderedList"), icon: ListOrdered, action: () => insertSnippet("1. ", "", t("toolbar.placeholderItem")) },
-    { label: t("toolbar.code"), icon: Braces, action: () => insertSnippet("`", "`", "code"), divider: true },
-    { label: t("toolbar.rule"), icon: Minus, action: () => insertSnippet("\n---\n") },
+    { label: t("toolbar.quote"), icon: Quote, action: () => formatLines({ kind: "quote" }, t("toolbar.placeholderQuote")), divider: true },
+    { label: t("toolbar.bulletList"), icon: List, action: () => formatLines({ kind: "bullet-list" }, t("toolbar.placeholderItem")) },
+    { label: t("toolbar.orderedList"), icon: ListOrdered, action: () => formatLines({ kind: "ordered-list" }, t("toolbar.placeholderItem")) },
+    { label: t("toolbar.taskList"), icon: ListTodo, action: () => formatLines({ kind: "task-list" }, t("toolbar.placeholderTask")) },
+    { label: t("toolbar.codeBlock"), icon: FileCode2, action: () => insertSnippet("```\n", "\n```", t("toolbar.placeholderCode")), divider: true },
+    { label: t("toolbar.table"), icon: Table2, action: () => editorRef.current?.insertText(t("toolbar.tableTemplate")) },
   ];
 
   return (
@@ -529,14 +556,78 @@ export const EditorWorkspace = forwardRef<EditorHandle, {
         role="toolbar"
         {...stylex.props(editorStyles.toolbar)}
       >
+        <div {...stylex.props(editorStyles.toolbarGroup)}>
+          <IconButton
+            aria-expanded={Boolean(headingMenu)}
+            aria-haspopup="menu"
+            disabled={!hasDocument || viewMode === "preview"}
+            label={t("toolbar.heading")}
+            onClick={(event) => {
+              const rect = event.currentTarget.getBoundingClientRect();
+              setMoreMenu(null);
+              setHeadingMenu({ x: rect.left, y: rect.bottom + 4 });
+            }}
+            style={[editorStyles.formatButton, editorStyles.formatMenuButton]}
+          >
+            <Heading2 {...stylex.props(editorStyles.iconSmall)} />
+            <ChevronDown {...stylex.props(editorStyles.chevronIcon)} />
+          </IconButton>
+        </div>
         {toolbar.map(({ label, icon: Icon, action, divider }) => (
           <div {...stylex.props(editorStyles.toolbarGroup, divider && editorStyles.toolbarDivider)} key={label}>
-            <IconButton style={editorStyles.formatButton} label={label} onClick={action}>
+            <IconButton disabled={!hasDocument || viewMode === "preview"} style={editorStyles.formatButton} label={label} onClick={action}>
               <Icon {...stylex.props(editorStyles.iconSmall)} />
             </IconButton>
           </div>
         ))}
+        <div {...stylex.props(editorStyles.toolbarGroup, editorStyles.toolbarDivider)}>
+          <IconButton
+            aria-expanded={Boolean(moreMenu)}
+            aria-haspopup="menu"
+            disabled={!hasDocument || viewMode === "preview"}
+            label={t("toolbar.more")}
+            onClick={(event) => {
+              const rect = event.currentTarget.getBoundingClientRect();
+              setHeadingMenu(null);
+              setMoreMenu({ x: rect.right, y: rect.bottom + 4 });
+            }}
+            style={editorStyles.formatButton}
+          >
+            <Ellipsis {...stylex.props(editorStyles.iconSmall)} />
+          </IconButton>
+        </div>
       </div>
+
+      <ContextMenu
+        label={t("toolbar.heading")}
+        onClose={() => setHeadingMenu(null)}
+        open={Boolean(headingMenu)}
+        x={headingMenu?.x ?? 0}
+        y={headingMenu?.y ?? 0}
+      >
+        <ContextMenuItem icon={<Pilcrow />} label={t("toolbar.paragraph")} onSelect={() => formatLines({ kind: "heading", level: 0 })} />
+        <ContextMenuSeparator />
+        {([1, 2, 3, 4, 5, 6] as const).map((level) => (
+          <ContextMenuItem
+            icon={level === 1 ? <Heading1 /> : level === 2 ? <Heading2 /> : level === 3 ? <Heading3 /> : undefined}
+            key={level}
+            label={t("toolbar.headingLevel", { level })}
+            onSelect={() => formatLines({ kind: "heading", level }, t("toolbar.placeholderHeading"))}
+          />
+        ))}
+      </ContextMenu>
+      <ContextMenu
+        label={t("toolbar.more")}
+        onClose={() => setMoreMenu(null)}
+        open={Boolean(moreMenu)}
+        x={moreMenu?.x ?? 0}
+        y={moreMenu?.y ?? 0}
+      >
+        <ContextMenuItem icon={<SquareSigma />} label={t("toolbar.mathBlock")} onSelect={() => insertSnippet("$$\n", "\n$$", t("toolbar.placeholderFormula"))} />
+        <ContextMenuItem icon={<MessageSquareQuote />} label={t("toolbar.callout")} onSelect={() => insertSnippet(`<Callout type="tip" title="${t("toolbar.placeholderCalloutTitle")}">\n`, "\n</Callout>", t("toolbar.placeholderCalloutBody"))} />
+        <ContextMenuSeparator />
+        <ContextMenuItem icon={<Minus />} label={t("toolbar.rule")} onSelect={() => editorRef.current?.insertText("---")} />
+      </ContextMenu>
 
       {!hasDocument ? (
         <div {...stylex.props(editorStyles.empty)}>

@@ -42,6 +42,23 @@ describe("LibrarySidebar graph", () => {
     await user.click(view.getByRole("button", { name: "图谱" }));
     expect(useAppStore.getState().libraryPanelMode).toBe("graph");
   });
+
+  it("keeps an expand control in the collapsed sidebar rail", async () => {
+    useAppStore.setState({
+      workspaceRoot: "/notes",
+      isSidebarCollapsed: true,
+    });
+    const user = userEvent.setup();
+    const view = render(
+      <LibrarySidebar isDark={false} onCreateFolder={() => undefined} onCreateTag={() => undefined} />,
+    );
+
+    const expand = view.getByRole("button", { name: "展开导航" });
+    expect(expand).toBeVisible();
+    await user.click(expand);
+    expect(useAppStore.getState().isSidebarCollapsed).toBe(false);
+    expect(view.getByRole("button", { name: "收起导航" })).toBeVisible();
+  });
 });
 
 describe("LibrarySidebar folders", () => {

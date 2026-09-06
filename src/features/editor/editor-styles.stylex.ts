@@ -140,6 +140,7 @@ export const editorStyles = stylex.create({
     borderBottomStyle: "solid",
     borderBottomColor: colors.border,
     backgroundColor: `color-mix(in srgb, ${colors.elevated} 76%, ${colors.canvas})`,
+    scrollbarWidth: "thin",
   },
   toolbarGroup: {
     display: "flex",
@@ -156,6 +157,14 @@ export const editorStyles = stylex.create({
     width: "29px",
     height: "29px",
     borderRadius: "6px",
+  },
+  formatMenuButton: {
+    width: "38px",
+    gap: "1px",
+  },
+  chevronIcon: {
+    width: "10px",
+    height: "10px",
   },
   empty: {
     display: "grid",

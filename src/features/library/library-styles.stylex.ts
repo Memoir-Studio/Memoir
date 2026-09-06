@@ -705,7 +705,11 @@ export const sidebarStyles = stylex.create({
   },
   titlebarCollapsed: {
     justifyContent: { default: "space-between", "@media (min-width: 761px)": "center" },
-    paddingInline: { default: "12px", "@media (min-width: 761px)": 0 },
+    // Override titlebarTauri's physical padding-left as well as the regular
+    // titlebar inset. Mixing padding-inline with padding-left left the toggle
+    // outside the 52px collapsed rail in some WebViews.
+    paddingLeft: { default: "12px", "@media (min-width: 761px)": 0 },
+    paddingRight: { default: "12px", "@media (min-width: 761px)": 0 },
   },
   brand: {
     display: "flex",

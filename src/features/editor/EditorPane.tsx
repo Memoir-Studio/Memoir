@@ -36,6 +36,7 @@ import {
   wikiSourcePath,
   type WikiCatalogNote,
 } from "./wiki-links";
+import { formatMarkdownLines, type MarkdownLineFormat } from "./markdown-format";
 
 export { EDITOR_SNAPSHOT_DEBOUNCE_MS } from "./code-mirror-host";
 
@@ -427,6 +428,7 @@ export interface EditorHandle {
   insertText: (text: string) => void;
   insertTextAtCoords: (x: number, y: number, text: string) => void;
   insertRaw: (text: string) => void;
+  formatLines: (format: MarkdownLineFormat, placeholder?: string) => void;
   undo: () => void;
   redo: () => void;
   selectAll: () => void;
@@ -552,6 +554,23 @@ export const EditorPane = forwardRef<EditorHandle, EditorPaneProps>(function Edi
         if (!view || !text) return;
         const selection = view.state.selection.main;
         insertAt(view, selection.from, selection.to, text);
+      },
+      formatLines: (format, placeholder = "") => {
+        const view = hostRef.current?.getView();
+        if (!view) return;
+        const selection = view.state.selection.main;
+        const edit = formatMarkdownLines(
+          view.state.doc.toString(),
+          selection.from,
+          selection.to,
+          format,
+          placeholder,
+        );
+        view.dispatch({
+          changes: { from: edit.from, to: edit.to, insert: edit.insert },
+          selection: EditorSelection.range(edit.selectionFrom, edit.selectionTo),
+        });
+        view.focus();
       },
       undo: () => {
         const view = hostRef.current?.getView();
