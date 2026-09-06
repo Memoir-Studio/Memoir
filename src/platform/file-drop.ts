@@ -13,7 +13,7 @@ export function fileDropTargetFromPoint(
   if (!root || !Number.isFinite(x) || !Number.isFinite(y)) return null;
   const node = root.elementFromPoint(x, y);
   if (!node) return null;
-  return node.closest(".editor-pane") ? "editor" : null;
+  return node.closest("[data-editor-pane]") ? "editor" : null;
 }
 
 export function toCssPoint(

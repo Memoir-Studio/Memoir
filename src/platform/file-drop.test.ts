@@ -10,9 +10,9 @@ describe("native file drop helpers", () => {
   it("only treats the editor pane as a drop target", () => {
     const root = document.implementation.createHTMLDocument();
     const pane = root.createElement("section");
-    pane.className = "editor-pane";
+    pane.dataset.editorPane = "";
     const sidebar = root.createElement("aside");
-    sidebar.className = "library-sidebar";
+    sidebar.dataset.librarySidebar = "";
     root.body.append(pane, sidebar);
     pane.getBoundingClientRect = () =>
       ({ left: 0, top: 0, right: 200, bottom: 200, width: 200, height: 200 }) as DOMRect;

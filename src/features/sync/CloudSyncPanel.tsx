@@ -1,3 +1,4 @@
+import * as stylex from "@stylexjs/stylex";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Cloud, Loader2, RefreshCw, Settings2 } from "lucide-react";
 import { Button, IconButton, Input, Select, Toggle } from "../../components/ui";
@@ -17,6 +18,7 @@ import type { MessageKey, MessageParams } from "../../i18n/translate";
 import { isTauriRuntime } from "../../platform/runtime";
 import { useAppStore } from "../../store/app-store";
 import { handleWindowDragMouseDown } from "../window/window-drag";
+import { accents, colors, commonStyles, media, motion } from "../../styles/tokens.stylex";
 
 type SyncSection = "status" | "setup";
 
@@ -30,10 +32,10 @@ function Field({
   children: ReactNode;
 }) {
   return (
-    <label className="memoir-field-label">
+    <label {...stylex.props(styles.field)}>
       <span>{label}</span>
       {children}
-      {hint ? <span className="cloud-sync-row-description">{hint}</span> : null}
+      {hint ? <span {...stylex.props(styles.rowDescription)}>{hint}</span> : null}
     </label>
   );
 }
@@ -68,27 +70,29 @@ function SyncProgress({ progress }: { progress: CloudSyncProgress }) {
   const determinate = ratio !== null;
   const percent = determinate ? Math.round(ratio * 100) : undefined;
   return (
-    <div className="cloud-sync-progress">
+    <div {...stylex.props(styles.progress)}>
       <div
         aria-label={t("sync.progressAria")}
         aria-valuemax={100}
         aria-valuemin={0}
         aria-valuenow={percent}
-        className="cloud-sync-progress-track"
         role="progressbar"
+        {...stylex.props(styles.progressTrack)}
       >
         <div
-          className="cloud-sync-progress-bar"
           data-indeterminate={String(!determinate)}
-          style={determinate ? { width: `${percent}%` } : undefined}
+          {...stylex.props(
+            styles.progressBar,
+            determinate ? styles.progressWidth(percent ?? 0) : styles.progressIndeterminate,
+          )}
         />
       </div>
-      <div className="cloud-sync-progress-meta">
-        <p className="cloud-sync-progress-file" title={progress.path ?? undefined}>
+      <div {...stylex.props(styles.progressMeta)}>
+        <p title={progress.path ?? undefined} {...stylex.props(styles.progressFile)}>
           {progressDetail(progress, t)}
         </p>
         {progress.total > 0 ? (
-          <span className="cloud-sync-progress-count">
+          <span {...stylex.props(styles.progressCount)}>
             {t("sync.progressCount", { current: progress.current, total: progress.total })}
           </span>
         ) : null}
@@ -210,27 +214,35 @@ export function CloudSyncPanel() {
   };
 
   return (
-    <div className="cloud-sync-panel memoir-fade-in flex min-h-0 flex-1 flex-col">
+    <div {...stylex.props(styles.panel, commonStyles.fadeIn)}>
       <header
-        className="flex h-14 shrink-0 items-center justify-between gap-2 px-4"
         data-tauri-drag-region={desktop ? "" : undefined}
         onMouseDown={handleWindowDragMouseDown}
+        {...stylex.props(styles.header)}
       >
-        <div className="view-switcher library-mode-switcher flex items-center rounded-lg p-0.5">
+        <div {...stylex.props(styles.modeSwitcher)}>
           <IconButton
             active={section === "status"}
             label={t("sync.tabStatus")}
             onClick={() => setSection("status")}
+            style={[
+              styles.switcherButton,
+              section === "status" && styles.switcherButtonActive,
+            ]}
           >
-            <Cloud className="h-3.5 w-3.5" />
+            <Cloud {...stylex.props(styles.smallIcon)} />
             <span>{t("sync.tabStatus")}</span>
           </IconButton>
           <IconButton
             active={section === "setup"}
             label={t("sync.tabSetup")}
             onClick={() => setSection("setup")}
+            style={[
+              styles.switcherButton,
+              section === "setup" && styles.switcherButtonActive,
+            ]}
           >
-            <Settings2 className="h-3.5 w-3.5" />
+            <Settings2 {...stylex.props(styles.smallIcon)} />
             <span>{t("sync.tabSetup")}</span>
           </IconButton>
         </div>
@@ -241,23 +253,23 @@ export function CloudSyncPanel() {
             onClick={() => void onSync()}
           >
             {syncing ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <Loader2 {...stylex.props(styles.icon, styles.spinning)} />
             ) : (
-              <RefreshCw className="h-4 w-4" />
+              <RefreshCw {...stylex.props(styles.icon)} />
             )}
           </IconButton>
         ) : (
-          <span aria-hidden className="h-8 w-8" />
+          <span aria-hidden {...stylex.props(styles.iconSpacer)} />
         )}
       </header>
 
       {section === "status" ? (
-        <div className="cloud-sync-form min-h-0 flex-1 overflow-auto px-3 pb-4 pt-2.5">
-          {!desktop && <p className="cloud-sync-banner">{t("sync.browserOnly")}</p>}
+        <div {...stylex.props(styles.form)}>
+          {!desktop && <p {...stylex.props(styles.banner)}>{t("sync.browserOnly")}</p>}
           {!configured ? (
-            <div className="cloud-sync-empty">
-              <p className="cloud-sync-empty-title">{t("sync.emptyTitle")}</p>
-              <p className="cloud-sync-hint">{t("sync.emptyBody")}</p>
+            <div {...stylex.props(styles.empty)}>
+              <p {...stylex.props(styles.emptyTitle)}>{t("sync.emptyTitle")}</p>
+              <p {...stylex.props(styles.hint)}>{t("sync.emptyBody")}</p>
               <Button onClick={() => setSection("setup")} size="sm" variant="primary">
                 {t("sync.openSetup")}
               </Button>
@@ -265,12 +277,19 @@ export function CloudSyncPanel() {
           ) : (
             <>
               <div
-                className="cloud-sync-summary"
                 data-status={syncing ? "syncing" : profile.lastStatus}
+                {...stylex.props(
+                  styles.summary,
+                  !syncing && profile.lastStatus === "error" && styles.summaryError,
+                  syncing && styles.summarySyncing,
+                )}
               >
-                <div className="cloud-sync-row">
-                  <strong>{statusLabel}</strong>
-                  <span className="cloud-sync-enabled" data-on={String(profile.enabled)}>
+                <div {...stylex.props(styles.row)}>
+                  <strong {...stylex.props(styles.summaryTitle)}>{statusLabel}</strong>
+                  <span
+                    data-on={String(profile.enabled)}
+                    {...stylex.props(styles.enabled, profile.enabled && styles.enabledOn)}
+                  >
                     {profile.enabled ? t("sync.enabledOn") : t("sync.enabledOff")}
                   </span>
                 </div>
@@ -281,7 +300,7 @@ export function CloudSyncPanel() {
                     : ""}
                 </span>
                 {profile.lastError && <span>{profile.lastError}</span>}
-                <p className="cloud-sync-row-description">
+                <p {...stylex.props(styles.summaryDescription)}>
                   {[
                     providerLabel,
                     providerSource,
@@ -294,30 +313,30 @@ export function CloudSyncPanel() {
               </div>
 
               {profile.lastReport && !syncing && (
-                <div className="cloud-sync-stats">
-                  <div className="cloud-sync-stat">
-                    <strong>{profile.lastReport.uploaded}</strong>
-                    <span>{t("sync.statUploaded")}</span>
+                <div {...stylex.props(styles.stats)}>
+                  <div {...stylex.props(styles.stat)}>
+                    <strong {...stylex.props(styles.statValue)}>{profile.lastReport.uploaded}</strong>
+                    <span {...stylex.props(styles.statLabel)}>{t("sync.statUploaded")}</span>
                   </div>
-                  <div className="cloud-sync-stat">
-                    <strong>{profile.lastReport.downloaded}</strong>
-                    <span>{t("sync.statDownloaded")}</span>
+                  <div {...stylex.props(styles.stat)}>
+                    <strong {...stylex.props(styles.statValue)}>{profile.lastReport.downloaded}</strong>
+                    <span {...stylex.props(styles.statLabel)}>{t("sync.statDownloaded")}</span>
                   </div>
-                  <div className="cloud-sync-stat">
-                    <strong>{deleted}</strong>
-                    <span>{t("sync.statDeleted")}</span>
+                  <div {...stylex.props(styles.stat)}>
+                    <strong {...stylex.props(styles.statValue)}>{deleted}</strong>
+                    <span {...stylex.props(styles.statLabel)}>{t("sync.statDeleted")}</span>
                   </div>
-                  <div className="cloud-sync-stat">
-                    <strong>{profile.lastReport.skipped}</strong>
-                    <span>{t("sync.statSkipped")}</span>
+                  <div {...stylex.props(styles.stat)}>
+                    <strong {...stylex.props(styles.statValue)}>{profile.lastReport.skipped}</strong>
+                    <span {...stylex.props(styles.statLabel)}>{t("sync.statSkipped")}</span>
                   </div>
                 </div>
               )}
               {profile.lastReport && !syncing && profile.lastReport.conflicts > 0 && (
-                <p className="cloud-sync-hint">{t("sync.conflicts", { count: profile.lastReport.conflicts })}</p>
+                <p {...stylex.props(styles.hint)}>{t("sync.conflicts", { count: profile.lastReport.conflicts })}</p>
               )}
               {profile.lastReport && !syncing && profile.lastReport.errors.length > 0 && (
-                <p className="cloud-sync-hint">{t("sync.fileErrors", { count: profile.lastReport.errors.length })}</p>
+                <p {...stylex.props(styles.hint)}>{t("sync.fileErrors", { count: profile.lastReport.errors.length })}</p>
               )}
               <Button
                 disabled={busy !== null || syncing || !desktop}
@@ -327,14 +346,14 @@ export function CloudSyncPanel() {
               >
                 {syncing ? t("sync.syncing") : t("sync.syncNow")}
               </Button>
-              <p className="cloud-sync-hint">{t("sync.autoHint")}</p>
+              <p {...stylex.props(styles.hint)}>{t("sync.autoHint")}</p>
             </>
           )}
         </div>
       ) : (
-        <div className="cloud-sync-form min-h-0 flex-1 overflow-auto px-3 pb-4 pt-2.5">
-          <p className="cloud-sync-hint">{t("sync.description")}</p>
-          {!desktop && <p className="cloud-sync-banner">{t("sync.browserOnly")}</p>}
+        <div {...stylex.props(styles.form)}>
+          <p {...stylex.props(styles.hint)}>{t("sync.description")}</p>
+          {!desktop && <p {...stylex.props(styles.banner)}>{t("sync.browserOnly")}</p>}
 
           <Field hint={t("sync.providerHint")} label={t("sync.provider")}>
             <Select<CloudProviderId>
@@ -348,10 +367,10 @@ export function CloudSyncPanel() {
             />
           </Field>
 
-          <div className="cloud-sync-row">
+          <div {...stylex.props(styles.row)}>
             <div>
-              <div className="cloud-sync-row-label">{t("sync.enabled")}</div>
-              <p className="cloud-sync-row-description">{t("sync.enabledHint")}</p>
+              <div {...stylex.props(styles.rowLabel)}>{t("sync.enabled")}</div>
+              <p {...stylex.props(styles.rowDescription)}>{t("sync.enabledHint")}</p>
             </div>
             <Toggle
               checked={form.enabled}
@@ -393,10 +412,10 @@ export function CloudSyncPanel() {
                   value={form.webdav.password}
                 />
               </Field>
-              <div className="cloud-sync-row">
+              <div {...stylex.props(styles.row)}>
                 <div>
-                  <div className="cloud-sync-row-label">{t("sync.insecureTls")}</div>
-                  <p className="cloud-sync-row-description">{t("sync.insecureTlsHint")}</p>
+                  <div {...stylex.props(styles.rowLabel)}>{t("sync.insecureTls")}</div>
+                  <p {...stylex.props(styles.rowDescription)}>{t("sync.insecureTlsHint")}</p>
                 </div>
                 <Toggle
                   checked={form.webdav.insecureTls}
@@ -462,10 +481,10 @@ export function CloudSyncPanel() {
                   value={form.s3.sessionToken}
                 />
               </Field>
-              <div className="cloud-sync-row">
+              <div {...stylex.props(styles.row)}>
                 <div>
-                  <div className="cloud-sync-row-label">{t("sync.s3PathStyle")}</div>
-                  <p className="cloud-sync-row-description">{t("sync.s3PathStyleHint")}</p>
+                  <div {...stylex.props(styles.rowLabel)}>{t("sync.s3PathStyle")}</div>
+                  <p {...stylex.props(styles.rowDescription)}>{t("sync.s3PathStyleHint")}</p>
                 </div>
                 <Toggle
                   checked={form.s3.forcePathStyle}
@@ -473,10 +492,10 @@ export function CloudSyncPanel() {
                   onChange={(forcePathStyle) => update({ s3: { ...form.s3, forcePathStyle } })}
                 />
               </div>
-              <div className="cloud-sync-row">
+              <div {...stylex.props(styles.row)}>
                 <div>
-                  <div className="cloud-sync-row-label">{t("sync.insecureTls")}</div>
-                  <p className="cloud-sync-row-description">{t("sync.insecureTlsHint")}</p>
+                  <div {...stylex.props(styles.rowLabel)}>{t("sync.insecureTls")}</div>
+                  <p {...stylex.props(styles.rowDescription)}>{t("sync.insecureTlsHint")}</p>
                 </div>
                 <Toggle
                   checked={form.s3.insecureTls}
@@ -497,11 +516,18 @@ export function CloudSyncPanel() {
           </Field>
 
           {probeMessage && (
-            <p className="cloud-sync-probe" data-ok={probeOk === null ? undefined : String(probeOk)}>
+            <p
+              data-ok={probeOk === null ? undefined : String(probeOk)}
+              {...stylex.props(
+                styles.hint,
+                probeOk === true && styles.probeOk,
+                probeOk === false && styles.probeError,
+              )}
+            >
               {probeMessage}
             </p>
           )}
-          <div className="cloud-sync-actions">
+          <div {...stylex.props(styles.actions)}>
             <Button disabled={busy !== null || !desktop} onClick={() => void onTest()} size="sm">
               {busy === "test" ? t("sync.testing") : t("sync.test")}
             </Button>
@@ -514,3 +540,260 @@ export function CloudSyncPanel() {
     </div>
   );
 }
+
+const indeterminate = stylex.keyframes({
+  from: { transform: "translateX(-130%)" },
+  to: { transform: "translateX(280%)" },
+});
+
+const spin = stylex.keyframes({
+  to: { transform: "rotate(360deg)" },
+});
+
+const styles = stylex.create({
+  panel: {
+    display: "flex",
+    minHeight: 0,
+    flex: 1,
+    flexDirection: "column",
+  },
+  header: {
+    display: "flex",
+    height: 56,
+    flexShrink: 0,
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+    paddingInline: 16,
+  },
+  modeSwitcher: {
+    display: "flex",
+    alignItems: "center",
+    padding: 3,
+    borderWidth: 1,
+    borderStyle: "solid",
+    borderColor: `color-mix(in srgb, ${colors.border} 88%, transparent)`,
+    borderRadius: 10,
+    backgroundColor: `color-mix(in srgb, ${colors.panel} 74%, transparent)`,
+  },
+  switcherButton: {
+    width: "auto",
+    minWidth: 52,
+    height: 30,
+    gap: 5,
+    paddingInline: 8,
+    borderRadius: 8,
+    fontSize: 11,
+    transitionDuration: {
+      default: "150ms",
+      [media.reducedMotion]: "0s",
+    },
+  },
+  switcherButtonActive: {
+    backgroundColor: colors.elevated,
+    boxShadow:
+      "0 1px 2px rgb(35 33 29 / 10%), inset 0 0 0 1px rgb(255 255 255 / 46%)",
+    color: colors.text,
+  },
+  smallIcon: { width: 14, height: 14 },
+  icon: { width: 16, height: 16 },
+  iconSpacer: { width: 32, height: 32 },
+  spinning: {
+    animationName: spin,
+    animationDuration: "1s",
+    animationTimingFunction: "linear",
+    animationIterationCount: "infinite",
+  },
+  form: {
+    display: "grid",
+    minHeight: 0,
+    flex: 1,
+    alignContent: "start",
+    gap: 8,
+    overflow: "auto",
+    paddingTop: 10,
+    paddingRight: 12,
+    paddingBottom: 16,
+    paddingLeft: 12,
+  },
+  field: {
+    display: "grid",
+    gap: 7,
+    color: colors.muted,
+    fontSize: 11,
+    fontWeight: 550,
+    letterSpacing: 0,
+  },
+  hint: {
+    margin: 0,
+    color: colors.muted,
+    fontSize: 11,
+    lineHeight: 1.55,
+  },
+  banner: {
+    margin: 0,
+    paddingBlock: 8,
+    paddingInline: 10,
+    borderWidth: 1,
+    borderStyle: "solid",
+    borderColor: `color-mix(in srgb, ${colors.border} 80%, transparent)`,
+    borderRadius: 10,
+    color: colors.muted,
+    backgroundColor: `color-mix(in srgb, ${colors.panel} 88%, ${colors.elevated})`,
+    fontSize: 11,
+    lineHeight: 1.55,
+  },
+  row: {
+    display: "grid",
+    gridTemplateColumns: "minmax(0, 1fr) auto",
+    alignItems: "center",
+    gap: 10,
+  },
+  rowLabel: {
+    color: colors.text,
+    fontSize: 12,
+    fontWeight: 620,
+    letterSpacing: 0,
+  },
+  rowDescription: {
+    marginTop: 4,
+    marginRight: 0,
+    marginBottom: 0,
+    marginLeft: 0,
+    color: colors.muted,
+    fontSize: 10,
+    lineHeight: 1.5,
+  },
+  summary: {
+    display: "grid",
+    alignContent: "start",
+    gap: 2,
+    paddingBlock: 8,
+    paddingInline: 10,
+    borderWidth: 1,
+    borderStyle: "solid",
+    borderColor: `color-mix(in srgb, ${colors.border} 72%, transparent)`,
+    borderRadius: 10,
+    backgroundColor: `color-mix(in srgb, ${colors.panel} 72%, transparent)`,
+    color: colors.muted,
+    fontSize: 11,
+    lineHeight: 1.55,
+  },
+  summaryError: {
+    borderColor: `color-mix(in srgb, ${colors.danger} 28%, ${colors.border})`,
+  },
+  summarySyncing: {
+    borderColor: `color-mix(in srgb, ${accents.primary} 24%, ${colors.border})`,
+  },
+  summaryTitle: {
+    color: colors.text,
+    fontSize: 12,
+    fontWeight: 650,
+  },
+  summaryDescription: {
+    marginTop: 6,
+    marginRight: 0,
+    marginBottom: 0,
+    marginLeft: 0,
+    color: colors.muted,
+    fontSize: 10,
+    lineHeight: 1.5,
+  },
+  enabled: {
+    flex: "none",
+    color: colors.muted,
+    fontSize: 10,
+    fontWeight: 620,
+  },
+  enabledOn: { color: accents.primary },
+  empty: {
+    display: "grid",
+    justifyItems: "start",
+    gap: 8,
+    paddingTop: 8,
+    paddingRight: 2,
+    paddingBottom: 4,
+    paddingLeft: 2,
+  },
+  emptyTitle: {
+    margin: 0,
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: 650,
+    letterSpacing: 0,
+  },
+  stats: {
+    display: "grid",
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+    gap: 8,
+  },
+  stat: {
+    display: "grid",
+    gap: 1,
+    paddingBlock: 7,
+    paddingInline: 10,
+    borderWidth: 1,
+    borderStyle: "solid",
+    borderColor: `color-mix(in srgb, ${colors.border} 68%, transparent)`,
+    borderRadius: 10,
+    backgroundColor: `color-mix(in srgb, ${colors.elevated} 62%, transparent)`,
+  },
+  statValue: {
+    color: colors.text,
+    fontSize: 16,
+    fontWeight: 680,
+    letterSpacing: 0,
+    lineHeight: 1.2,
+  },
+  statLabel: { color: colors.muted, fontSize: 10 },
+  progress: { display: "grid", gap: 6, marginTop: 8 },
+  progressTrack: {
+    height: 4,
+    overflow: "hidden",
+    borderRadius: 99,
+    backgroundColor: `color-mix(in srgb, ${accents.primary} 16%, ${colors.border})`,
+  },
+  progressBar: {
+    height: "100%",
+    borderRadius: "inherit",
+    backgroundColor: accents.primary,
+    transitionProperty: "width",
+    transitionDuration: motion.standard,
+    transitionTimingFunction: motion.ease,
+  },
+  progressWidth: (percent: number) => ({ width: `${percent}%` }),
+  progressIndeterminate: {
+    width: "38%",
+    animationName: {
+      default: indeterminate,
+      [media.reducedMotion]: "none",
+    },
+    animationDuration: "1.15s",
+    animationTimingFunction: "ease-in-out",
+    animationIterationCount: "infinite",
+  },
+  progressMeta: {
+    display: "grid",
+    gridTemplateColumns: "minmax(0, 1fr) auto",
+    alignItems: "start",
+    gap: 8,
+  },
+  progressFile: {
+    overflow: "hidden",
+    margin: 0,
+    color: colors.text,
+    fontSize: 11,
+    lineHeight: 1.45,
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+  progressCount: {
+    color: colors.muted,
+    fontSize: 10,
+    fontVariantNumeric: "tabular-nums",
+    whiteSpace: "nowrap",
+  },
+  probeOk: { color: accents.primary },
+  probeError: { color: colors.danger },
+  actions: { display: "grid", gap: 8 },
+});

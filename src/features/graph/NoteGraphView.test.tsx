@@ -53,7 +53,7 @@ describe("NoteGraphView", () => {
     const local = view.getByRole("button", { name: "只看相邻" });
     expect(full).toHaveAttribute("aria-pressed", "true");
     expect(local).toHaveAttribute("aria-pressed", "false");
-    expect(full.closest(".view-switcher")).toBeTruthy();
+    expect(full.closest('[role="group"]')).toBeTruthy();
     expect(view.getByText("当前笔记")).toBeInTheDocument();
     expect(view.getByText("相邻笔记")).toBeInTheDocument();
   });

@@ -1,3 +1,4 @@
+import * as stylex from "@stylexjs/stylex";
 import {
   ArrowDownWideNarrow,
   BookOpen,
@@ -19,7 +20,6 @@ import {
   Input,
   Surface,
   Tag,
-  cn,
 } from "../../components/ui";
 import { isTauriRuntime } from "../../platform/runtime";
 import { useAppStore } from "../../store/app-store";
@@ -37,6 +37,7 @@ import { NoteOutline } from "./NoteOutline";
 import type { NoteSortDirection, NoteSortField } from "../../domain/settings";
 import { extractHeadings, noteDisplayName, parseNote, sortLibraryNotes } from "./note-utils";
 import type { NoteMeta } from "../../domain/notes";
+import { noteListStyles, sharedLibraryStyles } from "./library-styles.stylex";
 
 export const NOTE_LIST_VIRTUAL_THRESHOLD = 80;
 const VIRTUAL_OVERSCAN = 6;
@@ -48,13 +49,13 @@ export function NoteList({
   onRename,
   onDelete,
   onInsertAttachment,
-  className,
+  style,
 }: {
   onCreate: () => void;
   onRename: (path: string) => void;
   onDelete: (path: string) => void;
   onInsertAttachment?: (markdown: string) => void;
-  className?: string;
+  style?: stylex.StyleXStyles;
 }) {
   const notes = useAppStore((state) => state.notes);
   const activePath = useAppStore((state) => state.activePath);
@@ -100,20 +101,15 @@ export function NoteList({
   }, [activeNote?.fileName, content, mode, untitled]);
 
   return (
-    <section
-      className={cn(
-        "note-list-panel flex h-full min-h-0 min-w-0 w-full flex-col border-r border-border bg-panel",
-        className,
-      )}
-    >
+    <section data-note-list-panel="" {...stylex.props(noteListStyles.panel, style)}>
       {mode !== "sync" && (
         <header
-          className="flex h-14 shrink-0 items-center justify-between gap-2 px-4"
+          {...stylex.props(noteListStyles.header)}
           data-tauri-drag-region={isTauriRuntime() ? "" : undefined}
           onMouseDown={handleWindowDragMouseDown}
         >
           {mode === "index" || mode === "attachments" || mode === "graph" ? (
-            <h2 className="text-[13px] font-semibold tracking-[-0.02em] text-text">
+            <h2 {...stylex.props(noteListStyles.title)}>
               {mode === "attachments"
                 ? t("library.attachments")
                 : mode === "graph"
@@ -121,42 +117,54 @@ export function NoteList({
                   : t("library.index")}
             </h2>
           ) : (
-            <div className="view-switcher library-mode-switcher flex items-center rounded-lg p-0.5">
+            <div {...stylex.props(noteListStyles.modeSwitcher)}>
               <IconButton
                 active={mode === "notes"}
                 label={t("library.notes")}
                 onClick={() => setMode("notes")}
+                style={[
+                  noteListStyles.modeButton,
+                  mode === "notes" && noteListStyles.modeButtonActive,
+                ]}
               >
-                <BookOpen className="h-3.5 w-3.5" />
+                <BookOpen {...stylex.props(sharedLibraryStyles.iconSmall)} />
                 <span>{t("library.notes")}</span>
               </IconButton>
               <IconButton
                 active={mode === "outline"}
                 label={t("library.outline")}
                 onClick={() => setMode("outline")}
+                style={[
+                  noteListStyles.modeButton,
+                  mode === "outline" && noteListStyles.modeButtonActive,
+                ]}
               >
-                <ListTree className="h-3.5 w-3.5" />
+                <ListTree {...stylex.props(sharedLibraryStyles.iconSmall)} />
                 <span>{t("library.outline")}</span>
               </IconButton>
               <IconButton
                 active={mode === "links"}
                 label={t("library.links")}
                 onClick={() => setMode("links")}
+                style={[
+                  noteListStyles.modeButton,
+                  mode === "links" && noteListStyles.modeButtonActive,
+                ]}
               >
-                <Link2 className="h-3.5 w-3.5" />
+                <Link2 {...stylex.props(sharedLibraryStyles.iconSmall)} />
                 <span>{t("library.links")}</span>
               </IconButton>
             </div>
           )}
           {mode === "attachments" ? (
             <IconButton label={t("library.importAttachment")} onClick={() => void importAttachments()}>
-              <Upload className="h-4 w-4" />
+              <Upload {...stylex.props(sharedLibraryStyles.icon)} />
             </IconButton>
           ) : mode === "index" || mode === "graph" ? (
-            <span aria-hidden className="h-8 w-8" />
+            <span aria-hidden {...stylex.props(noteListStyles.headerSpacer)} />
           ) : (
             <IconButton label={t("library.newNote")} onClick={() => onCreate()}>
-              <Plus className="h-4 w-4" />
+              <Plus {...stylex.props(sharedLibraryStyles.icon)} />
             </IconButton>
           )}
         </header>
@@ -171,31 +179,31 @@ export function NoteList({
       ) : mode === "sync" ? (
         <CloudSyncPanel />
       ) : mode === "notes" ? (
-        <div className="memoir-fade-in flex min-h-0 flex-1 flex-col">
-          <label className="note-search relative mx-3 mt-2.5 block">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted" />
+        <div {...stylex.props(noteListStyles.notes, sharedLibraryStyles.fadeIn)}>
+          <label {...stylex.props(noteListStyles.search)}>
+            <Search {...stylex.props(noteListStyles.searchIcon)} />
             <Input
               aria-label={t("library.filterNotes")}
-              className="h-8 rounded-[10px] pl-8 shadow-none"
               onChange={(event) => setQuery(event.target.value)}
               placeholder={t("library.filterPlaceholder")}
+              style={noteListStyles.searchInput}
               type="search"
               value={query}
             />
           </label>
-          <div className="flex items-center justify-between px-4 pb-2 pt-3 text-[11px] font-medium text-muted">
+          <div {...stylex.props(noteListStyles.countRow)}>
             <span>{tc("library.filteredCount", filteredNotes.length)}</span>
             <IconButton
               aria-expanded={Boolean(sortMenu)}
               aria-haspopup="menu"
-              className="h-7 w-7"
               label={t("library.sort")}
               onClick={(event) => {
                 const rect = event.currentTarget.getBoundingClientRect();
                 setSortMenu({ x: rect.right - 8, y: rect.bottom + 4 });
               }}
+              style={noteListStyles.compactButton}
             >
-              <ArrowDownWideNarrow className="h-3.5 w-3.5" />
+              <ArrowDownWideNarrow {...stylex.props(sharedLibraryStyles.iconSmall)} />
             </IconButton>
           </div>
           <NoteCardWindow
@@ -208,7 +216,7 @@ export function NoteList({
             onSelect={(path) => void selectNote(path)}
           />
           {!filteredNotes.length && (
-            <p className="px-3 py-8 text-center text-xs text-muted">{t("library.noMatches")}</p>
+            <p {...stylex.props(noteListStyles.empty)}>{t("library.noMatches")}</p>
           )}
         </div>
       ) : mode === "links" ? (
@@ -307,22 +315,16 @@ function NoteCardWindow({
 
   return (
     <div
-      className="note-list-scroll grid flex-1 content-start gap-1.5 overflow-auto px-2.5 pb-3"
       onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
       ref={scrollRef}
+      {...stylex.props(noteListStyles.scroll)}
     >
       {virtual ? (
-        <div style={{ height: notes.length * rowHeight, position: "relative" }}>
+        <div {...stylex.props(noteListStyles.virtualSpace(notes.length * rowHeight))}>
           {windowNotes.map((note, index) => (
             <div
               key={note.relativePath}
-              style={{
-                position: "absolute",
-                top: (start + index) * rowHeight,
-                left: 0,
-                right: 0,
-                height: rowHeight,
-              }}
+              {...stylex.props(noteListStyles.virtualRow((start + index) * rowHeight, rowHeight))}
             >
               <NoteCard
                 active={note.relativePath === activePath}
@@ -376,13 +378,6 @@ function NoteCard({
       aria-expanded={menuOpen}
       aria-haspopup="menu"
       aria-label={noteDisplayName(note)}
-      className={cn(
-        "note-card group cursor-pointer rounded-lg border-transparent bg-transparent shadow-none",
-        density === "compact" ? "px-3 py-2.5" : "px-3 py-3",
-        active && "is-active",
-        note.dirty && "is-dirty",
-        menuOpen && "is-menu-target",
-      )}
       data-note-card={note.relativePath}
       onClick={() => onSelect(note.relativePath)}
       onContextMenu={(event) => {
@@ -411,27 +406,34 @@ function NoteCard({
         }
       }}
       role="button"
+      style={[
+        noteListStyles.card,
+        density === "compact" ? noteListStyles.cardCompact : noteListStyles.cardComfortable,
+        active && noteListStyles.cardActive,
+        note.dirty && noteListStyles.cardDirty,
+        menuOpen && noteListStyles.cardMenuTarget,
+      ]}
       tabIndex={0}
     >
-      <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2">
+      <div {...stylex.props(noteListStyles.cardHeader)}>
         {note.extension === "mdx" ? (
-          <Code2 className="h-3.5 w-3.5 text-accent" />
+          <Code2 {...stylex.props(noteListStyles.cardIcon)} />
         ) : (
-          <FileText className="h-3.5 w-3.5 text-accent" />
+          <FileText {...stylex.props(noteListStyles.cardIcon)} />
         )}
-        <h3 className="truncate text-[13px] font-semibold text-text">{noteDisplayName(note)}</h3>
-        {note.favorite && <Star className="h-3.5 w-3.5 fill-accent text-accent" />}
+        <h3 {...stylex.props(noteListStyles.cardTitle)}>{noteDisplayName(note)}</h3>
+        {note.favorite && <Star {...stylex.props(noteListStyles.favoriteIcon)} />}
       </div>
-      <p className="mt-1.5 line-clamp-2 text-[11px] leading-[1.65] text-muted">
+      <p {...stylex.props(noteListStyles.excerpt)}>
         {note.excerpt || note.relativePath}
       </p>
-      <div className="mt-1.5 flex min-w-0 items-center gap-1.5">
-        <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
+      <div {...stylex.props(noteListStyles.metadata)}>
+        <div {...stylex.props(noteListStyles.tags)}>
           {note.tags.slice(0, 3).map((tag) => (
             <Tag key={tag}>#{tag}</Tag>
           ))}
         </div>
-        <span className="shrink-0 text-[9px] text-muted">
+        <span {...stylex.props(noteListStyles.time)}>
           {formatRelativeTime(note.modifiedMs, locale)}
         </span>
       </div>

@@ -1,3 +1,6 @@
+import * as stylex from "@stylexjs/stylex";
+import { editorStyles } from "./editor-styles.stylex";
+
 export async function writeClipboardText(text: string) {
   if (navigator.clipboard?.writeText) {
     await navigator.clipboard.writeText(text);
@@ -6,8 +9,9 @@ export async function writeClipboardText(text: string) {
   const input = document.createElement("textarea");
   input.value = text;
   input.setAttribute("readonly", "");
-  input.style.position = "fixed";
-  input.style.left = "-9999px";
+  const attrs = stylex.attrs(editorStyles.clipboardFallback);
+  if (attrs.class) input.className = attrs.class;
+  if (attrs["data-style-src"]) input.setAttribute("data-style-src", attrs["data-style-src"]);
   document.body.append(input);
   input.select();
   document.execCommand("copy");

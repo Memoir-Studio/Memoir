@@ -1,3 +1,4 @@
+import * as stylex from "@stylexjs/stylex";
 import {
   SearchQuery,
   closeSearchPanel,
@@ -12,6 +13,7 @@ import type { EditorState } from "@codemirror/state";
 import { runScopeHandlers, type EditorView, type Panel, type ViewUpdate } from "@codemirror/view";
 import type { AppLocale } from "../../domain/settings";
 import { interpolate, t } from "../../i18n/translate";
+import { searchStyles } from "./editor-styles.stylex";
 
 export const SEARCH_MATCH_CAP = 999;
 
@@ -130,7 +132,12 @@ class MemoirSearchPanel implements Panel {
     this.caseButton = toggle(labels.matchCase, "Aa", this.query.caseSensitive);
     this.wordButton = toggle(labels.wholeWord, "ab", this.query.wholeWord);
     this.regexpButton = toggle(labels.regexp, ".*", this.query.regexp);
-    this.count = elt("span", { class: "memoir-search-count", "aria-live": "polite" });
+    this.count = elt(
+      "span",
+      { "data-search-count": "", "aria-live": "polite" },
+      [],
+      searchStyles.count,
+    );
     this.searchField.addEventListener("input", () => this.commit());
     this.replaceField.addEventListener("input", () => this.commit());
     this.caseButton.addEventListener("click", () => this.flip(this.caseButton));
@@ -144,7 +151,7 @@ class MemoirSearchPanel implements Panel {
         iconButton(labels.findPrevious, "previous", icon("up"), () => findPrevious(view)),
         iconButton(labels.findNext, "next", icon("down"), () => findNext(view)),
       ]),
-      group([this.caseButton, this.wordButton, this.regexpButton]),
+      group([this.caseButton, this.wordButton, this.regexpButton], searchStyles.dividedGroup),
       iconButton(labels.close, "close", icon("close"), () => closeSearchPanel(view)),
     ];
     const replaceControls: Node[] = view.state.readOnly
@@ -156,18 +163,19 @@ class MemoirSearchPanel implements Panel {
               textButton(labels.replaceOne, "replace", () => replaceNext(view)),
               textButton(labels.replaceAll, "replaceAll", () => replaceAll(view)),
             ],
-            "memoir-search-replace-actions",
+            searchStyles.replaceActions,
           ),
         ];
 
     this.dom = elt(
       "div",
       {
-        class: "memoir-search",
+        "data-memoir-search": "",
         role: "search",
         "aria-label": labels.panel,
       },
       [...findControls, ...replaceControls],
+      searchStyles.panel,
     );
     this.dom.addEventListener("keydown", (event) => this.keydown(event));
     this.syncFieldState();
@@ -245,7 +253,10 @@ class MemoirSearchPanel implements Panel {
 
   private syncFieldState() {
     const invalid = Boolean(this.query.search) && this.query.regexp && !this.query.valid;
-    this.searchField.classList.toggle("is-invalid", invalid);
+    applyStylexAttrs(
+      this.searchField,
+      stylex.attrs(searchStyles.field, invalid && searchStyles.fieldInvalid),
+    );
     this.searchField.setAttribute("aria-invalid", invalid ? "true" : "false");
   }
 
@@ -253,8 +264,14 @@ class MemoirSearchPanel implements Panel {
     const stats = countSearchMatches(this.view.state, this.query);
     const text = formatSearchCount(stats, this.labels, this.query);
     this.count.textContent = text;
-    this.count.classList.toggle("is-empty", !text);
-    this.count.classList.toggle("is-invalid", Boolean(this.query.search) && !this.query.valid);
+    applyStylexAttrs(
+      this.count,
+      stylex.attrs(
+        searchStyles.count,
+        !text && searchStyles.countEmpty,
+        Boolean(this.query.search) && !this.query.valid && searchStyles.countInvalid,
+      ),
+    );
   }
 }
 
@@ -270,7 +287,6 @@ function textField({
   main?: boolean;
 }) {
   const input = elt("input", {
-    class: "memoir-input memoir-search-field",
     value,
     placeholder,
     "aria-label": label,
@@ -278,7 +294,7 @@ function textField({
     autocorrect: "off",
     autocapitalize: "off",
     spellcheck: "false",
-  });
+  }, [], searchStyles.field);
   if (main) input.setAttribute("main-field", "true");
   return input;
 }
@@ -286,13 +302,12 @@ function textField({
 function toggle(label: string, glyph: string, on: boolean) {
   const button = elt("button", {
     type: "button",
-    class: "memoir-search-toggle",
     "aria-label": label,
     title: label,
     "aria-pressed": on ? "true" : "false",
-  });
+  }, [], [searchStyles.iconButton, searchStyles.toggle]);
   button.textContent = glyph;
-  button.classList.toggle("is-active", on);
+  setPressed(button, on);
   keepFocus(button);
   return button;
 }
@@ -300,11 +315,10 @@ function toggle(label: string, glyph: string, on: boolean) {
 function iconButton(label: string, name: string, child: Node, onClick: () => void) {
   const button = elt("button", {
     type: "button",
-    class: "memoir-search-icon",
     name,
     "aria-label": label,
     title: label,
-  });
+  }, [], [searchStyles.iconButton, name === "close" && searchStyles.closeButton]);
   button.append(child);
   button.addEventListener("click", onClick);
   keepFocus(button);
@@ -314,9 +328,8 @@ function iconButton(label: string, name: string, child: Node, onClick: () => voi
 function textButton(label: string, name: string, onClick: () => void) {
   const button = elt("button", {
     type: "button",
-    class: "memoir-button memoir-button-secondary memoir-button-sm memoir-search-action",
     name,
-  });
+  }, [], searchStyles.action);
   button.textContent = label;
   button.addEventListener("click", onClick);
   keepFocus(button);
@@ -324,15 +337,14 @@ function textButton(label: string, name: string, onClick: () => void) {
 }
 
 function wrapField(leading: Node, field: HTMLInputElement) {
-  return elt("div", { class: "memoir-search-field-wrap" }, [leading, field]);
+  if (leading instanceof Element) {
+    applyStylexAttrs(leading, stylex.attrs(searchStyles.svgIcon, searchStyles.fieldIcon));
+  }
+  return elt("div", {}, [leading, field], searchStyles.fieldWrap);
 }
 
-function group(children: Node[], className = "") {
-  return elt(
-    "div",
-    { class: className ? `memoir-search-group ${className}` : "memoir-search-group" },
-    children,
-  );
+function group(children: Node[], extraStyle?: stylex.StyleXStyles) {
+  return elt("div", {}, children, [searchStyles.group, extraStyle]);
 }
 
 function keepFocus(button: HTMLButtonElement) {
@@ -345,19 +357,16 @@ function pressed(button: HTMLButtonElement) {
 
 function setPressed(button: HTMLButtonElement, on: boolean) {
   button.setAttribute("aria-pressed", on ? "true" : "false");
-  button.classList.toggle("is-active", on);
+  applyStylexAttrs(
+    button,
+    stylex.attrs(searchStyles.iconButton, searchStyles.toggle, on && searchStyles.toggleActive),
+  );
 }
 
 function icon(name: "search" | "replace" | "up" | "down" | "close") {
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  applyStylexAttrs(svg, stylex.attrs(searchStyles.svgIcon));
   svg.setAttribute("viewBox", "0 0 24 24");
-  svg.setAttribute("width", "14");
-  svg.setAttribute("height", "14");
-  svg.setAttribute("fill", "none");
-  svg.setAttribute("stroke", "currentColor");
-  svg.setAttribute("stroke-width", "2");
-  svg.setAttribute("stroke-linecap", "round");
-  svg.setAttribute("stroke-linejoin", "round");
   svg.setAttribute("aria-hidden", "true");
   svg.innerHTML = ICONS[name];
   return svg;
@@ -376,8 +385,10 @@ function elt<K extends keyof HTMLElementTagNameMap>(
   tag: K,
   attrs: Record<string, string> = {},
   children: Array<Node | string> = [],
+  styles?: stylex.StyleXStyles,
 ): HTMLElementTagNameMap[K] {
   const node = document.createElement(tag);
+  if (styles) applyStylexAttrs(node, stylex.attrs(styles));
   for (const [key, value] of Object.entries(attrs)) {
     if (key === "value" && node instanceof HTMLInputElement) {
       node.value = value;
@@ -389,4 +400,11 @@ function elt<K extends keyof HTMLElementTagNameMap>(
     node.append(typeof child === "string" ? document.createTextNode(child) : child);
   }
   return node;
+}
+
+function applyStylexAttrs(element: Element, attrs: ReturnType<typeof stylex.attrs>) {
+  if (attrs.class) element.setAttribute("class", attrs.class);
+  if (attrs["data-style-src"]) {
+    element.setAttribute("data-style-src", attrs["data-style-src"]);
+  }
 }

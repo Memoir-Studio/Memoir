@@ -62,7 +62,9 @@ describe("AppShell folder appearance", () => {
       expect(view.getByText("LeetCode")).toBeInTheDocument();
     });
 
-    const diaryRow = view.getByRole("button", { name: "日记" }).closest(".sidebar-folder-item");
+    const diaryRow = view
+      .getByRole("button", { name: "日记" })
+      .closest("[data-sidebar-folder-item]");
     expect(diaryRow).toBeTruthy();
     await user.click(
       within(diaryRow as HTMLElement).getByRole("button", {
@@ -102,7 +104,7 @@ describe("AppShell window chrome", () => {
       expect(view.getByRole("button", { name: /最小化|minimize/i })).toBeInTheDocument();
       expect(view.getByRole("button", { name: /最大化|maximize/i })).toBeInTheDocument();
       expect(view.getByRole("button", { name: /打开文件夹|open folder/i })).toBeInTheDocument();
-      expect(document.querySelector(".memoir-window-drag-bar")).toBeTruthy();
+      expect(document.querySelector("[data-window-drag-bar]")).toBeTruthy();
     } finally {
       useAppStore.setState({ initialize });
     }

@@ -1,3 +1,4 @@
+import * as stylex from "@stylexjs/stylex";
 import { Copy, ExternalLink, ImagePlus, Trash2 } from "lucide-react";
 import { ContextMenu, ContextMenuItem, ContextMenuSeparator } from "../../components/ui";
 import type { AttachmentFile } from "../../domain/attachments";
@@ -20,13 +21,21 @@ async function copyText(text: string) {
   const input = document.createElement("textarea");
   input.value = text;
   input.setAttribute("readonly", "");
-  input.style.position = "fixed";
-  input.style.left = "-9999px";
+  const attrs = stylex.attrs(styles.clipboardFallback);
+  if (attrs.class) input.className = attrs.class;
+  if (attrs["data-style-src"]) input.setAttribute("data-style-src", attrs["data-style-src"]);
   document.body.append(input);
   input.select();
   document.execCommand("copy");
   input.remove();
 }
+
+const styles = stylex.create({
+  clipboardFallback: {
+    position: "fixed",
+    left: "-9999px",
+  },
+});
 
 export function AttachmentContextMenu({
   attachments,

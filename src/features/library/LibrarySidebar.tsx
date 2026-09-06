@@ -1,3 +1,4 @@
+import * as stylex from "@stylexjs/stylex";
 import {
   ChevronRight,
   Clock3,
@@ -18,9 +19,10 @@ import {
   Sun,
   Tag as TagIcon,
 } from "lucide-react";
-import { useEffect, useMemo, useState, type CSSProperties, type MouseEvent, type ReactNode } from "react";
-import { IconButton, cn } from "../../components/ui";
+import { useEffect, useMemo, useState, type MouseEvent, type ReactNode } from "react";
+import { IconButton } from "../../components/ui";
 import {
+  FOLDER_COLOR_HEX,
   buildFolderTree,
   expandFolderAncestors,
   type FolderAppearance,
@@ -35,6 +37,12 @@ import { WorkspaceSwitcher } from "../workspace/WorkspaceSwitcher";
 import { FolderAppearanceDialog } from "./FolderAppearanceDialog";
 import { FolderContextMenu, type FolderMenuTarget } from "./FolderContextMenu";
 import { isRootFolder, normalizeTag } from "./note-utils";
+import { accents } from "../../styles/tokens.stylex";
+import {
+  folderRowMarker,
+  sharedLibraryStyles,
+  sidebarStyles,
+} from "./library-styles.stylex";
 
 function NavButton({
   label,
@@ -55,33 +63,37 @@ function NavButton({
     <button
       aria-label={collapsed ? label : undefined}
       aria-current={active ? "page" : undefined}
-      className={cn(
-        "sidebar-nav-item grid w-full grid-cols-[16px_minmax(0,1fr)_auto] items-center gap-2 rounded-lg px-2.5 text-left",
-        collapsed &&
-          "min-[761px]:grid-cols-1 min-[761px]:justify-items-center min-[761px]:gap-0 min-[761px]:px-0",
-        active && "is-active",
-      )}
       onClick={onClick}
       title={collapsed ? label : undefined}
       type="button"
+      {...stylex.props(
+        sidebarStyles.navItem,
+        sidebarStyles.navLayout,
+        collapsed && sidebarStyles.collapsedLayout,
+        active && sidebarStyles.active,
+      )}
     >
-      <span className="sidebar-nav-icon" aria-hidden="true">
+      <span aria-hidden="true" {...stylex.props(sidebarStyles.navIcon, active && sidebarStyles.navIconActive)}>
         {icon}
       </span>
-      <span className={cn("sidebar-nav-label truncate", collapsed && "min-[761px]:hidden")}>
+      <span
+        data-sidebar-nav-label=""
+        {...stylex.props(sidebarStyles.navLabel, collapsed && sidebarStyles.collapsedHidden)}
+      >
         {label}
       </span>
       {typeof count === "number" ? (
         <span
-          className={cn(
-            "sidebar-nav-count tabular-nums",
-            collapsed && "min-[761px]:hidden",
+          {...stylex.props(
+            sidebarStyles.navCount,
+            active && sidebarStyles.navCountActive,
+            collapsed && sidebarStyles.collapsedHidden,
           )}
         >
           {count}
         </span>
       ) : (
-        <span className={cn(collapsed && "min-[761px]:hidden")} />
+        <span {...stylex.props(collapsed && sidebarStyles.collapsedHidden)} />
       )}
     </button>
   );
@@ -90,15 +102,26 @@ function NavButton({
 function FolderGlyph({
   folder,
   appearance,
+  color,
 }: {
   folder: string;
   appearance?: FolderAppearance;
+  color: string;
 }) {
   if (appearance?.emoji) {
-    return <span className="sidebar-folder-emoji">{appearance.emoji}</span>;
+    return (
+      <span
+        {...stylex.props(
+          sidebarStyles.folderEmoji,
+          appearance.color && sidebarStyles.folderEmojiColored(color),
+        )}
+      >
+        {appearance.emoji}
+      </span>
+    );
   }
   const Icon = isRootFolder(folder) ? FolderOpen : Folder;
-  return <Icon strokeWidth={1.8} />;
+  return <Icon strokeWidth={1.8} {...stylex.props(sidebarStyles.navSvg)} />;
 }
 
 function flattenFolderTree(
@@ -127,6 +150,7 @@ function FolderNavItem({
   expanded,
   hasChildren,
   appearance,
+  isDark,
   onSelect,
   onToggle,
   onCustomize,
@@ -141,6 +165,7 @@ function FolderNavItem({
   expanded: boolean;
   hasChildren: boolean;
   appearance?: FolderAppearance;
+  isDark: boolean;
   onSelect: () => void;
   onToggle: () => void;
   onCustomize: () => void;
@@ -148,59 +173,74 @@ function FolderNavItem({
 }) {
   const { t } = useI18n();
   const reservesToggleSlot = hasChildren || depth > 0;
+  const folderColor = appearance?.color
+    ? appearance.color === "ink"
+      ? isDark
+        ? "#efede7"
+        : FOLDER_COLOR_HEX.ink
+      : FOLDER_COLOR_HEX[appearance.color]
+    : accents.primary;
   return (
     <div
-      className={cn(
-        "sidebar-nav-item sidebar-folder-item grid w-full items-center rounded-lg",
-        collapsed
-          ? "min-[761px]:grid-cols-1 min-[761px]:justify-items-center min-[761px]:gap-0 min-[761px]:px-0"
-          : cn(
-              "is-tree gap-1 px-2",
-              reservesToggleSlot
-                ? "grid-cols-[14px_minmax(0,1fr)_auto]"
-                : "grid-cols-[minmax(0,1fr)_auto]",
-            ),
-        active && "is-active",
-      )}
       data-folder-color={appearance?.color}
-      style={collapsed ? undefined : ({ "--folder-depth": depth } as CSSProperties)}
+      data-sidebar-folder-item=""
+      {...stylex.props(
+        folderRowMarker,
+        sidebarStyles.navItem,
+        sidebarStyles.folderRow,
+        collapsed
+          ? sidebarStyles.collapsedLayout
+          : [
+              sidebarStyles.folderTree(depth),
+              reservesToggleSlot
+                ? sidebarStyles.folderWithToggle
+                : sidebarStyles.folderWithoutToggle,
+            ],
+        active && sidebarStyles.active,
+        active && appearance?.color && sidebarStyles.folderActive(folderColor),
+      )}
     >
       {!collapsed &&
         (hasChildren ? (
           <button
             aria-expanded={expanded}
             aria-label={expanded ? t("folder.collapse", { name: label }) : t("folder.expand", { name: label })}
-            className="sidebar-folder-toggle"
+            data-sidebar-folder-toggle=""
             onClick={onToggle}
             type="button"
+            {...stylex.props(sidebarStyles.folderToggleSlot, sidebarStyles.folderToggle)}
           >
             <ChevronRight
               aria-hidden
-              className={cn("sidebar-folder-chevron", expanded && "is-open")}
               strokeWidth={2}
+              {...stylex.props(sidebarStyles.chevron, expanded && sidebarStyles.chevronOpen)}
             />
           </button>
         ) : depth > 0 ? (
-          <span aria-hidden className="sidebar-folder-toggle-spacer" />
+          <span aria-hidden data-sidebar-folder-toggle-spacer="" {...stylex.props(sidebarStyles.folderToggleSlot)} />
         ) : null)}
       <button
         aria-current={active ? "page" : undefined}
         aria-label={collapsed ? label : undefined}
-        className={cn(
-          "sidebar-nav-main grid min-w-0 items-center text-left",
-          collapsed
-            ? "min-[761px]:grid-cols-1 min-[761px]:justify-items-center"
-            : "grid-cols-[16px_minmax(0,1fr)] gap-1.5",
-        )}
         onClick={onSelect}
         onContextMenu={onContextMenu}
         title={folder || label}
         type="button"
+        {...stylex.props(sidebarStyles.navMain, collapsed && sidebarStyles.navMainCollapsed)}
       >
-        <span className="sidebar-nav-icon" aria-hidden="true">
-          <FolderGlyph appearance={appearance} folder={folder} />
+        <span
+          aria-hidden="true"
+          {...stylex.props(
+            sidebarStyles.navIcon,
+            (active || appearance?.color) && sidebarStyles.folderIconColor(folderColor),
+          )}
+        >
+          <FolderGlyph appearance={appearance} color={folderColor} folder={folder} />
         </span>
-        <span className={cn("sidebar-nav-label truncate", collapsed && "min-[761px]:hidden")}>
+        <span
+          data-sidebar-nav-label=""
+          {...stylex.props(sidebarStyles.navLabel, collapsed && sidebarStyles.collapsedHidden)}
+        >
           {label}
         </span>
       </button>
@@ -208,14 +248,15 @@ function FolderNavItem({
         <>
           <button
             aria-label={t("folder.customizeNamed", { name: label })}
-            className="sidebar-folder-customize"
+            data-sidebar-folder-customize=""
             onClick={onCustomize}
             title={t("folder.customize")}
             type="button"
+            {...stylex.props(sidebarStyles.customize)}
           >
-            <SmilePlus />
+            <SmilePlus {...stylex.props(sidebarStyles.customizeIcon)} />
           </button>
-          <span className="sidebar-nav-count tabular-nums">{count}</span>
+          <span {...stylex.props(sidebarStyles.navCount, active && sidebarStyles.navCountActive)}>{count}</span>
         </>
       )}
     </div>
@@ -226,12 +267,12 @@ export function LibrarySidebar({
   isDark,
   onCreateFolder,
   onCreateTag,
-  className,
+  style,
 }: {
   isDark: boolean;
   onCreateFolder: () => void;
   onCreateTag: () => void;
-  className?: string;
+  style?: stylex.StyleXStyles;
 }) {
   const libraryStats = useAppStore((state) => state.libraryStats);
   const attachments = useAppStore((state) => state.attachments);
@@ -296,60 +337,50 @@ export function LibrarySidebar({
 
   return (
     <aside
-      className={cn(
-        "library-sidebar flex h-full min-h-0 flex-col border-r border-border bg-panel max-[760px]:border-r-0",
-        collapsed && "min-[761px]:w-[52px] min-[761px]:overflow-hidden",
-        className,
-      )}
+      data-library-sidebar=""
+      {...stylex.props(sidebarStyles.sidebar, collapsed && sidebarStyles.sidebarCollapsed, style)}
     >
       <header
-        className={cn(
-          "sidebar-titlebar flex h-12 shrink-0 items-center justify-between px-3",
-          isTauriRuntime() && "min-[761px]:pl-[70px]",
-          collapsed && "min-[761px]:justify-center min-[761px]:px-0",
-        )}
         data-tauri-drag-region={isTauriRuntime() ? "" : undefined}
         onMouseDown={handleWindowDragMouseDown}
+        {...stylex.props(
+          sidebarStyles.titlebar,
+          isTauriRuntime() && sidebarStyles.titlebarTauri,
+          collapsed && sidebarStyles.titlebarCollapsed,
+        )}
       >
         {!isTauriRuntime() && (
           <div
-            className={cn(
-              "pointer-events-none flex min-w-0 items-center gap-2",
-              collapsed && "min-[761px]:hidden",
-            )}
+            {...stylex.props(sidebarStyles.brand, collapsed && sidebarStyles.brandCollapsed)}
           >
-            <div className="memoir-logo grid h-6 w-6 shrink-0 place-items-center rounded-[7px] text-[11px] font-black">
-              M
-            </div>
-            <span className="truncate text-[14px] font-semibold tracking-[-0.02em] text-text">
-              Memoir
-            </span>
+            <div {...stylex.props(sidebarStyles.logo)}>M</div>
+            <span {...stylex.props(sidebarStyles.brandName)}>Memoir</span>
           </div>
         )}
         <IconButton
-          className={cn(
-            "h-8 w-8 shrink-0 self-start",
-            isTauriRuntime() && "mt-[7px]",
-            collapsed ? "min-[761px]:mx-auto" : "ml-auto",
-          )}
           label={collapsed ? t("nav.expand") : t("nav.collapse")}
           onClick={() => setCollapsed(!collapsed)}
+          style={[
+            sidebarStyles.collapseButton,
+            isTauriRuntime() && sidebarStyles.collapseButtonTauri,
+            collapsed ? sidebarStyles.collapseButtonCentered : sidebarStyles.collapseButtonRight,
+          ]}
         >
           {collapsed ? (
-            <PanelLeftOpen className="h-4 w-4" />
+            <PanelLeftOpen {...stylex.props(sharedLibraryStyles.icon)} />
           ) : (
-            <PanelLeftClose className="h-4 w-4" />
+            <PanelLeftClose {...stylex.props(sharedLibraryStyles.icon)} />
           )}
         </IconButton>
       </header>
 
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        <nav className="grid gap-1 px-2.5 pb-2 pt-2">
+      <div {...stylex.props(sidebarStyles.scroller)}>
+        <nav {...stylex.props(sidebarStyles.primaryNav)}>
           <NavButton
             active={notesNavActive && navFilter === "all" && !scopedFilter}
             collapsed={collapsed}
             count={libraryStats.total}
-            icon={<FileText strokeWidth={1.8} />}
+            icon={<FileText strokeWidth={1.8} {...stylex.props(sidebarStyles.navSvg)} />}
             label={t("nav.allNotes")}
             onClick={() => setNavFilter("all")}
           />
@@ -357,7 +388,7 @@ export function LibrarySidebar({
             active={notesNavActive && navFilter === "recent"}
             collapsed={collapsed}
             count={libraryStats.recent}
-            icon={<Clock3 strokeWidth={1.8} />}
+            icon={<Clock3 strokeWidth={1.8} {...stylex.props(sidebarStyles.navSvg)} />}
             label={t("nav.recent")}
             onClick={() => setNavFilter("recent")}
           />
@@ -365,7 +396,7 @@ export function LibrarySidebar({
             active={notesNavActive && navFilter === "favorites"}
             collapsed={collapsed}
             count={libraryStats.favorites}
-            icon={<Star strokeWidth={1.8} />}
+            icon={<Star strokeWidth={1.8} {...stylex.props(sidebarStyles.navSvg)} />}
             label={t("nav.favorites")}
             onClick={() => setNavFilter("favorites")}
           />
@@ -373,14 +404,14 @@ export function LibrarySidebar({
             active={notesNavActive && navFilter === "uncategorized"}
             collapsed={collapsed}
             count={libraryStats.uncategorized}
-            icon={<Inbox strokeWidth={1.8} />}
+            icon={<Inbox strokeWidth={1.8} {...stylex.props(sidebarStyles.navSvg)} />}
             label={t("nav.uncategorized")}
             onClick={() => setNavFilter("uncategorized")}
           />
           <NavButton
             active={libraryPanelMode === "graph"}
             collapsed={collapsed}
-            icon={<Network strokeWidth={1.8} />}
+            icon={<Network strokeWidth={1.8} {...stylex.props(sidebarStyles.navSvg)} />}
             label={t("nav.graph")}
             onClick={() => setLibraryPanelMode("graph")}
           />
@@ -388,33 +419,38 @@ export function LibrarySidebar({
             active={libraryPanelMode === "attachments"}
             collapsed={collapsed}
             count={attachments.length}
-            icon={<Paperclip strokeWidth={1.8} />}
+            icon={<Paperclip strokeWidth={1.8} {...stylex.props(sidebarStyles.navSvg)} />}
             label={t("nav.attachments")}
             onClick={() => setLibraryPanelMode("attachments")}
           />
           <NavButton
             active={libraryPanelMode === "index"}
             collapsed={collapsed}
-            icon={<Database strokeWidth={1.8} />}
+            icon={<Database strokeWidth={1.8} {...stylex.props(sidebarStyles.navSvg)} />}
             label={t("nav.index")}
             onClick={() => setLibraryPanelMode("index")}
           />
           <NavButton
             active={libraryPanelMode === "sync"}
             collapsed={collapsed}
-            icon={<Cloud strokeWidth={1.8} />}
+            icon={<Cloud strokeWidth={1.8} {...stylex.props(sidebarStyles.navSvg)} />}
             label={t("nav.cloudSync")}
             onClick={() => setLibraryPanelMode("sync")}
           />
         </nav>
 
-        <section className="sidebar-group px-2.5 pb-2 pt-2.5">
+        <section {...stylex.props(sidebarStyles.group)}>
           {!collapsed && (
-            <div className="sidebar-section-title mb-1 flex h-7 items-center justify-between px-2.5 font-medium text-muted">
+            <div {...stylex.props(sidebarStyles.sectionTitle)}>
               <span>{t("nav.folders")}</span>
-            <button aria-label={t("nav.newFolder")} onClick={onCreateFolder} type="button">
-              +
-            </button>
+              <button
+                aria-label={t("nav.newFolder")}
+                onClick={onCreateFolder}
+                type="button"
+                {...stylex.props(sidebarStyles.sectionAction)}
+              >
+                +
+              </button>
             </div>
           )}
           {visibleFolders.map(({ node, depth }) => {
@@ -433,6 +469,7 @@ export function LibrarySidebar({
                 expanded={!collapsedFolders.has(node.folder)}
                 folder={node.folder}
                 hasChildren={node.children.length > 0}
+                isDark={isDark}
                 key={node.folder || "__root__"}
                 label={label}
                 onContextMenu={(event) => {
@@ -452,13 +489,18 @@ export function LibrarySidebar({
           })}
         </section>
 
-        <section className="sidebar-group px-2.5 pb-2 pt-2.5">
+        <section {...stylex.props(sidebarStyles.group)}>
           {!collapsed && (
-            <div className="sidebar-section-title mb-1 flex h-7 items-center justify-between px-2.5 font-medium text-muted">
+            <div {...stylex.props(sidebarStyles.sectionTitle)}>
               <span>{t("nav.tags")}</span>
-            <button aria-label={t("nav.newTag")} onClick={onCreateTag} type="button">
-              +
-            </button>
+              <button
+                aria-label={t("nav.newTag")}
+                onClick={onCreateTag}
+                type="button"
+                {...stylex.props(sidebarStyles.sectionAction)}
+              >
+                +
+              </button>
             </div>
           )}
           {tags.slice(0, 8).map((tag) => (
@@ -470,7 +512,7 @@ export function LibrarySidebar({
               }
               collapsed={collapsed}
               count={tag.count}
-              icon={<TagIcon strokeWidth={1.8} />}
+              icon={<TagIcon strokeWidth={1.8} {...stylex.props(sidebarStyles.navSvg)} />}
               key={tag.tagNorm}
               label={tag.tag}
               onClick={() => setScopedFilter({ type: "tag", value: tag.tag })}
@@ -480,20 +522,16 @@ export function LibrarySidebar({
       </div>
 
       <footer
-        className={cn(
-          "sidebar-footer flex shrink-0 items-center gap-1.5 p-1.5",
-          collapsed && "min-[761px]:flex-col min-[761px]:gap-1 min-[761px]:py-2",
-        )}
+        {...stylex.props(sidebarStyles.footer, collapsed && sidebarStyles.footerCollapsed)}
       >
         <WorkspaceSwitcher collapsed={collapsed} noteCount={libraryStats.total} />
         <div
-          className={cn(
-            "flex shrink-0 gap-0.5",
-            collapsed && "min-[761px]:flex-col",
+          {...stylex.props(
+            sidebarStyles.footerActions,
+            collapsed && sidebarStyles.footerActionsCollapsed,
           )}
         >
           <IconButton
-            className="h-7 w-7"
             label={isDark ? t("nav.switchToLight") : t("nav.switchToDark")}
             onClick={() =>
               setSettings({
@@ -504,11 +542,20 @@ export function LibrarySidebar({
                 },
               })
             }
+            style={sidebarStyles.footerButton}
           >
-            {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            {isDark ? (
+              <Sun {...stylex.props(sharedLibraryStyles.icon)} />
+            ) : (
+              <Moon {...stylex.props(sharedLibraryStyles.icon)} />
+            )}
           </IconButton>
-          <IconButton className="h-7 w-7" label={t("common.settings")} onClick={() => openSettings()}>
-            <Settings className="h-4 w-4" />
+          <IconButton
+            label={t("common.settings")}
+            onClick={() => openSettings()}
+            style={sidebarStyles.footerButton}
+          >
+            <Settings {...stylex.props(sharedLibraryStyles.icon)} />
           </IconButton>
         </div>
       </footer>
@@ -525,6 +572,7 @@ export function LibrarySidebar({
         }
         folder={appearanceFolder ?? ""}
         folderLabel={appearanceFolder === null ? "" : folderLabel(appearanceFolder)}
+        isDark={isDark}
         onChange={(appearance) => {
           if (appearanceFolder !== null) void setFolderAppearance(appearanceFolder, appearance);
         }}

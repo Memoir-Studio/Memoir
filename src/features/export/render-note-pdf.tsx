@@ -1,7 +1,9 @@
+import * as stylex from "@stylexjs/stylex";
 import { createRoot } from "react-dom/client";
 import type { NoteMeta } from "../../domain/notes";
-import type { AppLocale, BodyFont } from "../../domain/settings";
+import type { AccentColor, AppLocale, BodyFont } from "../../domain/settings";
 import { I18nProvider } from "../../i18n/react";
+import { applyElementTheme } from "../../styles/document-theme";
 import { parseNote } from "../library/note-utils";
 import { NotePreviewArticle } from "../preview/NotePreviewArticle";
 
@@ -20,6 +22,7 @@ async function waitForPreviewReady(host: HTMLElement, timeoutMs = 10_000) {
       host.querySelector("[data-link-card-pending]");
     const imagesPending = [...host.querySelectorAll("img")].some((image) => !image.complete);
     if (article && !pending && !imagesPending) {
+      await document.fonts?.ready;
       await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
       return;
     }
@@ -64,21 +67,29 @@ export async function renderNotePdf({
   relativePath,
   note,
   content,
+  accent,
   bodyFont,
+  bodyFontSize,
+  lineHeight,
   locale,
 }: {
   root: string | null;
   relativePath: string;
   note: NoteMeta;
   content: string;
+  accent: AccentColor;
   bodyFont: BodyFont;
+  bodyFontSize: number;
+  lineHeight: number;
   locale: AppLocale;
 }) {
   const host = document.createElement("div");
-  host.className = "memoir-pdf-export";
   host.dataset.bodyFont = bodyFont;
   host.dataset.theme = "light";
-  host.style.width = `${EXPORT_WIDTH_PX}px`;
+  const hostProps = stylex.props(styles.host(EXPORT_WIDTH_PX));
+  if (hostProps.className) host.className = hostProps.className;
+  Object.assign(host.style, hostProps.style);
+  applyElementTheme(host, { accent, bodyFontSize, isDark: false, lineHeight });
   document.body.append(host);
 
   const reactRoot = createRoot(host);
@@ -86,9 +97,9 @@ export async function renderNotePdf({
     reactRoot.render(
       <I18nProvider locale={locale}>
         <NotePreviewArticle
-          className="memoir-preview memoir-pdf-preview prose prose-neutral"
           compileDelay={0}
           content={content}
+          exportMode
           note={note}
           relativePath={relativePath}
           root={root}
@@ -107,3 +118,17 @@ export async function renderNotePdf({
     host.remove();
   }
 }
+
+const styles = stylex.create({
+  host: (width: number) => ({
+    position: "fixed",
+    left: -12000,
+    top: 0,
+    zIndex: -1,
+    width,
+    overflow: "visible",
+    color: "#222222",
+    backgroundColor: "#ffffff",
+    pointerEvents: "none",
+  }),
+});

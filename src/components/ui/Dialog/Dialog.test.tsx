@@ -1,4 +1,4 @@
-import { act, render } from "@testing-library/react";
+import { act, render, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -31,7 +31,7 @@ function DialogHarness({ onClose }: { onClose: () => void }) {
 }
 
 describe("Dialog", () => {
-  it("portals the overlay so the window frame can bound it independently", () => {
+  it("portals the overlay so the window frame can bound it independently", async () => {
     const view = render(
       <div data-testid="clipping-layout">
         <Dialog onClose={() => undefined} open title="测试对话框">
@@ -42,7 +42,7 @@ describe("Dialog", () => {
 
     const layout = view.getByTestId("clipping-layout");
     const overlay = view.getByRole("dialog").parentElement;
-    expect(overlay).toHaveClass("memoir-overlay");
+    await waitFor(() => expect(overlay).toHaveAttribute("data-state", "open"));
     expect(overlay?.parentElement).toBe(document.body);
     expect(layout).not.toContainElement(overlay);
   });

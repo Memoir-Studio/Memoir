@@ -1,3 +1,4 @@
+import * as stylex from "@stylexjs/stylex";
 import { Database, FolderOpen, Loader2, RefreshCw, RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Button, Dialog } from "../../components/ui";
@@ -14,12 +15,13 @@ import { formatRelativeTime } from "../../i18n";
 import { useI18n } from "../../i18n/react";
 import { isTauriRuntime } from "../../platform/runtime";
 import { useAppStore } from "../../store/app-store";
+import { indexStyles, sharedLibraryStyles } from "./library-styles.stylex";
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="index-row">
-      <dt>{label}</dt>
-      <dd title={value}>{value}</dd>
+    <div {...stylex.props(indexStyles.row)}>
+      <dt {...stylex.props(indexStyles.rowLabel)}>{label}</dt>
+      <dd {...stylex.props(indexStyles.rowValue)} title={value}>{value}</dd>
     </div>
   );
 }
@@ -90,66 +92,66 @@ export function IndexInspector() {
   const timestamp = (ms: number) => (ms ? formatRelativeTime(ms, locale) : t("library.indexNever"));
 
   return (
-    <div className="index-inspector memoir-fade-in flex min-h-0 flex-1 flex-col overflow-auto px-3 pb-4 pt-2.5">
+    <div {...stylex.props(indexStyles.inspector, sharedLibraryStyles.fadeIn)}>
       {busy && !info ? (
-        <div className="grid flex-1 place-items-center text-muted">
-          <Loader2 className="h-5 w-5 animate-spin" />
+        <div {...stylex.props(indexStyles.center)}>
+          <Loader2 {...stylex.props(indexStyles.errorIcon, sharedLibraryStyles.spin)} />
         </div>
       ) : loadError && !info ? (
-        <div className="grid flex-1 place-items-center px-4 text-center">
-          <Database className="mb-2 h-5 w-5 text-muted" />
-          <p className="text-xs font-medium text-text">{t("library.indexLoadFailed")}</p>
+        <div {...stylex.props(indexStyles.error)}>
+          <Database {...stylex.props(indexStyles.errorIcon)} />
+          <p {...stylex.props(indexStyles.errorTitle)}>{t("library.indexLoadFailed")}</p>
           <button
-            className="mt-3 inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-medium text-accent"
             onClick={reload}
             type="button"
+            {...stylex.props(indexStyles.retry)}
           >
-            <RefreshCw className="h-3.5 w-3.5" />
+            <RefreshCw {...stylex.props(sharedLibraryStyles.iconSmall)} />
             {t("library.indexRetry")}
           </button>
         </div>
       ) : info ? (
         <>
-          <div className="index-hero rounded-xl px-3 py-3">
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <p className="truncate font-mono text-[11px] text-muted" title={info.relativePath}>
+          <div {...stylex.props(indexStyles.hero)}>
+            <div {...stylex.props(indexStyles.heroRow)}>
+              <div {...stylex.props(sharedLibraryStyles.minWidth)}>
+                <p {...stylex.props(indexStyles.path)} title={info.relativePath}>
                   {info.relativePath || INDEX_RELATIVE_PATH}
                 </p>
-                <p className="mt-1 text-[13px] font-semibold tracking-[-0.02em] text-text">
+                <p {...stylex.props(indexStyles.size)}>
                   {formatBytes(indexTotalSize(info))}
                 </p>
               </div>
-              <span className={info.persistent ? "index-status" : "index-status is-memory"}>
+              <span {...stylex.props(indexStyles.status, !info.persistent && indexStyles.statusMemory)}>
                 {info.persistent ? t("library.indexOnDisk") : t("library.indexInMemory")}
               </span>
             </div>
           </div>
 
-          <div className="index-stat-grid mt-3">
-            <div className="index-stat">
-              <p className="index-stat-value tabular-nums">{info.noteCount}</p>
-              <p className="index-stat-label">{t("library.indexNotes")}</p>
+          <div {...stylex.props(indexStyles.statGrid)}>
+            <div {...stylex.props(indexStyles.stat)}>
+              <p {...stylex.props(indexStyles.statValue)}>{info.noteCount}</p>
+              <p {...stylex.props(indexStyles.statLabel)}>{t("library.indexNotes")}</p>
             </div>
-            <div className="index-stat">
-              <p className="index-stat-value tabular-nums">{info.tagCount}</p>
-              <p className="index-stat-label">{t("library.indexTags")}</p>
+            <div {...stylex.props(indexStyles.stat)}>
+              <p {...stylex.props(indexStyles.statValue)}>{info.tagCount}</p>
+              <p {...stylex.props(indexStyles.statLabel)}>{t("library.indexTags")}</p>
             </div>
-            <div className="index-stat">
-              <p className="index-stat-value tabular-nums">{info.tagLinkCount}</p>
-              <p className="index-stat-label">{t("library.indexTagLinks")}</p>
+            <div {...stylex.props(indexStyles.stat)}>
+              <p {...stylex.props(indexStyles.statValue)}>{info.tagLinkCount}</p>
+              <p {...stylex.props(indexStyles.statLabel)}>{t("library.indexTagLinks")}</p>
             </div>
-            <div className="index-stat">
-              <p className="index-stat-value tabular-nums">{info.noteLinkCount}</p>
-              <p className="index-stat-label">{t("library.indexNoteLinks")}</p>
+            <div {...stylex.props(indexStyles.stat)}>
+              <p {...stylex.props(indexStyles.statValue)}>{info.noteLinkCount}</p>
+              <p {...stylex.props(indexStyles.statLabel)}>{t("library.indexNoteLinks")}</p>
             </div>
-            <div className="index-stat">
-              <p className="index-stat-value tabular-nums">{info.truncatedCount}</p>
-              <p className="index-stat-label">{t("library.indexTruncated")}</p>
+            <div {...stylex.props(indexStyles.stat)}>
+              <p {...stylex.props(indexStyles.statValue)}>{info.truncatedCount}</p>
+              <p {...stylex.props(indexStyles.statLabel)}>{t("library.indexTruncated")}</p>
             </div>
           </div>
 
-          <dl className="index-meta mt-3">
+          <dl {...stylex.props(indexStyles.meta)}>
             <InfoRow label={t("library.indexPath")} value={info.relativePath} />
             <InfoRow label={t("library.indexSize")} value={formatBytes(info.fileSize)} />
             <InfoRow label={t("library.indexWal")} value={formatBytes(info.walSize)} />
@@ -164,33 +166,37 @@ export function IndexInspector() {
           </dl>
 
           {!info.persistent && (
-            <p className="index-callout mt-3">{t("library.indexMemoryHint")}</p>
+            <p {...stylex.props(indexStyles.callout, indexStyles.marginTop)}>{t("library.indexMemoryHint")}</p>
           )}
           {info.truncatedCount > 0 && (
-            <p className="index-callout mt-2">
+            <p {...stylex.props(indexStyles.callout, indexStyles.smallMarginTop)}>
               {t("library.indexTruncatedHint", { count: info.truncatedCount })}
             </p>
           )}
 
-          <p className="mt-3 text-[11px] leading-5 text-muted">{t("library.indexHint")}</p>
+          <p {...stylex.props(indexStyles.hint)}>{t("library.indexHint")}</p>
 
-          <div className="mt-3 grid gap-1.5">
+          <div {...stylex.props(indexStyles.actions)}>
             <Button
               disabled={busy}
               onClick={() => setConfirmRebuild(true)}
               size="sm"
               variant="primary"
             >
-              {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
+              {busy ? (
+                <Loader2 {...stylex.props(sharedLibraryStyles.iconSmall, sharedLibraryStyles.spin)} />
+              ) : (
+                <RotateCcw {...stylex.props(sharedLibraryStyles.iconSmall)} />
+              )}
               {t("library.rebuildIndex")}
             </Button>
             <Button disabled={busy} onClick={reload} size="sm" variant="secondary">
-              <RefreshCw className="h-3.5 w-3.5" />
+              <RefreshCw {...stylex.props(sharedLibraryStyles.iconSmall)} />
               {t("library.refreshIndex")}
             </Button>
             {isTauriRuntime() && info.persistent ? (
               <Button onClick={() => void openIndexFolder()} size="sm" variant="ghost">
-                <FolderOpen className="h-3.5 w-3.5" />
+                <FolderOpen {...stylex.props(sharedLibraryStyles.iconSmall)} />
                 {t("library.openIndexFolder")}
               </Button>
             ) : null}
@@ -215,7 +221,7 @@ export function IndexInspector() {
         open={confirmRebuild}
         title={t("dialog.rebuildIndex")}
       >
-        <p className="text-sm text-muted">{t("dialog.rebuildIndexHint")}</p>
+        <p {...stylex.props(indexStyles.dialogHint)}>{t("dialog.rebuildIndexHint")}</p>
       </Dialog>
     </div>
   );

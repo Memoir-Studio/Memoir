@@ -1,6 +1,16 @@
+import * as stylex from "@stylexjs/stylex";
 import { useI18n } from "../../../i18n/react";
+import { colors, typography } from "../../../styles/tokens.stylex";
 import { Button } from "../Button";
 import { Dialog } from "../Dialog";
+
+const styles = stylex.create({
+  hint: {
+    color: colors.muted,
+    fontFamily: typography.uiFont,
+    fontSize: 14,
+  },
+});
 
 export function AlertDialog({
   open,
@@ -39,7 +49,7 @@ export function AlertDialog({
       open={open}
       title={title}
     >
-      <p className="text-sm text-muted">{hint ?? t("dialog.recycleHint")}</p>
+      <p {...stylex.props(styles.hint)}>{hint ?? t("dialog.recycleHint")}</p>
     </Dialog>
   );
 }

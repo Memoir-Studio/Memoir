@@ -1,3 +1,6 @@
+import type { AppSettings } from "../../domain/settings";
+import { ACCENT_COLORS, DARK_PALETTE, LIGHT_PALETTE } from "../../styles/tokens.stylex";
+
 export type GraphTheme = {
   canvas: string;
   text: string;
@@ -10,23 +13,33 @@ export type GraphTheme = {
   dark: boolean;
 };
 
-function readCss(name: string, fallback: string) {
-  if (typeof document === "undefined") return fallback;
-  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+type GraphAppearance = Pick<AppSettings["appearance"], "accent" | "theme">;
+
+function systemPrefersDark() {
+  return (
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-color-scheme: dark)").matches
+  );
 }
 
-export function themeFromCss(): GraphTheme {
-  const dark =
-    typeof document !== "undefined" && document.documentElement.dataset.theme === "dark";
+export function themeFromAppearance(
+  appearance: GraphAppearance,
+  systemDark = systemPrefersDark(),
+): GraphTheme {
+  const dark = appearance.theme === "dark" || (appearance.theme === "system" && systemDark);
+  const palette = dark ? DARK_PALETTE : LIGHT_PALETTE;
+  const accent = dark && appearance.accent === "ink" ? "#efede7" : ACCENT_COLORS[appearance.accent];
+
   return {
-    canvas: readCss("--memoir-canvas", dark ? "#171714" : "#fbfaf6"),
-    text: readCss("--memoir-text", dark ? "#f0eee8" : "#292a27"),
-    muted: readCss("--memoir-muted", dark ? "#a5a198" : "#8c8982"),
-    accent: readCss("--memoir-accent", dark ? "#efede7" : "#343532"),
-    accentSoft: readCss("--memoir-accent-soft", dark ? "#393832" : "#e7e5df"),
-    accentContrast: readCss("--memoir-accent-contrast", dark ? "#171715" : "#ffffff"),
-    elevated: readCss("--memoir-elevated", dark ? "#24241f" : "#fffefb"),
-    border: readCss("--memoir-border", dark ? "#37362f" : "#e7e3db"),
+    canvas: palette.canvas,
+    text: palette.text,
+    muted: palette.muted,
+    accent,
+    accentSoft: `color-mix(in srgb, ${accent} ${dark ? 25 : 12}%, ${palette.panel})`,
+    accentContrast: dark ? "#171715" : "#ffffff",
+    elevated: palette.elevated,
+    border: palette.border,
     dark,
   };
 }

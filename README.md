@@ -118,6 +118,7 @@ The browser build is an in-memory demo. It does not read or write real files, an
 Verify a change before opening a PR:
 
 ```bash
+bun run style:check
 bun run test
 bun run build
 cargo test --manifest-path src-tauri/Cargo.toml

@@ -11,12 +11,12 @@ describe("scrollHeadingInPreview", () => {
     Element.prototype.scrollIntoView = scrollIntoView;
 
     const shell = document.createElement("main");
-    shell.className = "workspace-shell";
+    shell.dataset.workspaceShell = "";
     const shellScrollTo = vi.fn();
     shell.scrollTo = shellScrollTo as HTMLElement["scrollTo"];
 
     const pane = document.createElement("section");
-    pane.className = "preview-pane";
+    pane.dataset.previewPane = "";
     const paneScrollTo = vi.fn();
     pane.scrollTo = paneScrollTo as HTMLElement["scrollTo"];
     Object.defineProperty(pane, "scrollTop", { configurable: true, value: 80 });

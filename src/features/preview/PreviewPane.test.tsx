@@ -74,15 +74,15 @@ describe("PreviewPane link cards", () => {
 
     const card = await waitFor(() => {
       const link = view.getByRole("link", { name: /面壁实习/ });
-      expect(link).toHaveClass("memoir-link-card");
+      expect(link).toHaveAttribute("data-link-card");
       return link;
     });
     expect(card).toHaveAttribute("href", url);
-    expect(card.querySelector(".memoir-link-card__desc")?.textContent).toContain(
+    expect(card.querySelector('[data-link-card-part="description"]')?.textContent).toContain(
       "十月假期后我开始找实习",
     );
-    expect(card.querySelector(".memoir-link-card__host")?.textContent).toBe("shiyu.dev");
-    expect(view.container.querySelector(".memoir-link-card__image")).toHaveAttribute(
+    expect(card.querySelector('[data-link-card-part="host"]')?.textContent).toBe("shiyu.dev");
+    expect(view.container.querySelector('[data-link-card-part="image"]')).toHaveAttribute(
       "src",
       "https://shiyu.dev/cover.png",
     );
@@ -104,8 +104,8 @@ describe("PreviewPane link cards", () => {
       />,
     );
     const link = view.getByRole("link", { name: "https://example.com/docs" });
-    expect(link).not.toHaveClass("memoir-link-card");
-    expect(view.container.querySelector(".memoir-link-card")).toBeNull();
+    expect(link).not.toHaveAttribute("data-link-card");
+    expect(view.container.querySelector("[data-link-card]")).toBeNull();
   });
 });
 
@@ -134,7 +134,9 @@ describe("PreviewPane wiki links", () => {
     );
     const user = userEvent.setup();
     await waitFor(() => {
-      expect(view.getByRole("link", { name: "One" })).not.toHaveClass("is-missing");
+      expect(view.getByRole("link", { name: "One" })).not.toHaveAttribute(
+        "data-wiki-link-missing",
+      );
     });
     await user.click(view.getByRole("link", { name: "One" }));
     expect(selectNote).toHaveBeenCalledWith("one.md");
@@ -299,7 +301,7 @@ describe("PreviewPane fenced code", () => {
 });
 
 describe("PreviewPane layout", () => {
-  it("does not add a wide reading-column inset on the article", () => {
+  it("exposes stable pane and article landmarks", () => {
     const view = render(
       <PreviewPane
         activePath="hello.md"
@@ -310,10 +312,10 @@ describe("PreviewPane layout", () => {
       />,
     );
 
-    const article = view.container.querySelector("article.memoir-preview");
-    expect(article).toBeTruthy();
-    expect(article?.className.split(/\s+/)).not.toContain("px-9");
-    expect(article?.className.split(/\s+/)).not.toContain("pt-10");
+    const pane = view.getByRole("region");
+    const article = pane.querySelector("article");
+    expect(pane).toHaveAttribute("data-preview-pane", "");
+    expect(article).toHaveAttribute("data-preview-root", "");
   });
 });
 

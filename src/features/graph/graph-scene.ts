@@ -1,3 +1,4 @@
+import * as stylex from "@stylexjs/stylex";
 import {
   degreesFromEdges,
   layoutEnergy,
@@ -8,6 +9,7 @@ import {
   type LayoutNode,
 } from "./force-layout";
 import type { GraphTheme } from "./graph-theme";
+import { graphStyles } from "./graph-styles.stylex";
 
 export type GraphSceneNode = {
   id: string;
@@ -114,6 +116,13 @@ function rgba(color: string, alpha: number) {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
+function applyStylexAttrs(element: HTMLElement, attrs: ReturnType<typeof stylex.attrs>) {
+  if (attrs.class) element.className = attrs.class;
+  if (attrs["data-style-src"]) {
+    element.setAttribute("data-style-src", attrs["data-style-src"]);
+  }
+}
+
 export function flowDashOffset(nowMs: number, speedPxPerSec: number, scale: number) {
   return -((nowMs / 1000) * speedPxPerSec) / Math.max(scale, 0.001);
 }
@@ -167,10 +176,10 @@ export class NoteGraphScene {
     this.theme = theme;
     this.handlers = handlers;
     this.canvas = document.createElement("canvas");
-    this.canvas.className = "note-graph-canvas";
+    applyStylexAttrs(this.canvas, stylex.attrs(graphStyles.canvas));
     this.canvas.setAttribute("role", "img");
     this.labels = document.createElement("div");
-    this.labels.className = "note-graph-labels";
+    applyStylexAttrs(this.labels, stylex.attrs(graphStyles.labels));
     host.prepend(this.canvas);
     host.append(this.labels);
     this.ctx = this.canvas.getContext("2d");
@@ -281,6 +290,7 @@ export class NoteGraphScene {
     this.host.removeEventListener("dblclick", this.onDoubleClick);
     this.host.removeEventListener("wheel", this.onWheel);
     this.resizeObserver?.disconnect();
+    delete this.host.dataset.graphCursor;
     this.clearLabels();
     this.canvas.remove();
     this.labels.remove();
@@ -368,7 +378,7 @@ export class NoteGraphScene {
     for (const node of nodes) {
       const label = document.createElement("button");
       label.type = "button";
-      label.className = "note-graph-label";
+      applyStylexAttrs(label, stylex.attrs(graphStyles.label));
       label.dataset.graphNode = node.id;
       label.textContent = node.title;
       label.addEventListener("pointerdown", (event) => event.stopPropagation());
@@ -427,9 +437,15 @@ export class NoteGraphScene {
       const kind = this.kindOf(node.id);
       const point = this.worldToScreen(node.x, node.y);
       const radius = nodeRadius(kind) * this.camera.scale;
-      view.label.classList.toggle("is-active", kind === "selected");
-      view.label.classList.toggle("is-neighbor", kind === "neighbor");
-      view.label.classList.toggle("is-muted", kind === "muted");
+      applyStylexAttrs(
+        view.label,
+        stylex.attrs(
+          graphStyles.label,
+          kind === "selected" && graphStyles.labelActive,
+          kind === "neighbor" && graphStyles.labelNeighbor,
+          kind === "muted" && graphStyles.labelMuted,
+        ),
+      );
       view.label.hidden = kind === "muted" && !showMuted;
       view.label.style.transform = `translate(${point.x}px, ${point.y + radius + 7}px) translate(-50%, 0)`;
     }
@@ -648,6 +664,7 @@ export class NoteGraphScene {
     const id = this.pick(event);
     this.draggingId = id;
     this.panning = !id;
+    this.host.dataset.graphCursor = "grabbing";
     try {
       this.host.setPointerCapture(event.pointerId);
     } catch {
@@ -659,7 +676,7 @@ export class NoteGraphScene {
     const id = this.pick(event);
     if (!this.panning && !this.draggingId && id !== this.hoverId) {
       this.hoverId = id;
-      this.host.style.cursor = id ? "pointer" : "grab";
+      this.host.dataset.graphCursor = id ? "pointer" : "grab";
       this.draw();
     }
     if (!this.panning && !this.draggingId) return;
@@ -674,7 +691,7 @@ export class NoteGraphScene {
       this.camera.x -= dx / this.camera.scale;
       this.camera.y -= dy / this.camera.scale;
       this.cameraTarget = { ...this.camera };
-      this.host.style.cursor = "grabbing";
+      this.host.dataset.graphCursor = "grabbing";
       this.syncLabels();
       this.draw();
       return;
@@ -688,7 +705,7 @@ export class NoteGraphScene {
       node.y = world.y;
       node.vx = 0;
       node.vy = 0;
-      this.host.style.cursor = "grabbing";
+      this.host.dataset.graphCursor = "grabbing";
       this.syncLabels();
       this.draw();
     }
@@ -699,7 +716,7 @@ export class NoteGraphScene {
     const id = this.draggingId || this.pick(event);
     this.panning = false;
     this.draggingId = null;
-    this.host.style.cursor = this.pick(event) ? "pointer" : "grab";
+    this.host.dataset.graphCursor = this.pick(event) ? "pointer" : "grab";
     if (!dragged && id) this.handlers.onSelect(id);
   }
 
@@ -710,7 +727,7 @@ export class NoteGraphScene {
       this.hoverId = null;
       this.draw();
     }
-    this.host.style.cursor = "grab";
+    this.host.dataset.graphCursor = "grab";
   }
 
   private onDoubleClick(event: MouseEvent) {

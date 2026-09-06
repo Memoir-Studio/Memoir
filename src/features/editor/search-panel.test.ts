@@ -90,7 +90,7 @@ describe("Memoir search panel", () => {
     const view = mount();
     openSearchPanel(view);
 
-    const panel = view.dom.querySelector(".memoir-search") as HTMLElement;
+    const panel = view.dom.querySelector("[data-memoir-search]") as HTMLElement;
     expect(panel).toBeTruthy();
     expect(panel.closest(".cm-panels-top")).toBeTruthy();
     expect(panel.querySelector(".cm-button")).toBeNull();
@@ -105,7 +105,7 @@ describe("Memoir search panel", () => {
     const view = mount("alpha alpha beta");
     openSearchPanel(view);
     const input = view.dom.querySelector("[main-field]") as HTMLInputElement;
-    const count = view.dom.querySelector(".memoir-search-count") as HTMLElement;
+    const count = view.dom.querySelector("[data-search-count]") as HTMLElement;
 
     input.value = "alpha";
     input.dispatchEvent(new Event("input", { bubbles: true }));
@@ -119,7 +119,6 @@ describe("Memoir search panel", () => {
     const caseButton = view.dom.querySelector("[aria-label='区分大小写']") as HTMLButtonElement;
     caseButton.click();
     expect(caseButton).toHaveAttribute("aria-pressed", "true");
-    expect(caseButton).toHaveClass("is-active");
   });
 
   it("marks an invalid regular expression", () => {
@@ -132,8 +131,7 @@ describe("Memoir search panel", () => {
     input.dispatchEvent(new Event("input", { bubbles: true }));
 
     expect(input).toHaveAttribute("aria-invalid", "true");
-    expect(input).toHaveClass("is-invalid");
-    expect(view.dom.querySelector(".memoir-search-count")?.textContent).toBe("无效的正则");
+    expect(view.dom.querySelector("[data-search-count]")?.textContent).toBe("无效的正则");
   });
 
   it("replaces the current match from the panel", () => {
@@ -153,9 +151,9 @@ describe("Memoir search panel", () => {
   it("closes from the panel control", () => {
     const view = mount();
     openSearchPanel(view);
-    expect(view.dom.querySelector(".memoir-search")).toBeTruthy();
+    expect(view.dom.querySelector("[data-memoir-search]")).toBeTruthy();
     (view.dom.querySelector("[name=close]") as HTMLButtonElement).click();
-    expect(view.dom.querySelector(".memoir-search")).toBeNull();
+    expect(view.dom.querySelector("[data-memoir-search]")).toBeNull();
     closeSearchPanel(view);
   });
 

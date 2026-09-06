@@ -1,3 +1,4 @@
+import * as stylex from "@stylexjs/stylex";
 import { useState } from "react";
 import { Button } from "../../components/ui";
 import type { AppUpdateCheck } from "../../domain/app-update";
@@ -5,6 +6,7 @@ import { isAllowedReleaseUrl } from "../../domain/app-update";
 import { mapGatewayError } from "../../domain/errors";
 import { getGateways } from "../../gateways";
 import { useI18n } from "../../i18n/react";
+import { colors, typography } from "../../styles/tokens.stylex";
 
 type CheckPhase = "idle" | "checking" | "upToDate" | "available" | "skipped" | "error";
 
@@ -55,22 +57,22 @@ export function UpdateCheckControls() {
   }
 
   return (
-    <div className="settings-update">
+    <div {...stylex.props(styles.root)}>
       <Button disabled={phase === "checking"} onClick={() => void check()}>
         {phase === "checking" ? t("settings.checkingUpdate") : t("settings.checkUpdate")}
       </Button>
-      {phase === "upToDate" && <p className="settings-update-status">{t("settings.upToDate")}</p>}
+      {phase === "upToDate" && <p {...stylex.props(styles.status)}>{t("settings.upToDate")}</p>}
       {phase === "skipped" && (
-        <p className="settings-update-status">
+        <p {...stylex.props(styles.status)}>
           {t("settings.updateSkipped", { version: result?.latestVersion ?? "" })}
         </p>
       )}
       {phase === "available" && result?.latestVersion && (
         <>
-          <p className="settings-update-status">
+          <p {...stylex.props(styles.status)}>
             {t("settings.updateAvailable", { version: result.latestVersion })}
           </p>
-          <div className="settings-update-actions">
+          <div {...stylex.props(styles.actions)}>
             <Button onClick={() => void skip()}>{t("update.skip")}</Button>
             <Button onClick={() => void download()} variant="primary">
               {t("update.download")}
@@ -79,10 +81,34 @@ export function UpdateCheckControls() {
         </>
       )}
       {phase === "error" && (
-        <p className="settings-update-status">
+        <p {...stylex.props(styles.status)}>
           {t("settings.updateFailed", { message: errorMessage })}
         </p>
       )}
     </div>
   );
 }
+
+const styles = stylex.create({
+  root: {
+    display: "grid",
+    gap: 10,
+    justifyItems: "center",
+    marginTop: 18,
+  },
+  status: {
+    color: colors.muted,
+    fontFamily: typography.uiFont,
+    fontSize: 12,
+    lineHeight: 1.5,
+    margin: 0,
+    maxWidth: "22rem",
+    overflowWrap: "anywhere",
+  },
+  actions: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: 8,
+    justifyContent: "center",
+  },
+});

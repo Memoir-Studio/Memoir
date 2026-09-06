@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "style:check": "node scripts/check-stylex.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "preview": "vite preview",
@@ -33,13 +34,11 @@
     "@lezer/highlight": "^1.2.3",
     "@mdx-js/mdx": "^3.1.1",
     "@mdx-js/react": "^3.1.1",
-    "@tailwindcss/typography": "^0.5.16",
+    "@stylexjs/stylex": "0.19.0",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-dialog": "^2.7.2",
     "@tauri-apps/plugin-opener": "^2",
     "@uiw/react-codemirror": "^4.25.11",
-    "class-variance-authority": "^0.7.1",
-    "clsx": "^2.1.1",
     "github-slugger": "^2.0.0",
     "gray-matter": "^4.0.3",
     "html2canvas-pro": "^2.3.8",
@@ -56,11 +55,10 @@
     "rehype-slug": "^6.0.0",
     "remark-gfm": "^4.0.1",
     "remark-math": "^6.0.0",
-    "tailwind-merge": "^3.3.1",
     "zustand": "^5.0.8"
   },
   "devDependencies": {
-    "@tailwindcss/vite": "^4.3.3",
+    "@stylexjs/unplugin": "0.19.0",
     "@tauri-apps/cli": "^2",
     "@testing-library/jest-dom": "^6.6.4",
     "@testing-library/react": "^16.3.0",
@@ -69,11 +67,9 @@
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^4.6.0",
-    "autoprefixer": "^10.5.4",
     "jsdom": "^26.1.0",
-    "postcss": "^8.5.26",
-    "tailwindcss": "^4.3.3",
     "typescript": "~5.8.3",
+    "unplugin": "2.3.11",
     "vite": "^7.0.4",
     "vitest": "^3.2.4"
   }

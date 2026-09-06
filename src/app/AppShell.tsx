@@ -1,3 +1,4 @@
+import * as stylex from "@stylexjs/stylex";
 import { FolderOpen, Library, Menu, Pencil } from "lucide-react";
 import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Button, StatusNotice } from "../components/ui";
@@ -31,6 +32,8 @@ import { installNativeContextMenuBlock } from "../platform/native-context-menu";
 import { isTauriRuntime } from "../platform/runtime";
 import { applyHostWindowChrome, applyWindowFrameState, watchWindowFrameState } from "../platform/window";
 import { useAppStore } from "../store/app-store";
+import { applyDocumentTheme } from "../styles/document-theme";
+import { accents, colors, media, motion } from "../styles/tokens.stylex";
 
 const SettingsDialog = lazy(() => import("../features/settings/SettingsDialog"));
 const EditorWorkspace = lazy(() => import("../features/editor/EditorWorkspace"));
@@ -41,17 +44,19 @@ function EmptyState() {
   const { t } = useI18n();
   return (
     <WindowFrame surfaceDrag>
-      <section className="workspace-shell grid place-items-center px-6">
-        <div className="max-w-lg text-center">
-          <div className="mx-auto mb-5 grid h-12 w-12 place-items-center rounded-xl bg-accent text-accent-contrast">
+      <section data-workspace-shell="" {...stylex.props(styles.workspaceShell, styles.centeredShell)}>
+        <div {...stylex.props(styles.emptyContent)}>
+          <div {...stylex.props(styles.logo)}>
             M
           </div>
-          <h1 className="text-2xl font-extrabold text-text">Memoir</h1>
-          <p className="mt-3 text-sm leading-7 text-muted">{t("app.emptyDescription")}</p>
-          <Button className="mt-6" onClick={() => void openWorkspace()} variant="primary">
-            <FolderOpen className="h-3.5 w-3.5" strokeWidth={1.8} />
-            {isTauriRuntime() ? t("app.openFolder") : t("app.loadDemo")}
-          </Button>
+          <h1 {...stylex.props(styles.emptyTitle)}>Memoir</h1>
+          <p {...stylex.props(styles.emptyDescription)}>{t("app.emptyDescription")}</p>
+          <div {...stylex.props(styles.emptyAction)}>
+            <Button onClick={() => void openWorkspace()} variant="primary">
+              <FolderOpen {...stylex.props(styles.smallIcon)} strokeWidth={1.8} />
+              {isTauriRuntime() ? t("app.openFolder") : t("app.loadDemo")}
+            </Button>
+          </div>
         </div>
       </section>
     </WindowFrame>
@@ -87,10 +92,6 @@ function WorkspaceLayout({
   const editorRef = useRef<EditorHandle>(null);
   const shellRef = useRef<HTMLElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
-  const panelClass = (panel: "navigation" | "library" | "editor") =>
-    mobilePanel === panel
-      ? "max-[760px]:fixed max-[760px]:bottom-0 max-[760px]:left-0 max-[760px]:top-12 max-[760px]:z-20 max-[760px]:flex max-[760px]:w-[min(86vw,320px)] max-[760px]:shadow-2xl"
-      : "max-[760px]:hidden";
   const columns = fitLayoutColumns({
     sidebarWidth: layout.sidebarWidth,
     libraryWidth: layout.libraryWidth,
@@ -130,17 +131,25 @@ function WorkspaceLayout({
   return (
     <WindowFrame controlsHidden={isSidebarCollapsed}>
       <main
-        className="workspace-shell relative grid min-h-0 grid-rows-[minmax(0,1fr)] text-text max-[760px]:block max-[760px]:h-auto max-[760px]:min-h-screen max-[760px]:pt-12"
         data-background={settings.appearance.background}
         data-density={settings.appearance.density}
+        data-workspace-shell=""
         ref={shellRef}
-        style={{
-          gridTemplateColumns: `${columns.sidebar}px ${columns.library}px minmax(0, 1fr)`,
-        }}
+        {...stylex.props(
+          styles.workspaceShell,
+          styles.workspaceLayout,
+          styles.workspaceColumns(
+            `${columns.sidebar}px ${columns.library}px minmax(0, 1fr)`,
+          ),
+        )}
       >
-        <div className="relative h-full min-h-0 min-w-0 max-[760px]:contents">
+        <div
+          {...stylex.props(
+            styles.panelSlot,
+            mobilePanel === "navigation" && styles.mobilePanelActive,
+          )}
+        >
           <LibrarySidebar
-            className={panelClass("navigation")}
             isDark={isDark}
             onCreateFolder={() => openCreate()}
             onCreateTag={() => openCreate("mdx", "", t("create.newTag"))}
@@ -156,9 +165,13 @@ function WorkspaceLayout({
             />
           )}
         </div>
-        <div className="relative h-full min-h-0 min-w-0 max-[760px]:contents">
+        <div
+          {...stylex.props(
+            styles.panelSlot,
+            mobilePanel === "library" && styles.mobilePanelActive,
+          )}
+        >
           <NoteList
-            className={panelClass("library")}
             onCreate={() => openCreate()}
             onDelete={openDelete}
             onInsertAttachment={(markdown) => editorRef.current?.insertText(markdown)}
@@ -175,7 +188,7 @@ function WorkspaceLayout({
         </div>
         <Suspense
           fallback={
-            <section className="grid min-h-0 min-w-0 place-items-center bg-canvas text-sm text-muted">
+            <section {...stylex.props(styles.workspaceFallback)}>
               {t("app.loadingWorkspace")}
             </section>
           }
@@ -184,7 +197,6 @@ function WorkspaceLayout({
             <NoteGraphView />
           ) : (
             <EditorWorkspace
-              className="max-[760px]:grid max-[760px]:min-h-[calc(100vh-48px)]"
               isDark={isDark}
               onDelete={openDelete}
               onRename={openRename}
@@ -196,37 +208,37 @@ function WorkspaceLayout({
         {mobilePanel !== "editor" && (
           <button
             aria-label={t("app.closeDrawer")}
-            className="fixed inset-0 top-12 z-10 hidden bg-text/20 max-[760px]:block"
             onClick={() => setMobilePanel("editor")}
             type="button"
+            {...stylex.props(styles.drawerOverlay)}
           />
         )}
-        <nav className="mobile-tabs fixed inset-x-0 top-0 z-30 hidden h-12 border-b border-border bg-elevated max-[760px]:grid max-[760px]:grid-cols-3">
+        <nav data-mobile-tabs="" {...stylex.props(styles.mobileTabs)}>
           <button
             aria-pressed={mobilePanel === "navigation"}
-            className="flex items-center justify-center gap-1.5 text-xs text-muted transition-colors duration-150 aria-pressed:bg-panel aria-pressed:text-text"
             onClick={() => setMobilePanel("navigation")}
             type="button"
+            {...stylex.props(styles.mobileTab, mobilePanel === "navigation" && styles.mobileTabActive)}
           >
-            <Menu className="h-4 w-4" />
+            <Menu {...stylex.props(styles.icon)} />
             {t("nav.navigation")}
           </button>
           <button
             aria-pressed={mobilePanel === "library"}
-            className="flex items-center justify-center gap-1.5 text-xs text-muted transition-colors duration-150 aria-pressed:bg-panel aria-pressed:text-text"
             onClick={() => setMobilePanel("library")}
             type="button"
+            {...stylex.props(styles.mobileTab, mobilePanel === "library" && styles.mobileTabActive)}
           >
-            <Library className="h-4 w-4" />
+            <Library {...stylex.props(styles.icon)} />
             {t("nav.notes")}
           </button>
           <button
             aria-pressed={mobilePanel === "editor"}
-            className="flex items-center justify-center gap-1.5 text-xs text-muted transition-colors duration-150 aria-pressed:bg-panel aria-pressed:text-text"
             onClick={() => setMobilePanel("editor")}
             type="button"
+            {...stylex.props(styles.mobileTab, mobilePanel === "editor" && styles.mobileTabActive)}
           >
-            <Pencil className="h-4 w-4" />
+            <Pencil {...stylex.props(styles.icon)} />
             {t("nav.editor")}
           </button>
         </nav>
@@ -310,8 +322,7 @@ export default function AppShell() {
     root.dataset.density = settings.appearance.density;
     root.dataset.bodyFont = settings.appearance.bodyFont;
     root.dataset.contentWidth = settings.appearance.contentWidth;
-    root.style.setProperty("--memoir-body-size", `${settings.appearance.bodyFontSize}px`);
-    root.style.setProperty("--memoir-line-height", String(settings.appearance.lineHeight));
+    applyDocumentTheme(settings.appearance, isDark, root);
   }, [isDark, settings.appearance]);
 
   useEffect(() => {
@@ -410,7 +421,238 @@ function LoadingScreen() {
   const { t } = useI18n();
   return (
     <WindowFrame surfaceDrag>
-      <div className="workspace-shell grid place-items-center text-sm text-muted">{t("app.loading")}</div>
+      <div data-workspace-shell="" {...stylex.props(styles.workspaceShell, styles.loadingShell)}>
+        {t("app.loading")}
+      </div>
     </WindowFrame>
   );
 }
+
+const styles = stylex.create({
+  workspaceShell: {
+    boxSizing: "border-box",
+    height: {
+      default: "100%",
+      [media.mobile]: "auto",
+    },
+    minHeight: {
+      [media.mobile]: "100%",
+    },
+    overflow: "clip",
+    borderWidth: {
+      default: 1,
+      [stylex.when.ancestor('[data-maximized="true"]')]: 0,
+      [stylex.when.ancestor('[data-window-frame="flush"]')]: 0,
+      [stylex.when.ancestor('[data-window-frame="native"]')]: 0,
+      [media.mobile]: 0,
+    },
+    borderStyle: "solid",
+    borderColor: {
+      default: `color-mix(in srgb, ${colors.text} 8%, ${colors.border})`,
+      [stylex.when.ancestor('[data-theme="dark"]')]: `color-mix(in srgb, ${colors.border} 55%, #000)`,
+    },
+    borderRadius: {
+      default: 16,
+      [stylex.when.ancestor('[data-maximized="true"]')]: 0,
+      [stylex.when.ancestor('[data-window-frame="flush"]')]: 0,
+      [stylex.when.ancestor('[data-window-frame="native"]')]: 10,
+      [stylex.when.ancestor('[data-maximized="true"][data-window-frame="native"]')]: 0,
+      [media.mobile]: 0,
+    },
+    backgroundColor: colors.canvas,
+    boxShadow: {
+      default:
+        "0 1px 2px rgb(48 42 34 / 5%), 0 3px 8px -2px rgb(48 42 34 / 6%), inset 0 1px rgb(255 255 255 / 50%)",
+      [stylex.when.ancestor('[data-theme="dark"]')]:
+        "0 1px 2px rgb(0 0 0 / 16%), 0 4px 10px -2px rgb(0 0 0 / 14%), inset 0 1px rgb(255 255 255 / 5%)",
+      [stylex.when.ancestor('[data-maximized="true"]')]: "none",
+      [stylex.when.ancestor('[data-window-frame="flush"]')]: "none",
+      [stylex.when.ancestor('[data-window-frame="native"]')]: "none",
+      [media.mobile]: "none",
+    },
+    transitionProperty: "grid-template-columns",
+    transitionDuration: {
+      default: "200ms",
+      [stylex.when.ancestor('[data-layout-resizing="true"]')]: "0s",
+      [media.reducedMotion]: "0s",
+      [media.mobile]: "0s",
+    },
+    transitionTimingFunction: motion.ease,
+  },
+  centeredShell: {
+    display: "grid",
+    placeItems: "center",
+    paddingInline: 24,
+  },
+  emptyContent: {
+    width: "100%",
+    maxWidth: 512,
+    textAlign: "center",
+  },
+  logo: {
+    display: "grid",
+    placeItems: "center",
+    width: 48,
+    height: 48,
+    marginInline: "auto",
+    marginBottom: 20,
+    color: "#fffaf4",
+    backgroundColor: accents.primary,
+    backgroundImage:
+      "radial-gradient(circle at 28% 28%, #f3957f 0 12%, transparent 13%), linear-gradient(145deg, #343532 0 46%, #d65f4d 47% 100%)",
+    borderRadius: 8,
+    boxShadow:
+      "inset 0 0 0 1px rgb(255 255 255 / 12%), 0 2px 6px rgb(56 47 38 / 18%)",
+  },
+  emptyTitle: {
+    margin: 0,
+    color: colors.text,
+    fontSize: 24,
+    fontWeight: 800,
+    lineHeight: 1.25,
+    letterSpacing: 0,
+  },
+  emptyDescription: {
+    marginTop: 12,
+    marginBottom: 0,
+    color: colors.muted,
+    fontSize: 14,
+    lineHeight: "28px",
+  },
+  emptyAction: {
+    display: "flex",
+    justifyContent: "center",
+    marginTop: 24,
+  },
+  workspaceLayout: {
+    position: "relative",
+    display: {
+      default: "grid",
+      [media.mobile]: "block",
+    },
+    minWidth: 0,
+    minHeight: {
+      default: 0,
+      [media.mobile]: "100vh",
+    },
+    gridTemplateRows: "minmax(0, 1fr)",
+    paddingTop: {
+      default: 0,
+      [media.mobile]: 48,
+    },
+    color: colors.text,
+  },
+  workspaceColumns: (gridTemplateColumns: string) => ({
+    gridTemplateColumns,
+  }),
+  panelSlot: {
+    position: {
+      default: "relative",
+      [media.mobile]: "fixed",
+    },
+    top: {
+      [media.mobile]: 48,
+    },
+    bottom: {
+      [media.mobile]: 0,
+    },
+    left: {
+      [media.mobile]: 0,
+    },
+    zIndex: {
+      [media.mobile]: 20,
+    },
+    display: {
+      default: "block",
+      [media.mobile]: "none",
+    },
+    width: {
+      default: "auto",
+      [media.mobile]: "min(86vw, 320px)",
+    },
+    height: "100%",
+    minWidth: 0,
+    minHeight: 0,
+    boxShadow: {
+      [media.mobile]: "0 25px 50px -12px rgb(0 0 0 / 25%)",
+    },
+  },
+  mobilePanelActive: {
+    display: {
+      [media.mobile]: "flex",
+    },
+  },
+  workspaceFallback: {
+    display: "grid",
+    minWidth: 0,
+    minHeight: 0,
+    placeItems: "center",
+    color: colors.muted,
+    backgroundColor: colors.canvas,
+    fontSize: 14,
+  },
+  drawerOverlay: {
+    position: "fixed",
+    insetInline: 0,
+    top: 48,
+    bottom: 0,
+    zIndex: 10,
+    display: {
+      default: "none",
+      [media.mobile]: "block",
+    },
+    borderWidth: 0,
+    backgroundColor: `color-mix(in srgb, ${colors.text} 20%, transparent)`,
+  },
+  mobileTabs: {
+    position: "fixed",
+    insetInline: 0,
+    top: 0,
+    zIndex: 30,
+    display: {
+      default: "none",
+      [media.mobile]: "grid",
+    },
+    height: 48,
+    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+    borderBottomWidth: 1,
+    borderBottomStyle: "solid",
+    borderBottomColor: colors.border,
+    backgroundColor: colors.elevated,
+  },
+  mobileTab: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    borderWidth: 0,
+    color: colors.muted,
+    backgroundColor: "transparent",
+    fontSize: 12,
+    transitionProperty: "color, background-color",
+    transitionDuration: {
+      default: "150ms",
+      [media.reducedMotion]: "0s",
+    },
+  },
+  mobileTabActive: {
+    color: colors.text,
+    backgroundColor: colors.panel,
+  },
+  icon: {
+    width: 16,
+    height: 16,
+    flexShrink: 0,
+  },
+  smallIcon: {
+    width: 14,
+    height: 14,
+    flexShrink: 0,
+  },
+  loadingShell: {
+    display: "grid",
+    placeItems: "center",
+    color: colors.muted,
+    fontSize: 14,
+  },
+});

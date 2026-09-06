@@ -1,4 +1,6 @@
+import * as stylex from "@stylexjs/stylex";
 import { useEffect, useState } from "react";
+import { colors } from "../../styles/tokens.stylex";
 import { getCachedMermaidSvg, renderMermaidDiagram } from "./mermaid-runtime";
 
 export default function MermaidBlock({ code }: { code: string }) {
@@ -32,13 +34,33 @@ export default function MermaidBlock({ code }: { code: string }) {
   }, [code]);
 
   if (error) {
-    return <pre className="border-danger/30 bg-danger/5 text-danger">{error}</pre>;
+    return <pre {...stylex.props(styles.error)}>{error}</pre>;
   }
   return (
     <div
-      className="my-4 overflow-auto rounded-lg border border-border bg-elevated p-4"
+      data-mermaid-block=""
       data-mermaid-pending={svg ? undefined : ""}
       dangerouslySetInnerHTML={{ __html: svg || "Rendering diagram..." }}
+      {...stylex.props(styles.diagram)}
     />
   );
 }
+
+const styles = stylex.create({
+  error: {
+    whiteSpace: "pre-wrap",
+    color: colors.danger,
+    borderColor: `color-mix(in srgb, ${colors.danger} 30%, transparent)`,
+    backgroundColor: `color-mix(in srgb, ${colors.danger} 5%, transparent)`,
+  },
+  diagram: {
+    overflow: "auto",
+    marginBlock: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderStyle: "solid",
+    borderColor: colors.border,
+    borderRadius: 8,
+    backgroundColor: colors.elevated,
+  },
+});

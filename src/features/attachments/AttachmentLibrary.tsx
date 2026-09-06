@@ -1,6 +1,7 @@
+import * as stylex from "@stylexjs/stylex";
 import { ImagePlus, Loader2, Paperclip, Search } from "lucide-react";
 import { useMemo, useState } from "react";
-import { AlertDialog, Input, Surface, cn } from "../../components/ui";
+import { AlertDialog, Input, Surface } from "../../components/ui";
 import type { AttachmentFile } from "../../domain/attachments";
 import { formatBytes, markdownImageForAttachment } from "../../domain/attachments";
 import { resolveWorkspaceFilePath } from "../../domain/paths";
@@ -8,6 +9,13 @@ import { getGateways } from "../../gateways";
 import { formatRelativeTime } from "../../i18n";
 import { useI18n } from "../../i18n/react";
 import { useAppStore } from "../../store/app-store";
+import {
+  accents,
+  colors,
+  commonStyles,
+  motion,
+  typography,
+} from "../../styles/tokens.stylex";
 import {
   AttachmentContextMenu,
   type AttachmentMenuTarget,
@@ -44,23 +52,23 @@ export function AttachmentLibrary({
   };
 
   return (
-    <div className="memoir-fade-in flex min-h-0 flex-1 flex-col">
-      <label className="note-search relative mx-3 mt-2.5 block">
-        <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted" />
+    <div {...stylex.props(styles.root, commonStyles.fadeIn)}>
+      <label {...stylex.props(styles.search)}>
+        <Search {...stylex.props(styles.searchIcon)} aria-hidden />
         <Input
           aria-label={t("library.filterAttachments")}
-          className="h-8 rounded-[10px] pl-8 shadow-none"
           onChange={(event) => setQuery(event.target.value)}
           placeholder={t("library.filterAttachmentsPlaceholder")}
+          style={styles.searchInput}
           type="search"
           value={query}
         />
       </label>
-      <div className="flex items-center justify-between px-4 pb-2 pt-3 text-[11px] font-medium text-muted">
+      <div {...stylex.props(styles.summary)}>
         <span>{tc("library.attachmentCount", filtered.length)}</span>
-        {isLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+        {isLoading ? <Loader2 {...stylex.props(styles.loader)} aria-hidden /> : null}
       </div>
-      <div className="attachment-grid grid flex-1 content-start gap-2 overflow-auto px-2.5 pb-3">
+      <div {...stylex.props(styles.grid)}>
         {filtered.map((attachment) => {
           const src = workspaceRoot
             ? getGateways().workspace.resolveMediaPath(
@@ -72,11 +80,9 @@ export function AttachmentLibrary({
               aria-expanded={menuTarget?.path === attachment.relativePath}
               aria-haspopup="menu"
               aria-label={attachment.fileName}
-              className={cn(
-                "attachment-card group cursor-pointer rounded-lg border-transparent bg-transparent shadow-none",
-                density === "compact" ? "p-1.5" : "p-2",
-                menuTarget?.path === attachment.relativePath && "is-menu-target",
-              )}
+              data-state={
+                menuTarget?.path === attachment.relativePath ? "menu-open" : "idle"
+              }
               key={attachment.relativePath}
               onClick={() => insertAttachment(attachment)}
               onContextMenu={(event) => {
@@ -95,18 +101,28 @@ export function AttachmentLibrary({
                 }
               }}
               role="button"
+              style={[
+                styles.card,
+                density === "compact" ? styles.cardCompact : styles.cardComfortable,
+                menuTarget?.path === attachment.relativePath && styles.cardMenuTarget,
+              ]}
               tabIndex={0}
             >
-              <div className="attachment-thumb overflow-hidden rounded-md bg-elevated">
+              <div {...stylex.props(styles.thumbnail)}>
                 {src ? (
-                  <img alt="" className="h-full w-full object-cover" src={src} />
+                  <img alt="" {...stylex.props(styles.thumbnailImage)} src={src} />
                 ) : (
-                  <Paperclip className="h-5 w-5 text-muted" />
+                  <Paperclip {...stylex.props(styles.thumbnailFallback)} aria-hidden />
                 )}
               </div>
-              <div className={cn("min-w-0", density === "compact" ? "mt-1" : "mt-1.5")}>
-                <p className="truncate text-[12px] font-semibold text-text">{attachment.fileName}</p>
-                <p className="mt-0.5 truncate text-[10px] text-muted">
+              <div
+                {...stylex.props(
+                  styles.details,
+                  density === "compact" ? styles.detailsCompact : styles.detailsComfortable,
+                )}
+              >
+                <p {...stylex.props(styles.fileName)}>{attachment.fileName}</p>
+                <p {...stylex.props(styles.metadata)}>
                   {formatBytes(attachment.size)} · {formatRelativeTime(attachment.modifiedMs, locale)}
                 </p>
               </div>
@@ -114,24 +130,24 @@ export function AttachmentLibrary({
           );
         })}
         {!attachments.length && (
-          <div className="col-span-full grid place-items-center px-4 py-10 text-center">
-            <Paperclip className="mb-2 h-5 w-5 text-muted" />
-            <p className="text-xs font-medium text-text">{t("library.noAttachments")}</p>
-            <p className="mt-1 max-w-[16rem] text-[11px] leading-5 text-muted">
+          <div {...stylex.props(styles.empty)}>
+            <Paperclip {...stylex.props(styles.emptyIcon)} aria-hidden />
+            <p {...stylex.props(styles.emptyTitle)}>{t("library.noAttachments")}</p>
+            <p {...stylex.props(styles.emptyHint)}>
               {t("library.attachmentsEmptyHint")}
             </p>
             <button
-              className="mt-3 inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-medium text-accent"
+              {...stylex.props(styles.importButton)}
               onClick={() => void importAttachments()}
               type="button"
             >
-              <ImagePlus className="h-3.5 w-3.5" />
+              <ImagePlus {...stylex.props(styles.importIcon)} aria-hidden />
               {t("library.importAttachment")}
             </button>
           </div>
         )}
         {attachments.length > 0 && !filtered.length && (
-          <p className="col-span-full px-3 py-8 text-center text-xs text-muted">
+          <p {...stylex.props(styles.noMatches)}>
             {t("library.noAttachmentMatches")}
           </p>
         )}
@@ -159,3 +175,222 @@ export function AttachmentLibrary({
     </div>
   );
 }
+
+const spin = stylex.keyframes({
+  to: { transform: "rotate(360deg)" },
+});
+
+const styles = stylex.create({
+  root: {
+    display: "flex",
+    flex: "1 1 0%",
+    flexDirection: "column",
+    minHeight: 0,
+  },
+  search: {
+    display: "block",
+    marginInline: "12px",
+    marginTop: "10px",
+    position: "relative",
+  },
+  searchIcon: {
+    color: colors.muted,
+    height: "14px",
+    left: "10px",
+    pointerEvents: "none",
+    position: "absolute",
+    top: "50%",
+    transform: "translateY(-50%)",
+    width: "14px",
+    zIndex: 1,
+  },
+  searchInput: {
+    backgroundColor: {
+      default: `color-mix(in srgb, ${colors.elevated} 42%, ${colors.panel})`,
+      ":hover": `color-mix(in srgb, ${colors.elevated} 72%, ${colors.panel})`,
+      ":focus": `color-mix(in srgb, ${colors.elevated} 72%, ${colors.panel})`,
+      ":focus-visible": `color-mix(in srgb, ${colors.elevated} 72%, ${colors.panel})`,
+    },
+    borderColor: {
+      default: `color-mix(in srgb, ${colors.border} 54%, transparent)`,
+      ":hover": `color-mix(in srgb, ${colors.border} 88%, transparent)`,
+      ":focus": `color-mix(in srgb, ${colors.border} 88%, transparent)`,
+      ":focus-visible": `color-mix(in srgb, ${colors.border} 88%, transparent)`,
+    },
+    borderRadius: "10px",
+    boxShadow: {
+      default: "none",
+      ":hover": "0 1px 4px rgb(72 62 48 / 4%)",
+      ":focus": "0 1px 4px rgb(72 62 48 / 4%)",
+      ":focus-visible": "0 1px 4px rgb(72 62 48 / 4%)",
+    },
+    color: colors.text,
+    fontFamily: typography.uiFont,
+    fontSize: "12px",
+    fontWeight: 450,
+    height: "32px",
+    letterSpacing: 0,
+    paddingLeft: "32px",
+    transitionDuration: motion.standard,
+    transitionProperty: "background-color, border-color, box-shadow",
+    transitionTimingFunction: motion.ease,
+    "::placeholder": {
+      color: `color-mix(in srgb, ${colors.muted} 82%, transparent)`,
+      opacity: 1,
+    },
+  },
+  summary: {
+    alignItems: "center",
+    color: colors.muted,
+    display: "flex",
+    fontFamily: typography.uiFont,
+    fontSize: "11px",
+    fontWeight: 500,
+    justifyContent: "space-between",
+    padding: "12px 16px 8px",
+  },
+  loader: {
+    animationDuration: "1s",
+    animationIterationCount: "infinite",
+    animationName: spin,
+    animationTimingFunction: "linear",
+    height: "14px",
+    width: "14px",
+  },
+  grid: {
+    alignContent: "start",
+    display: "grid",
+    flex: "1 1 0%",
+    gap: "8px",
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+    overflow: "auto",
+    padding: "0 10px 12px",
+  },
+  card: {
+    backgroundColor: {
+      default: "transparent",
+      ":hover": `color-mix(in srgb, ${colors.elevated} 66%, transparent)`,
+      ":focus-visible": `color-mix(in srgb, ${colors.elevated} 66%, transparent)`,
+    },
+    borderColor: "transparent",
+    borderRadius: "8px",
+    boxShadow: "none",
+    cursor: "pointer",
+    transitionDuration: "150ms",
+    transitionProperty: "background-color, box-shadow",
+    transitionTimingFunction: motion.ease,
+  },
+  cardCompact: {
+    padding: "6px",
+  },
+  cardComfortable: {
+    padding: "8px",
+  },
+  cardMenuTarget: {
+    backgroundColor: `color-mix(in srgb, ${colors.elevated} 78%, transparent)`,
+    boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${accents.primary} 16%, transparent)`,
+  },
+  thumbnail: {
+    aspectRatio: "4 / 3",
+    backgroundColor: colors.elevated,
+    borderRadius: "6px",
+    display: "grid",
+    overflow: "hidden",
+    placeItems: "center",
+  },
+  thumbnailImage: {
+    height: "100%",
+    objectFit: "cover",
+    width: "100%",
+  },
+  thumbnailFallback: {
+    color: colors.muted,
+    height: "20px",
+    width: "20px",
+  },
+  details: {
+    minWidth: 0,
+  },
+  detailsCompact: {
+    marginTop: "4px",
+  },
+  detailsComfortable: {
+    marginTop: "6px",
+  },
+  fileName: {
+    color: colors.text,
+    fontFamily: typography.uiFont,
+    fontSize: "12px",
+    fontWeight: 600,
+    margin: 0,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+  metadata: {
+    color: colors.muted,
+    fontFamily: typography.uiFont,
+    fontSize: "10px",
+    margin: "2px 0 0",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+  empty: {
+    display: "grid",
+    gridColumn: "1 / -1",
+    padding: "40px 16px",
+    placeItems: "center",
+    textAlign: "center",
+  },
+  emptyIcon: {
+    color: colors.muted,
+    height: "20px",
+    marginBottom: "8px",
+    width: "20px",
+  },
+  emptyTitle: {
+    color: colors.text,
+    fontFamily: typography.uiFont,
+    fontSize: "12px",
+    fontWeight: 500,
+    margin: 0,
+  },
+  emptyHint: {
+    color: colors.muted,
+    fontFamily: typography.uiFont,
+    fontSize: "11px",
+    lineHeight: "20px",
+    margin: "4px 0 0",
+    maxWidth: "256px",
+  },
+  importButton: {
+    alignItems: "center",
+    appearance: "none",
+    backgroundColor: "transparent",
+    borderWidth: 0,
+    borderRadius: "8px",
+    color: accents.primary,
+    cursor: "pointer",
+    display: "inline-flex",
+    fontFamily: typography.uiFont,
+    fontSize: "11px",
+    fontWeight: 500,
+    gap: "6px",
+    margin: "12px 0 0",
+    padding: "6px 10px",
+  },
+  importIcon: {
+    height: "14px",
+    width: "14px",
+  },
+  noMatches: {
+    color: colors.muted,
+    fontFamily: typography.uiFont,
+    fontSize: "12px",
+    gridColumn: "1 / -1",
+    margin: 0,
+    padding: "32px 12px",
+    textAlign: "center",
+  },
+});

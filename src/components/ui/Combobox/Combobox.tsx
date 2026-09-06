@@ -1,3 +1,4 @@
+import * as stylex from "@stylexjs/stylex";
 import { Check, ChevronDown, Plus } from "lucide-react";
 import {
   useEffect,
@@ -9,8 +10,9 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
 import { createPortal } from "react-dom";
-import { cn } from "../cn";
+import { colors, motion } from "../../../styles/tokens.stylex";
 import { Input } from "../Input";
+import { selectMenuStyles } from "../select-menu.stylex";
 import { usePresence } from "../usePresence";
 
 const MENU_GAP = 6;
@@ -72,7 +74,7 @@ export function Combobox({
   allowCreate = true,
   createLabel,
   emptyLabel,
-  className,
+  style,
 }: {
   label: string;
   value: string;
@@ -84,7 +86,7 @@ export function Combobox({
   allowCreate?: boolean;
   createLabel?: (query: string) => string;
   emptyLabel?: string;
-  className?: string;
+  style?: stylex.StyleXStyles;
 }) {
   const listId = useId();
   const fieldRef = useRef<HTMLDivElement>(null);
@@ -268,10 +270,11 @@ export function Combobox({
   };
 
   return (
-    <div className={cn("memoir-combobox", className)}>
-      <div className="memoir-combobox-field" ref={fieldRef}>
+    <div {...stylex.props(styles.root, style)}>
+      <div {...stylex.props(styles.field)} ref={fieldRef}>
         <Input
           ref={inputRef}
+          style={styles.input}
           aria-activedescendant={open && items[activeIndex] ? optionId(activeIndex) : undefined}
           aria-autocomplete="both"
           aria-controls={listId}
@@ -298,15 +301,16 @@ export function Combobox({
           value={value}
         />
         <span
+          {...stylex.props(styles.caret, open && styles.caretOpen)}
           aria-hidden
-          className={cn("memoir-combobox-caret", open && "is-open")}
+          data-state={open ? "open" : "closed"}
           onClick={() => {
             setOpen((current) => !current);
             inputRef.current?.focus();
           }}
           onMouseDown={(event) => event.preventDefault()}
         >
-          <ChevronDown strokeWidth={1.8} />
+          <ChevronDown {...stylex.props(styles.caretIcon)} strokeWidth={1.8} />
         </span>
       </div>
       {present &&
@@ -314,27 +318,32 @@ export function Combobox({
         createPortal(
           <div
             ref={listRef}
+            {...stylex.props(
+              selectMenuStyles.menu,
+              visible && selectMenuStyles.visible,
+              selectMenuStyles.position(position.left, position.top, position.width),
+            )}
             aria-hidden={!open}
             aria-label={label}
-            className={cn("memoir-select-menu", visible && "is-open")}
+            data-state={visible ? "open" : "closed"}
             id={listId}
             role="listbox"
-            style={{ left: position.left, top: position.top, minWidth: position.width }}
           >
             {items.length === 0 ? (
-              <div className="memoir-select-empty">{emptyLabel}</div>
+              <div {...stylex.props(selectMenuStyles.empty)}>{emptyLabel}</div>
             ) : (
               items.map((item, index) => {
                 const selected = !item.create && item.value === value;
                 return (
                   <div
-                    aria-selected={selected}
-                    className={cn(
-                      "memoir-select-option",
-                      item.create && "is-create",
-                      selected && "is-selected",
-                      index === activeIndex && "is-active",
+                    {...stylex.props(
+                      selectMenuStyles.option,
+                      item.create && selectMenuStyles.create,
+                      selected && selectMenuStyles.selected,
+                      index === activeIndex && selectMenuStyles.active,
                     )}
+                    aria-selected={selected}
+                    data-create={item.create || undefined}
                     id={optionId(index)}
                     key={item.create ? `${item.value}::create` : item.value}
                     onClick={() => commit(item.value)}
@@ -345,11 +354,21 @@ export function Combobox({
                     }}
                     role="option"
                   >
-                    <span className="min-w-0 truncate">{item.label}</span>
+                    <span {...stylex.props(selectMenuStyles.label)}>{item.label}</span>
                     {item.create ? (
-                      <Plus aria-hidden strokeWidth={2.2} />
+                      <Plus
+                        {...stylex.props(selectMenuStyles.icon)}
+                        aria-hidden
+                        strokeWidth={2.2}
+                      />
                     ) : (
-                      selected && <Check aria-hidden strokeWidth={2.4} />
+                      selected && (
+                        <Check
+                          {...stylex.props(selectMenuStyles.icon)}
+                          aria-hidden
+                          strokeWidth={2.4}
+                        />
+                      )
                     )}
                   </div>
                 );
@@ -361,3 +380,43 @@ export function Combobox({
     </div>
   );
 }
+
+const styles = stylex.create({
+  root: {
+    position: "relative",
+    display: "block",
+    width: "100%",
+  },
+  field: {
+    position: "relative",
+    display: "block",
+  },
+  input: {
+    paddingRight: "28px",
+  },
+  caret: {
+    position: "absolute",
+    top: "50%",
+    right: "8px",
+    display: "grid",
+    width: "16px",
+    height: "16px",
+    placeItems: "center",
+    color: colors.muted,
+    cursor: "pointer",
+    transform: "translateY(-50%)",
+    transitionProperty: "transform",
+    transitionDuration: {
+      default: motion.fast,
+      "@media (prefers-reduced-motion: reduce)": "0s",
+    },
+    transitionTimingFunction: motion.ease,
+  },
+  caretOpen: {
+    transform: "translateY(-50%) rotate(180deg)",
+  },
+  caretIcon: {
+    width: "13px",
+    height: "13px",
+  },
+});

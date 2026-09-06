@@ -1,3 +1,4 @@
+import * as stylex from "@stylexjs/stylex";
 import { markdown } from "@codemirror/lang-markdown";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import {
@@ -26,7 +27,9 @@ import type { AppLocale, AppSettings } from "../../domain/settings";
 import { useI18n } from "../../i18n/react";
 import { createMemoirSearchPanel, searchPanelLabels } from "./search-panel";
 import { noteStats, parseNote } from "../library/note-utils";
-import { cn, Tag } from "../../components/ui";
+import { Tag } from "../../components/ui";
+import { accents, colors, typography } from "../../styles/tokens.stylex";
+import { editorStyles } from "./editor-styles.stylex";
 import {
   wikiLinkExtensions,
   wikiNoteCatalog,
@@ -175,7 +178,7 @@ const markdownHighlightStyle = HighlightStyle.define([
 
 function createEditorExtensions(
   isDark: boolean,
-  settings: AppSettings["editor"],
+  settings: AppSettings,
   onPasteImages?: (files: File[]) => Promise<string>,
   onContextMenu?: (target: EditorMenuTarget) => void,
   ignorePointerUntil?: MutableRefObject<number>,
@@ -196,8 +199,8 @@ function createEditorExtensions(
     wikiNoteCatalog.of(wiki?.catalog ?? []),
     wikiSourcePath.of(wiki?.sourcePath ?? ""),
     ...wikiLinkExtensions(wiki?.onOpenNote),
-    ...(settings.lineWrapping ? [EditorView.lineWrapping] : []),
-    ...(settings.lineNumbers ? [lineNumbers(), highlightActiveLineGutter()] : []),
+    ...(settings.editor.lineWrapping ? [EditorView.lineWrapping] : []),
+    ...(settings.editor.lineNumbers ? [lineNumbers(), highlightActiveLineGutter()] : []),
     search({
       top: true,
       createPanel: createMemoirSearchPanel(labels),
@@ -265,35 +268,37 @@ function createEditorExtensions(
       {
         "&": {
           height: "100%",
-          backgroundColor: "var(--memoir-canvas)",
-          color: "var(--memoir-text)",
-          fontSize: `${settings.fontSize}px`,
+          backgroundColor: colors.canvas,
+          color: colors.text,
+          fontSize: `${settings.editor.fontSize}px`,
+          userSelect: "text",
+          WebkitUserSelect: "text",
         },
         ".cm-scroller": {
           height: "100%",
           overflow: "auto",
           overflowAnchor: "none",
           overscrollBehavior: "contain",
-          backgroundColor: "var(--memoir-canvas)",
-          fontFamily: "inherit",
+          backgroundColor: colors.canvas,
+          fontFamily: settings.appearance.bodyFont === "serif" ? typography.serifFont : typography.uiFont,
         },
         ".cm-content": {
           minHeight: "100%",
           padding: "12px 16px 48px",
           backgroundColor: "transparent",
-          color: "var(--memoir-text)",
+          color: colors.text,
           fontFamily: "inherit",
           lineHeight: "1.7",
-          caretColor: "var(--memoir-text)",
+          caretColor: colors.text,
         },
         ".cm-line": {
           paddingLeft: "0",
           paddingRight: "8px",
         },
         ".cm-gutters": {
-          backgroundColor: "var(--memoir-canvas)",
-          color: "color-mix(in srgb, var(--memoir-muted) 72%, transparent)",
-          borderRight: "1px solid color-mix(in srgb, var(--memoir-border) 70%, transparent)",
+          backgroundColor: colors.canvas,
+          color: `color-mix(in srgb, ${colors.muted} 72%, transparent)`,
+          borderRight: `1px solid color-mix(in srgb, ${colors.border} 70%, transparent)`,
         },
         ".cm-lineNumbers .cm-gutterElement": {
           minWidth: "34px",
@@ -302,35 +307,111 @@ function createEditorExtensions(
           fontSize: "10px",
         },
         ".cm-activeLine, .cm-activeLineGutter": {
-          backgroundColor: "color-mix(in srgb, var(--memoir-text) 4%, transparent)",
+          backgroundColor: `color-mix(in srgb, ${colors.text} 4%, transparent)`,
         },
         ".cm-focused": { outline: "none" },
         ".cm-panels": {
-          backgroundColor: "color-mix(in srgb, var(--memoir-elevated) 82%, var(--memoir-canvas))",
-          color: "var(--memoir-text)",
+          backgroundColor: `color-mix(in srgb, ${colors.elevated} 82%, ${colors.canvas})`,
+          color: colors.text,
         },
         ".cm-panels-top": {
-          borderBottom: "1px solid color-mix(in srgb, var(--memoir-border) 88%, transparent)",
+          borderBottom: `1px solid color-mix(in srgb, ${colors.border} 88%, transparent)`,
         },
         ".cm-searchMatch": {
-          backgroundColor: "color-mix(in srgb, var(--memoir-code-number) 32%, transparent)",
+          backgroundColor: `color-mix(in srgb, ${colors.codeNumber} 32%, transparent)`,
           borderRadius: "2px",
         },
         ".cm-searchMatch-selected": {
-          backgroundColor: "color-mix(in srgb, var(--memoir-code-number) 52%, transparent)",
+          backgroundColor: `color-mix(in srgb, ${colors.codeNumber} 52%, transparent)`,
         },
         ".cm-cursor, .cm-dropCursor": {
-          borderLeftColor: "var(--memoir-text)",
+          borderLeftColor: colors.text,
           borderLeftWidth: "1.5px",
         },
-        ".cm-content ::selection": {
-          backgroundColor: "color-mix(in srgb, var(--memoir-accent) 32%, transparent) !important",
+        ".cm-content ::selection, .cm-line ::selection": {
+          backgroundColor: `color-mix(in srgb, ${accents.primary} 32%, transparent) !important`,
         },
         ".cm-selectionBackground": {
-          backgroundColor: "color-mix(in srgb, var(--memoir-accent) 32%, transparent) !important",
+          backgroundColor: `color-mix(in srgb, ${accents.primary} 32%, transparent) !important`,
         },
         "&.cm-focused .cm-selectionBackground": {
-          backgroundColor: "color-mix(in srgb, var(--memoir-accent) 32%, transparent) !important",
+          backgroundColor: `color-mix(in srgb, ${accents.primary} 32%, transparent) !important`,
+        },
+        ".cm-wiki-link": {
+          color: accents.primary,
+          textDecoration: "underline dashed",
+          textUnderlineOffset: "3px",
+        },
+        ".cm-md-heading": {
+          color: colors.text,
+          fontWeight: "730",
+          letterSpacing: "0",
+        },
+        ".cm-line:has(.cm-md-h1)": {
+          fontSize: "1.72em",
+          lineHeight: "1.28",
+        },
+        ".cm-line:has(.cm-md-h2)": {
+          fontSize: "1.36em",
+          lineHeight: "1.32",
+        },
+        ".cm-line:has(.cm-md-h3)": {
+          fontSize: "1.12em",
+          lineHeight: "1.4",
+        },
+        ".cm-md-mark": {
+          color: `color-mix(in srgb, ${colors.muted} 88%, transparent)`,
+          fontWeight: "500",
+        },
+        ".cm-md-task": {
+          color: `color-mix(in srgb, ${colors.muted} 70%, ${colors.text})`,
+          fontWeight: "550",
+          letterSpacing: "0",
+        },
+        ".cm-md-emphasis": { fontStyle: "italic" },
+        ".cm-md-strong": { fontWeight: "700" },
+        ".cm-md-strikethrough": {
+          color: colors.muted,
+          textDecoration: "line-through",
+        },
+        ".cm-md-link": { color: accents.primary },
+        ".cm-md-url, .cm-md-label": {
+          color: `color-mix(in srgb, ${accents.primary} 58%, ${colors.muted})`,
+        },
+        ".cm-md-string, .cm-code-regexp": { color: colors.codeString },
+        ".cm-md-code": {
+          borderRadius: "4px",
+          backgroundColor: `color-mix(in srgb, ${colors.panel} 88%, transparent)`,
+          padding: "0.08em 0.28em",
+          color: `color-mix(in srgb, ${colors.text} 88%, ${colors.muted})`,
+          fontFamily: typography.monoFont,
+          fontSize: "0.9em",
+        },
+        ".cm-md-codeblock": {
+          backgroundColor: `color-mix(in srgb, ${colors.panel} 70%, transparent)`,
+          fontFamily: typography.monoFont,
+        },
+        ".cm-md-codeblock .cm-md-code": {
+          backgroundColor: "transparent",
+          padding: "0",
+          fontSize: "inherit",
+        },
+        ".cm-code-keyword, .cm-code-bool": { color: colors.codeKeyword },
+        ".cm-code-number": { color: colors.codeNumber },
+        ".cm-code-fn, .cm-code-def": { color: colors.codeFunction },
+        ".cm-code-type": { color: colors.codeType },
+        ".cm-code-prop": { color: colors.codeProperty },
+        ".cm-code-name, .cm-code-operator": {
+          color: `color-mix(in srgb, ${colors.text} 88%, ${colors.muted})`,
+        },
+        ".cm-code-invalid": { color: colors.danger },
+        ".cm-md-quote, .cm-md-hr": { color: colors.muted },
+        ".cm-md-comment": { color: colors.muted, fontStyle: "italic" },
+        "@media (max-width: 980px)": {
+          ".cm-content": {
+            paddingLeft: "16px !important",
+            paddingRight: "16px !important",
+          },
         },
       },
       { dark: isDark },
@@ -404,7 +485,7 @@ export const EditorPane = forwardRef<EditorHandle, EditorPaneProps>(function Edi
     () =>
       createEditorExtensions(
         isDark,
-        settings.editor,
+        settings,
         callbacksRef.current.onPasteImages
           ? (files) => callbacksRef.current.onPasteImages?.(files) ?? Promise.resolve("")
           : undefined,
@@ -417,7 +498,7 @@ export const EditorPane = forwardRef<EditorHandle, EditorPaneProps>(function Edi
         },
         locale,
       ),
-    [isDark, locale, settings.editor, sourcePath, wikiCatalog],
+    [isDark, locale, settings, sourcePath, wikiCatalog],
   );
   const parsed = useMemo(() => parseNote(content, fileName), [content, fileName]);
   const stats = useMemo(() => noteStats(content), [content]);
@@ -516,10 +597,8 @@ export const EditorPane = forwardRef<EditorHandle, EditorPaneProps>(function Edi
   return (
     <section
       aria-label={t("editor.markdownEditor")}
-      className={cn(
-        "editor-pane relative h-full min-h-0 min-w-0 overflow-hidden border-r border-border bg-canvas max-[760px]:min-h-[calc(100vh-138px)] max-[760px]:border-r-0",
-        showDrop && "is-file-drop",
-      )}
+      data-editor-pane=""
+      {...stylex.props(editorStyles.pane, showDrop && editorStyles.paneDropActive)}
       onDragEnter={(event) => {
         if (!event.dataTransfer?.types.includes("Files")) return;
         dropDepthRef.current += 1;
@@ -539,7 +618,6 @@ export const EditorPane = forwardRef<EditorHandle, EditorPaneProps>(function Edi
       onWheelCapture={onScrollIntent}
     >
       <CodeMirrorHost
-        className="memoir-cm-host h-full min-h-0"
         doc={content}
         extensions={extensions}
         onChange={onChange}
@@ -553,11 +631,11 @@ export const EditorPane = forwardRef<EditorHandle, EditorPaneProps>(function Edi
         ref={hostRef}
       />
       {showDrop && (
-        <div className="editor-drop-overlay" role="status">
+        <div {...stylex.props(editorStyles.dropOverlay)} role="status">
           {t("editor.dropImages")}
         </div>
       )}
-      <footer className="editor-statusbar absolute inset-x-0 bottom-0 flex h-7 items-center gap-3 border-t border-border bg-elevated/80 px-4 text-[9px] text-muted backdrop-blur-md">
+      <footer {...stylex.props(editorStyles.statusbar)}>
         <span>{tc("editor.words", stats.words)}</span>
         <span>{tc("editor.chars", stats.chars)}</span>
         <span>{tc("editor.minutes", stats.minutes)}</span>

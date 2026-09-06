@@ -188,8 +188,8 @@ describe("EditorPane search panel", () => {
     act(() => {
       openSearchPanel(cm!);
     });
-    expect(view.container.querySelector(".memoir-search")).toBeTruthy();
-    expect(view.container.querySelector(".cm-panels-top .memoir-search")).toBeTruthy();
+    expect(view.container.querySelector("[data-memoir-search]")).toBeTruthy();
+    expect(view.container.querySelector(".cm-panels-top [data-memoir-search]")).toBeTruthy();
     expect(view.getByRole("search", { name: "查找和替换" })).toBeTruthy();
     expect(view.getByPlaceholderText("查找")).toBeTruthy();
     expect(view.getByRole("button", { name: "区分大小写" })).toBeTruthy();
@@ -208,7 +208,9 @@ describe("EditorPane source chrome", () => {
         settings={DEFAULT_SETTINGS}
       />,
     );
-    expect(view.container.querySelector(".editor-pane")).toHaveClass("bg-canvas");
+    const pane = view.container.querySelector("[data-editor-pane]");
+    expect(pane).toBeTruthy();
+    expect(pane).not.toHaveClass("editor-pane", "bg-canvas");
   });
 
   it("keeps ATX heading marks on the same line as the heading text", async () => {

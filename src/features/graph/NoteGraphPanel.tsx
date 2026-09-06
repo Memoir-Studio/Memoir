@@ -1,10 +1,12 @@
+import * as stylex from "@stylexjs/stylex";
 import { Network, Search } from "lucide-react";
 import { useMemo, useState } from "react";
-import { Input, cn } from "../../components/ui";
+import { Input } from "../../components/ui";
 import { noteStem } from "../../domain/note-links";
 import { useAppStore } from "../../store/app-store";
 import { useI18n } from "../../i18n/react";
 import { useNoteGraph } from "./useNoteGraph";
+import { graphStyles } from "./graph-styles.stylex";
 
 export function NoteGraphPanel() {
   const activePath = useAppStore((state) => state.activePath);
@@ -42,37 +44,37 @@ export function NoteGraphPanel() {
   }, [degrees, graph.nodes, needle]);
 
   return (
-    <div className="memoir-fade-in flex min-h-0 flex-1 flex-col">
-      <div className="graph-panel-stats mx-3 mt-2.5 grid grid-cols-3 gap-1.5">
-        <div className="graph-stat">
-          <p className="tabular-nums">{graph.nodes.length}</p>
-          <span>{tc("graph.nodes", graph.nodes.length)}</span>
+    <div {...stylex.props(graphStyles.panel)}>
+      <div {...stylex.props(graphStyles.stats)}>
+        <div {...stylex.props(graphStyles.stat)}>
+          <p {...stylex.props(graphStyles.statValue)}>{graph.nodes.length}</p>
+          <span {...stylex.props(graphStyles.statLabel)}>{tc("graph.nodes", graph.nodes.length)}</span>
         </div>
-        <div className="graph-stat">
-          <p className="tabular-nums">{resolvedEdges.length}</p>
-          <span>{tc("graph.edges", resolvedEdges.length)}</span>
+        <div {...stylex.props(graphStyles.stat)}>
+          <p {...stylex.props(graphStyles.statValue)}>{resolvedEdges.length}</p>
+          <span {...stylex.props(graphStyles.statLabel)}>{tc("graph.edges", resolvedEdges.length)}</span>
         </div>
-        <div className="graph-stat">
-          <p className="tabular-nums">{orphans}</p>
-          <span>{tc("graph.orphans", orphans)}</span>
+        <div {...stylex.props(graphStyles.stat)}>
+          <p {...stylex.props(graphStyles.statValue)}>{orphans}</p>
+          <span {...stylex.props(graphStyles.statLabel)}>{tc("graph.orphans", orphans)}</span>
         </div>
       </div>
-      <label className="note-search relative mx-3 mt-2.5 block">
-        <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted" />
+      <label {...stylex.props(graphStyles.search)}>
+        <Search {...stylex.props(graphStyles.searchIcon)} />
         <Input
           aria-label={t("graph.search")}
-          className="h-8 rounded-[10px] pl-8 shadow-none"
           onChange={(event) => setQuery(event.target.value)}
           placeholder={t("graph.searchPlaceholder")}
+          style={graphStyles.searchInput}
           type="search"
           value={query}
         />
       </label>
-      <div className="min-h-0 flex-1 overflow-auto px-2.5 pb-3 pt-2">
+      <div {...stylex.props(graphStyles.panelScroller)}>
         {loading && !graph.nodes.length ? (
-          <p className="px-2 py-8 text-center text-xs text-muted">{t("app.loading")}</p>
+          <p {...stylex.props(graphStyles.panelMessage)}>{t("app.loading")}</p>
         ) : !nodes.length ? (
-          <p className="px-2 py-8 text-center text-xs text-muted">
+          <p {...stylex.props(graphStyles.panelMessage)}>
             {graph.nodes.length ? t("graph.noMatches") : t("graph.empty")}
           </p>
         ) : (
@@ -80,22 +82,22 @@ export function NoteGraphPanel() {
             const degree = degrees.get(node.relativePath) ?? 0;
             return (
               <button
-                className={cn(
-                  "graph-node-row grid w-full grid-cols-[16px_minmax(0,1fr)_auto] items-center gap-2 rounded-lg px-2.5 text-left",
-                  activePath === node.relativePath && "is-active",
-                )}
                 key={node.relativePath}
                 onClick={() => void selectNote(node.relativePath)}
                 type="button"
+                {...stylex.props(
+                  graphStyles.nodeRow,
+                  activePath === node.relativePath && graphStyles.nodeRowActive,
+                )}
               >
-                <Network className="h-3.5 w-3.5 text-muted" strokeWidth={1.8} />
-                <span className="min-w-0">
-                  <span className="block truncate text-[12px] font-medium text-text">
+                <Network {...stylex.props(graphStyles.nodeIcon)} strokeWidth={1.8} />
+                <span {...stylex.props(graphStyles.minWidth)}>
+                  <span {...stylex.props(graphStyles.nodeTitle)}>
                     {node.title || noteStem(node.relativePath)}
                   </span>
-                  <span className="block truncate text-[10px] text-muted">{node.relativePath}</span>
+                  <span {...stylex.props(graphStyles.nodePath)}>{node.relativePath}</span>
                 </span>
-                <span className="tabular-nums text-[10px] text-muted">{degree}</span>
+                <span {...stylex.props(graphStyles.degree)}>{degree}</span>
               </button>
             );
           })

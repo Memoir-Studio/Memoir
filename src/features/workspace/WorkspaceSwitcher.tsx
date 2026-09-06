@@ -1,3 +1,4 @@
+import * as stylex from "@stylexjs/stylex";
 import { Check, ChevronsUpDown, FolderOpen } from "lucide-react";
 import {
   useEffect,
@@ -9,9 +10,10 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
 import { createPortal } from "react-dom";
-import { cn, usePresence } from "../../components/ui";
+import { usePresence } from "../../components/ui";
 import { useI18n } from "../../i18n/react";
 import { useAppStore } from "../../store/app-store";
+import { accents, colors, media, motion } from "../../styles/tokens.stylex";
 import { mergeRecentWorkspaces, workspaceDisplayName } from "./workspace-utils";
 
 const MENU_GAP = 6;
@@ -170,34 +172,28 @@ export function WorkspaceSwitcher({
         aria-expanded={open}
         aria-haspopup="menu"
         aria-label={t("nav.switchWorkspace")}
-        className={cn(
-          "sidebar-workspace-switcher flex min-w-0 flex-1 items-center gap-1 rounded-lg px-1 text-left",
-          collapsed &&
-            "min-[761px]:h-7 min-[761px]:w-7 min-[761px]:flex-none min-[761px]:justify-center min-[761px]:px-0",
-        )}
         onClick={() => setOpen((current) => !current)}
         onKeyDown={onTriggerKeyDown}
         title={workspaceRoot || t("nav.switchWorkspace")}
         type="button"
+        {...stylex.props(
+          styles.trigger,
+          open && styles.triggerOpen,
+          collapsed && styles.triggerCollapsed,
+        )}
       >
         <span
-          className={cn(
-            "min-w-0 flex-1",
-            collapsed && "min-[761px]:hidden",
-          )}
+          {...stylex.props(styles.triggerText, collapsed && styles.collapsedHidden)}
         >
-          <span className="block truncate text-[11px] font-semibold text-text">{workspaceName}</span>
-          <span className="block truncate text-[9px] text-muted">
+          <span {...stylex.props(styles.workspaceName)}>{workspaceName}</span>
+          <span {...stylex.props(styles.noteCount)}>
             {tc("nav.notesInWorkspace", noteCount)}
           </span>
         </span>
         <ChevronsUpDown
           aria-hidden
-          className={cn(
-            "sidebar-workspace-chevron shrink-0",
-            collapsed && "min-[761px]:h-4 min-[761px]:w-4",
-          )}
           strokeWidth={1.8}
+          {...stylex.props(styles.chevron, collapsed && styles.chevronCollapsed)}
         />
       </button>
       {present &&
@@ -207,55 +203,51 @@ export function WorkspaceSwitcher({
             ref={menuRef}
             aria-hidden={!open}
             aria-label={t("nav.switchWorkspace")}
-            className={cn("workspace-switcher-menu", visible && "is-open")}
             id={menuId}
             role="menu"
-            style={{ left: position.left, top: position.top }}
+            {...stylex.props(styles.menu, visible && styles.menuVisible, styles.menuPosition(position.left, position.top))}
           >
-            <p className="workspace-switcher-heading">{t("nav.recentWorkspaces")}</p>
+            <p {...stylex.props(styles.heading)}>{t("nav.recentWorkspaces")}</p>
             {workspaces.map((root, index) => {
               const name = workspaceDisplayName(root, t("nav.workspaceFallback"));
               const current = root === workspaceRoot;
               return (
                 <button
                   aria-current={current ? "true" : undefined}
-                  className={cn(
-                    "workspace-switcher-item",
-                    current && "is-current",
-                    index === activeIndex && "is-active",
-                  )}
                   key={root}
                   onClick={() => selectIndex(index)}
                   onMouseEnter={() => setActiveIndex(index)}
                   role="menuitem"
                   title={current ? t("nav.currentWorkspace") : root}
                   type="button"
+                  {...stylex.props(styles.item, index === activeIndex && styles.itemActive)}
                 >
-                  <span className="min-w-0">
-                    <span className="block truncate text-[12px] font-semibold text-text">{name}</span>
-                    <span className="block truncate text-[10px] text-muted" title={root}>
+                  <span {...stylex.props(styles.itemText)}>
+                    <span {...stylex.props(styles.itemName)}>{name}</span>
+                    <span {...stylex.props(styles.itemPath)} title={root}>
                       {root}
                     </span>
                   </span>
-                  <span className="workspace-switcher-check" aria-hidden>
-                    {current ? <Check strokeWidth={2.4} /> : null}
+                  <span aria-hidden {...stylex.props(styles.check)}>
+                    {current ? <Check strokeWidth={2.4} {...stylex.props(styles.checkIcon)} /> : null}
                   </span>
                 </button>
               );
             })}
-            <div className="workspace-switcher-separator" role="separator" />
+            <div role="separator" {...stylex.props(styles.separator)} />
             <button
-              className={cn(
-                "workspace-switcher-item workspace-switcher-open is-action",
-                activeIndex === workspaces.length && "is-active",
-              )}
               onClick={() => selectIndex(workspaces.length)}
               onMouseEnter={() => setActiveIndex(workspaces.length)}
               role="menuitem"
               type="button"
+              {...stylex.props(
+                styles.item,
+                styles.actionItem,
+                activeIndex === workspaces.length && styles.itemActive,
+              )}
             >
-              <FolderOpen aria-hidden className="h-3.5 w-3.5 shrink-0" strokeWidth={1.8} />
-              <span className="min-w-0 truncate text-[12px] font-medium">
+              <FolderOpen aria-hidden strokeWidth={1.8} {...stylex.props(styles.actionIcon)} />
+              <span {...stylex.props(styles.actionLabel)}>
                 {t("nav.openAnotherWorkspace")}
               </span>
             </button>
@@ -265,3 +257,194 @@ export function WorkspaceSwitcher({
     </>
   );
 }
+
+const desktop = "@media (min-width: 761px)";
+
+const styles = stylex.create({
+  trigger: {
+    display: "flex",
+    minWidth: 0,
+    flex: 1,
+    alignItems: "center",
+    gap: 4,
+    paddingInline: 4,
+    borderWidth: 0,
+    borderRadius: 8,
+    color: "inherit",
+    backgroundColor: {
+      default: "transparent",
+      ":hover": `color-mix(in srgb, ${colors.elevated} 62%, transparent)`,
+      ":focus-visible": `color-mix(in srgb, ${colors.elevated} 62%, transparent)`,
+    },
+    font: "inherit",
+    textAlign: "left",
+    outline: "none",
+    transitionProperty: "background-color",
+    transitionDuration: {
+      default: "150ms",
+      [media.reducedMotion]: "0s",
+    },
+    transitionTimingFunction: motion.ease,
+  },
+  triggerCollapsed: {
+    height: { [desktop]: 28 },
+    width: { [desktop]: 28 },
+    flex: { [desktop]: "none" },
+    justifyContent: { [desktop]: "center" },
+    paddingInline: { [desktop]: 0 },
+  },
+  triggerOpen: {
+    backgroundColor: `color-mix(in srgb, ${colors.elevated} 62%, transparent)`,
+  },
+  triggerText: {
+    minWidth: 0,
+    flex: 1,
+  },
+  collapsedHidden: {
+    display: { [desktop]: "none" },
+  },
+  workspaceName: {
+    display: "block",
+    overflow: "hidden",
+    color: colors.text,
+    fontSize: 11,
+    fontWeight: 600,
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+  noteCount: {
+    display: "block",
+    overflow: "hidden",
+    color: colors.muted,
+    fontSize: 9,
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+  chevron: {
+    width: 11,
+    height: 11,
+    flexShrink: 0,
+    color: colors.muted,
+    opacity: 0.72,
+  },
+  chevronCollapsed: {
+    width: { [desktop]: 16 },
+    height: { [desktop]: 16 },
+  },
+  menu: {
+    position: "fixed",
+    zIndex: 60,
+    width: 240,
+    padding: 6,
+    borderWidth: 1,
+    borderStyle: "solid",
+    borderColor: `color-mix(in srgb, ${colors.border} 86%, transparent)`,
+    borderRadius: 12,
+    backgroundColor: `color-mix(in srgb, ${colors.elevated} 96%, ${colors.panel})`,
+    boxShadow:
+      "light-dark(0 16px 40px rgb(37 33 27 / 18%), 0 16px 40px rgb(0 0 0 / 36%)), light-dark(0 4px 12px rgb(37 33 27 / 8%), 0 4px 12px rgb(0 0 0 / 22%)), inset 0 1px light-dark(rgb(255 255 255 / 52%), rgb(255 255 255 / 6%))",
+    opacity: 0,
+    transform: "translateY(4px) scale(0.98)",
+    pointerEvents: "none",
+    transitionProperty: "opacity, transform",
+    transitionDuration: {
+      default: motion.fast,
+      [media.reducedMotion]: "0s",
+    },
+    transitionTimingFunction: motion.ease,
+  },
+  menuVisible: {
+    opacity: 1,
+    transform: "none",
+    pointerEvents: "auto",
+  },
+  menuPosition: (left: number, top: number) => ({ left, top }),
+  heading: {
+    margin: 0,
+    paddingTop: 5,
+    paddingRight: 8,
+    paddingBottom: 4,
+    paddingLeft: 8,
+    color: `color-mix(in srgb, ${colors.muted} 86%, transparent)`,
+    fontSize: 10,
+    fontWeight: 600,
+    letterSpacing: 0,
+  },
+  item: {
+    display: "grid",
+    width: "100%",
+    minHeight: 40,
+    gridTemplateColumns: "minmax(0, 1fr) 14px",
+    alignItems: "center",
+    gap: 8,
+    paddingBlock: 6,
+    paddingInline: 8,
+    borderWidth: 0,
+    borderRadius: 8,
+    color: colors.text,
+    backgroundColor: {
+      default: "transparent",
+      ":hover": `color-mix(in srgb, ${accents.soft} 82%, ${colors.elevated})`,
+      ":focus-visible": `color-mix(in srgb, ${accents.soft} 82%, ${colors.elevated})`,
+    },
+    textAlign: "left",
+    outline: "none",
+  },
+  itemActive: {
+    backgroundColor: `color-mix(in srgb, ${accents.soft} 82%, ${colors.elevated})`,
+  },
+  actionItem: {
+    minHeight: 34,
+    gridTemplateColumns: "14px minmax(0, 1fr)",
+  },
+  itemText: {
+    minWidth: 0,
+  },
+  itemName: {
+    display: "block",
+    overflow: "hidden",
+    color: colors.text,
+    fontSize: 12,
+    fontWeight: 600,
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+  itemPath: {
+    display: "block",
+    overflow: "hidden",
+    color: colors.muted,
+    fontSize: 10,
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+  check: {
+    display: "grid",
+    width: 14,
+    height: 14,
+    placeItems: "center",
+    color: accents.primary,
+  },
+  checkIcon: {
+    width: 13,
+    height: 13,
+  },
+  separator: {
+    height: 1,
+    marginBlock: 4,
+    marginInline: 6,
+    backgroundColor: `color-mix(in srgb, ${colors.border} 88%, transparent)`,
+  },
+  actionIcon: {
+    width: 14,
+    height: 14,
+    flexShrink: 0,
+  },
+  actionLabel: {
+    minWidth: 0,
+    overflow: "hidden",
+    fontSize: 12,
+    fontWeight: 500,
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+});

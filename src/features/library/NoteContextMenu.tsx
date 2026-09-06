@@ -1,3 +1,4 @@
+import * as stylex from "@stylexjs/stylex";
 import { Copy, ExternalLink, FileDown, FileText, PencilLine, Star, Trash2 } from "lucide-react";
 import { exportNotePdf } from "../export/export-note-pdf";
 import {
@@ -10,6 +11,7 @@ import { useI18n } from "../../i18n/react";
 import { useAppStore } from "../../store/app-store";
 import { revealWorkspaceItem } from "../workspace/workspace-utils";
 import { noteDisplayName } from "./note-utils";
+import { libraryUtilityStyles } from "./library-styles.stylex";
 
 export type NoteMenuTarget = {
   x: number;
@@ -25,8 +27,9 @@ async function copyText(text: string) {
   const input = document.createElement("textarea");
   input.value = text;
   input.setAttribute("readonly", "");
-  input.style.position = "fixed";
-  input.style.left = "-9999px";
+  const attrs = stylex.attrs(libraryUtilityStyles.clipboardFallback);
+  if (attrs.class) input.className = attrs.class;
+  if (attrs["data-style-src"]) input.setAttribute("data-style-src", attrs["data-style-src"]);
   document.body.append(input);
   input.select();
   document.execCommand("copy");
@@ -67,7 +70,7 @@ export function NoteContextMenu({
         onSelect={() => void selectNote(note.relativePath)}
       />
       <ContextMenuItem
-        icon={<Star className={note.favorite ? "fill-accent" : undefined} />}
+        icon={<Star {...stylex.props(note.favorite && libraryUtilityStyles.favorite)} />}
         label={note.favorite ? t("menu.unfavorite") : t("menu.favorite")}
         onSelect={() => void toggleFavorite(note.relativePath)}
       />

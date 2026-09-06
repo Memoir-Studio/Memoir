@@ -45,6 +45,9 @@ jobs:
       - name: Test
         run: bun run test
 
+      - name: StyleX boundary check
+        run: bun run style:check
+
       - name: Release notes self-test
         run: python3 .github/scripts/release_notes.py --self-test
 

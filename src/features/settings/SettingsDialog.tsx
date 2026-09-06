@@ -1,3 +1,4 @@
+import * as stylex from "@stylexjs/stylex";
 import { Check, ExternalLink, Info, Palette, RotateCcw, SlidersHorizontal, Type } from "lucide-react";
 import { GITHUB_REPO_URL } from "../../domain/app-update";
 import type { AppSettings, LocalePreference } from "../../domain/settings";
@@ -13,7 +14,9 @@ import { getGateways } from "../../gateways";
 import { useI18n } from "../../i18n/react";
 import type { MessageKey } from "../../i18n";
 import { APP_VERSION } from "../../platform/app-version";
+import { commonStyles } from "../../styles/tokens.stylex";
 import { UpdateCheckControls } from "../update/UpdateCheckControls";
+import { settingsStyles as styles } from "./settings-styles.stylex";
 import type { SettingsSection } from "./types";
 
 export { GITHUB_REPO_URL };
@@ -28,14 +31,12 @@ function SettingRow({
   children: React.ReactNode;
 }) {
   return (
-    <div className="settings-row grid grid-cols-[minmax(160px,1fr)_auto] items-center gap-6 max-sm:grid-cols-1 max-sm:gap-2">
-      <div className="min-w-0">
-        <div className="settings-row-label">{label}</div>
-        {description && <p className="settings-row-description">{description}</p>}
+    <div {...stylex.props(styles.row)} data-settings-row>
+      <div {...stylex.props(styles.rowCopy)}>
+        <div {...stylex.props(styles.rowLabel)}>{label}</div>
+        {description && <p {...stylex.props(styles.rowDescription)}>{description}</p>}
       </div>
-      <div className="settings-row-control flex min-w-0 justify-end max-sm:justify-start">
-        {children}
-      </div>
+      <div {...stylex.props(styles.rowControl)}>{children}</div>
     </div>
   );
 }
@@ -59,19 +60,18 @@ function RangeControl({
 }) {
   const progress = ((value - min) / (max - min)) * 100;
   return (
-    <label className="settings-range-control">
+    <label {...stylex.props(styles.rangeControl)}>
       <input
+        {...stylex.props(styles.range, styles.rangeProgress(`${progress}%`))}
         aria-label={label}
-        className="settings-range"
         max={max}
         min={min}
         onChange={(event) => onChange(Number(event.target.value))}
         step={step}
-        style={{ "--range-progress": `${progress}%` } as React.CSSProperties}
         type="range"
         value={value}
       />
-      <span>{valueLabel}</span>
+      <span {...stylex.props(styles.rangeValue)}>{valueLabel}</span>
     </label>
   );
 }
@@ -99,7 +99,7 @@ function GeneralSettings({
     onChange({ ...settings, general: { ...general, ...patch } });
 
   return (
-    <div className="settings-section">
+    <div {...stylex.props(commonStyles.fadeIn, styles.section)}>
       <SettingRow
         description={t("settings.closeBehaviorHint")}
         label={t("settings.closeBehavior")}
@@ -107,10 +107,12 @@ function GeneralSettings({
         <SegmentedControl
           label={t("settings.closeBehavior")}
           onChange={(closeBehavior) => update({ closeBehavior })}
+          optionStyle={styles.segmentedOption}
           options={[
             { value: "tray", label: t("settings.closeToTray") },
             { value: "quit", label: t("settings.quitDirectly") },
           ]}
+          style={styles.segmented}
           value={general.closeBehavior}
         />
       </SettingRow>
@@ -131,7 +133,7 @@ function AppearanceSettings({
     onChange({ ...settings, appearance: { ...appearance, ...patch } });
 
   return (
-    <div className="settings-section">
+    <div {...stylex.props(commonStyles.fadeIn, styles.section)}>
       <SettingRow label={t("settings.language")}>
         <Select
           label={t("settings.language")}
@@ -141,6 +143,7 @@ function AppearanceSettings({
             { value: "zh", label: t("locale.zh") },
             { value: "en", label: t("locale.en") },
           ]}
+          style={styles.select}
           value={appearance.locale}
         />
       </SettingRow>
@@ -148,30 +151,37 @@ function AppearanceSettings({
         <SegmentedControl
           label={t("settings.theme")}
           onChange={(theme) => update({ theme })}
+          optionStyle={styles.segmentedOption}
           options={[
             { value: "system", label: t("settings.themeSystem") },
             { value: "light", label: t("settings.themeLight") },
             { value: "dark", label: t("settings.themeDark") },
           ]}
+          style={styles.segmented}
           value={appearance.theme}
         />
       </SettingRow>
       <SettingRow label={t("settings.accent")}>
-        <div className="settings-swatches" role="group" aria-label={t("settings.accent")}>
+        <div {...stylex.props(styles.swatches)} role="group" aria-label={t("settings.accent")}>
           {accentKeys.map((accent) => {
             const label = t(accent.labelKey);
             return (
               <button
+                {...stylex.props(
+                  styles.swatch,
+                  styles.swatchColor(accent.color),
+                  appearance.accent === accent.value && styles.swatchSelected(accent.color),
+                )}
                 aria-label={label}
                 aria-pressed={appearance.accent === accent.value}
-                className="settings-swatch"
                 key={accent.value}
                 onClick={() => update({ accent: accent.value })}
-                style={{ "--swatch": accent.color } as React.CSSProperties}
                 title={label}
                 type="button"
               >
-                {appearance.accent === accent.value && <Check />}
+                {appearance.accent === accent.value && (
+                  <Check {...stylex.props(styles.swatchIcon)} />
+                )}
               </button>
             );
           })}
@@ -181,10 +191,12 @@ function AppearanceSettings({
         <SegmentedControl
           label={t("settings.background")}
           onChange={(background) => update({ background })}
+          optionStyle={styles.segmentedOption}
           options={[
             { value: "paper", label: t("settings.backgroundPaper") },
             { value: "pure", label: t("settings.backgroundPure") },
           ]}
+          style={styles.segmented}
           value={appearance.background}
         />
       </SettingRow>
@@ -192,10 +204,12 @@ function AppearanceSettings({
         <SegmentedControl
           label={t("settings.density")}
           onChange={(density) => update({ density })}
+          optionStyle={styles.segmentedOption}
           options={[
             { value: "comfortable", label: t("settings.densityComfortable") },
             { value: "compact", label: t("settings.densityCompact") },
           ]}
+          style={styles.segmented}
           value={appearance.density}
         />
       </SettingRow>
@@ -214,10 +228,12 @@ function AppearanceSettings({
         <SegmentedControl
           label={t("settings.bodyFont")}
           onChange={(bodyFont) => update({ bodyFont })}
+          optionStyle={styles.segmentedOption}
           options={[
             { value: "sans", label: t("settings.fontSans") },
             { value: "serif", label: t("settings.fontSerif") },
           ]}
+          style={styles.segmented}
           value={appearance.bodyFont}
         />
       </SettingRow>
@@ -246,23 +262,27 @@ function AppearanceSettings({
         <SegmentedControl
           label={t("settings.contentWidth")}
           onChange={(contentWidth) => update({ contentWidth })}
+          optionStyle={styles.segmentedOption}
           options={[
             { value: "narrow", label: t("settings.widthNarrow") },
             { value: "standard", label: t("settings.widthStandard") },
             { value: "wide", label: t("settings.widthWide") },
             { value: "full", label: t("settings.widthFull") },
           ]}
+          style={styles.segmented}
           value={appearance.contentWidth}
         />
       </SettingRow>
-      <div className="settings-preview-block">
-        <span className="settings-preview-label">{t("settings.previewLabel")}</span>
-        <article className="settings-preview-card">
-          <h4>{t("settings.previewTitle")}</h4>
-          <p>{t("settings.previewBody")}</p>
-          <div>
-            <span>Markdown</span>
-            <span>{t("settings.previewTag")}</span>
+      <div {...stylex.props(styles.previewBlock)}>
+        <span {...stylex.props(styles.overline, styles.previewLabel)}>
+          {t("settings.previewLabel")}
+        </span>
+        <article {...stylex.props(styles.previewCard)}>
+          <h4 {...stylex.props(styles.previewHeading)}>{t("settings.previewTitle")}</h4>
+          <p {...stylex.props(styles.previewBody)}>{t("settings.previewBody")}</p>
+          <div {...stylex.props(styles.previewTags)}>
+            <span {...stylex.props(styles.badge)}>Markdown</span>
+            <span {...stylex.props(styles.badge)}>{t("settings.previewTag")}</span>
           </div>
         </article>
       </div>
@@ -283,7 +303,7 @@ function EditorSettings({
     onChange({ ...settings, editor: { ...editor, ...patch } });
 
   return (
-    <div className="settings-section">
+    <div {...stylex.props(commonStyles.fadeIn, styles.section)}>
       <SettingRow label={t("settings.editorFontSize")} description={t("settings.editorFontSizeHint")}>
         <RangeControl
           label={t("settings.editorFontSize")}
@@ -312,11 +332,13 @@ function EditorSettings({
         <SegmentedControl
           label={t("settings.defaultView")}
           onChange={(defaultView) => update({ defaultView })}
+          optionStyle={styles.segmentedOption}
           options={[
             { value: "edit", label: t("settings.viewEdit") },
             { value: "split", label: t("settings.viewSplit") },
             { value: "preview", label: t("settings.viewPreview") },
           ]}
+          style={styles.segmented}
           value={editor.defaultView}
         />
       </SettingRow>
@@ -355,39 +377,41 @@ export default function SettingsDialog({
 
   return (
     <Dialog
-      className="settings-dialog max-w-[860px]"
+      bodyStyle={styles.dialogBody}
+      headerStyle={styles.dialogHeader}
       onClose={onClose}
       open={open}
+      style={styles.dialog}
       title={t("settings.title")}
     >
-      <div className="settings-layout">
-        <aside className="settings-sidebar">
-          <div className="settings-nav">
+      <div {...stylex.props(styles.layout)}>
+        <aside {...stylex.props(styles.sidebar)}>
+          <div {...stylex.props(styles.navigation)}>
             {navigation.map(({ value, labelKey, icon: Icon }) => (
               <button
+                {...stylex.props(styles.navItem, section === value && styles.navItemActive)}
                 aria-current={section === value ? "page" : undefined}
-                className={`sidebar-nav-item grid w-full grid-cols-[15px_minmax(0,1fr)] items-center gap-2 rounded-[7px] px-2 text-left ${
-                  section === value ? "is-active" : ""
-                }`}
                 key={value}
                 onClick={() => onSectionChange(value)}
                 type="button"
               >
-                <Icon />
+                <Icon
+                  {...stylex.props(styles.navIcon, section === value && styles.navIconActive)}
+                />
                 <span>{t(labelKey)}</span>
               </button>
             ))}
           </div>
           <Button
-            className="settings-reset"
             onClick={onReset}
+            style={styles.resetButton}
             variant="ghost"
           >
-            <RotateCcw />
+            <RotateCcw {...stylex.props(styles.smallIcon)} />
             <span>{t("settings.reset")}</span>
           </Button>
         </aside>
-        <section className="settings-content">
+        <section {...stylex.props(styles.content)}>
           {section === "general" && (
             <GeneralSettings key="general" onChange={onSettingsChange} settings={settings} />
           )}
@@ -398,17 +422,27 @@ export default function SettingsDialog({
             <EditorSettings key="editor" onChange={onSettingsChange} settings={settings} />
           )}
           {section === "about" && (
-            <div className="settings-about" key="about">
-              <img alt="" className="settings-about-mark" height={64} src={logoUrl} width={64} />
-              <span className="settings-about-kicker">{t("settings.aboutKicker")}</span>
-              <h3>Memoir</h3>
-              <p>{t("settings.aboutBody")}</p>
-              <div className="settings-about-meta">
-                <span>{t("settings.version", { version: APP_VERSION })}</span>
-                <span>{t("settings.aboutBadge")}</span>
+            <div {...stylex.props(commonStyles.fadeIn, styles.about)} key="about">
+              <img
+                {...stylex.props(styles.aboutMark)}
+                alt=""
+                height={64}
+                src={logoUrl}
+                width={64}
+              />
+              <span {...stylex.props(styles.overline, styles.aboutKicker)}>
+                {t("settings.aboutKicker")}
+              </span>
+              <h3 {...stylex.props(styles.aboutTitle)}>Memoir</h3>
+              <p {...stylex.props(styles.aboutBody)}>{t("settings.aboutBody")}</p>
+              <div {...stylex.props(styles.aboutMeta)}>
+                <span {...stylex.props(styles.badge)}>
+                  {t("settings.version", { version: APP_VERSION })}
+                </span>
+                <span {...stylex.props(styles.badge)}>{t("settings.aboutBadge")}</span>
               </div>
               <a
-                className="settings-about-link"
+                {...stylex.props(styles.aboutLink)}
                 href={GITHUB_REPO_URL}
                 onClick={(event) => {
                   event.preventDefault();
@@ -418,7 +452,11 @@ export default function SettingsDialog({
                 target="_blank"
               >
                 <span>{t("settings.github")}</span>
-                <ExternalLink aria-hidden strokeWidth={1.8} />
+                <ExternalLink
+                  {...stylex.props(styles.aboutLinkIcon)}
+                  aria-hidden
+                  strokeWidth={1.8}
+                />
               </a>
               <UpdateCheckControls />
             </div>

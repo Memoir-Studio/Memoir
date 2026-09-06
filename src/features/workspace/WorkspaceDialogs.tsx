@@ -1,3 +1,4 @@
+import * as stylex from "@stylexjs/stylex";
 import {
   createContext,
   useCallback,
@@ -20,6 +21,7 @@ import { dateLocale } from "../../i18n";
 import { useI18n } from "../../i18n/react";
 import { useAppStore } from "../../store/app-store";
 import { folderName, noteDisplayName, resolveNoteRenamePath, uniqueSorted } from "../library/note-utils";
+import { colors } from "../../styles/tokens.stylex";
 
 type FormDialog =
   | {
@@ -161,8 +163,8 @@ export function WorkspaceDialogsProvider({ children }: { children: ReactNode }) 
         title={formDialog?.type === "rename" ? t("dialog.renameNote") : t("dialog.newNote")}
       >
         {formDialog?.type === "create" ? (
-          <div className="grid gap-3">
-            <label className="memoir-field-label">
+          <div {...stylex.props(styles.form)}>
+            <label {...stylex.props(styles.label)}>
               {t("dialog.title")}
               <Input
                 autoFocus
@@ -170,7 +172,7 @@ export function WorkspaceDialogsProvider({ children }: { children: ReactNode }) 
                 value={formDialog.title}
               />
             </label>
-            <label className="memoir-field-label">
+            <label {...stylex.props(styles.label)}>
               {t("dialog.folderOptional")}
               <Combobox
                 allowCreate
@@ -183,7 +185,7 @@ export function WorkspaceDialogsProvider({ children }: { children: ReactNode }) 
                 value={formDialog.folder}
               />
             </label>
-            <div className="memoir-field-label">
+            <div {...stylex.props(styles.label)}>
               {t("dialog.tagOptional")}
               <TagInput
                 allowCreate
@@ -202,7 +204,7 @@ export function WorkspaceDialogsProvider({ children }: { children: ReactNode }) 
           </div>
         ) : (
           formDialog && (
-            <label className="memoir-field-label">
+            <label {...stylex.props(styles.label)}>
               {t("dialog.fileName")}
               <Input
                 autoFocus
@@ -230,3 +232,18 @@ export function WorkspaceDialogsProvider({ children }: { children: ReactNode }) 
     </WorkspaceDialogsContext.Provider>
   );
 }
+
+const styles = stylex.create({
+  form: {
+    display: "grid",
+    gap: 12,
+  },
+  label: {
+    display: "grid",
+    gap: 7,
+    color: colors.muted,
+    fontSize: 12,
+    fontWeight: 550,
+    letterSpacing: 0,
+  },
+});

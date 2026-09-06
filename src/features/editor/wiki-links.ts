@@ -1,3 +1,4 @@
+import * as stylex from "@stylexjs/stylex";
 import { EditorState, Facet, Prec, StateEffect, StateField } from "@codemirror/state";
 import {
   Decoration,
@@ -10,6 +11,7 @@ import {
   type ViewUpdate,
 } from "@codemirror/view";
 import { noteStem, resolveNoteRef, splitHash, type NoteGraphNode } from "../../domain/note-links";
+import { wikiStyles } from "./editor-styles.stylex";
 
 export type WikiCatalogNote = Pick<NoteGraphNode, "relativePath" | "title">;
 
@@ -79,21 +81,30 @@ class WikiCompleteWidget extends WidgetType {
 
   toDOM(view: EditorView) {
     const root = document.createElement("div");
-    root.className = "wiki-complete";
+    applyStylexAttrs(root, stylex.attrs(wikiStyles.completion));
+    root.dataset.wikiComplete = "";
     root.setAttribute("role", "listbox");
     this.options.forEach((note, index) => {
       const option = document.createElement("button");
       option.type = "button";
       option.tabIndex = -1;
-      option.className = `wiki-complete-option${index === this.active ? " is-active" : ""}`;
+      applyStylexAttrs(
+        option,
+        stylex.attrs(wikiStyles.option, index === this.active && wikiStyles.optionActive),
+      );
+      option.dataset.wikiOption = "";
       option.setAttribute("role", "option");
       option.dataset.wikiPath = note.relativePath;
       option.setAttribute("aria-selected", index === this.active ? "true" : "false");
       const title = document.createElement("span");
-      title.className = "wiki-complete-title";
+      applyStylexAttrs(title, stylex.attrs(wikiStyles.title));
       title.textContent = note.title || noteStem(note.relativePath);
       const path = document.createElement("span");
-      path.className = "wiki-complete-path";
+      applyStylexAttrs(
+        path,
+        stylex.attrs(wikiStyles.path, index === this.active && wikiStyles.pathActive),
+      );
+      path.dataset.wikiCompletePath = "";
       path.textContent = note.relativePath;
       option.append(title, path);
       option.addEventListener("mouseenter", () => {
@@ -103,7 +114,8 @@ class WikiCompleteWidget extends WidgetType {
       option.addEventListener("pointerdown", (event) => {
         event.preventDefault();
         event.stopPropagation();
-        const preferPath = event.target instanceof Element && Boolean(event.target.closest(".wiki-complete-path"));
+        const preferPath =
+          event.target instanceof Element && Boolean(event.target.closest("[data-wiki-complete-path]"));
         insertWikiNote(view, this.from, this.to, note, this.query, preferPath);
       });
       root.append(option);
@@ -113,6 +125,13 @@ class WikiCompleteWidget extends WidgetType {
       event.stopPropagation();
     });
     return root;
+  }
+}
+
+function applyStylexAttrs(element: Element, attrs: ReturnType<typeof stylex.attrs>) {
+  if (attrs.class) element.setAttribute("class", attrs.class);
+  if (attrs["data-style-src"]) {
+    element.setAttribute("data-style-src", attrs["data-style-src"]);
   }
 }
 

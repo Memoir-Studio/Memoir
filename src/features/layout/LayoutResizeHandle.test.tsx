@@ -17,7 +17,7 @@ function dispatchPointer(target: Element, type: string, clientX: number) {
 
 afterEach(() => {
   cleanup();
-  document.body.classList.remove("is-layout-resizing");
+  delete document.documentElement.dataset.layoutResizing;
 });
 
 describe("LayoutResizeHandle", () => {
@@ -36,11 +36,11 @@ describe("LayoutResizeHandle", () => {
     const handle = view.getByRole("separator", { name: "Resize navigation" });
 
     dispatchPointer(handle, "pointerdown", 200);
-    expect(document.body.classList.contains("is-layout-resizing")).toBe(true);
+    expect(document.documentElement.dataset.layoutResizing).toBe("true");
     dispatchPointer(handle, "pointermove", 240);
     expect(onChange).toHaveBeenLastCalledWith(204);
     dispatchPointer(handle, "pointerup", 240);
-    expect(document.body.classList.contains("is-layout-resizing")).toBe(false);
+    expect(document.documentElement.dataset.layoutResizing).toBeUndefined();
 
     fireEvent.keyDown(handle, { key: "ArrowRight" });
     expect(onChange).toHaveBeenLastCalledWith(176);

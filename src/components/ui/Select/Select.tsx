@@ -1,3 +1,4 @@
+import * as stylex from "@stylexjs/stylex";
 import { Check, ChevronDown } from "lucide-react";
 import {
   useEffect,
@@ -9,7 +10,8 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
 import { createPortal } from "react-dom";
-import { cn } from "../cn";
+import { accents, colors, motion } from "../../../styles/tokens.stylex";
+import { selectMenuStyles } from "../select-menu.stylex";
 import { usePresence } from "../usePresence";
 
 const MENU_GAP = 6;
@@ -20,13 +22,13 @@ export function Select<T extends string>({
   value,
   options,
   onChange,
-  className,
+  style,
 }: {
   label: string;
   value: T;
   options: Array<{ value: T; label: string }>;
   onChange: (value: T) => void;
-  className?: string;
+  style?: stylex.StyleXStyles;
 }) {
   const listId = useId();
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -192,24 +194,25 @@ export function Select<T extends string>({
   };
 
   return (
-    <div className={cn("memoir-select", className)}>
+    <div {...stylex.props(styles.root, style)}>
       <button
         ref={triggerRef}
+        {...stylex.props(styles.inputSurface, styles.field)}
         aria-controls={listId}
         aria-expanded={open}
         aria-haspopup="listbox"
         aria-activedescendant={open ? optionId(activeIndex) : undefined}
         aria-label={label}
-        className={cn("memoir-select-field memoir-input", open && "is-open")}
+        data-state={open ? "open" : "closed"}
         onClick={() => setOpen((current) => !current)}
         onKeyDown={onTriggerKeyDown}
         role="combobox"
         type="button"
       >
-        <span className="memoir-select-value">{selected?.label}</span>
+        <span {...stylex.props(styles.value)}>{selected?.label}</span>
         <ChevronDown
+          {...stylex.props(styles.caret, open && styles.caretOpen)}
           aria-hidden
-          className={cn("memoir-select-caret", open && "is-open")}
           strokeWidth={1.8}
         />
       </button>
@@ -218,23 +221,27 @@ export function Select<T extends string>({
         createPortal(
           <div
             ref={listRef}
+            {...stylex.props(
+              selectMenuStyles.menu,
+              visible && selectMenuStyles.visible,
+              selectMenuStyles.position(position.left, position.top, position.width),
+            )}
             aria-hidden={!open}
             aria-label={label}
-            className={cn("memoir-select-menu", visible && "is-open")}
+            data-state={visible ? "open" : "closed"}
             id={listId}
             role="listbox"
-            style={{ left: position.left, top: position.top, minWidth: position.width }}
           >
             {options.map((option, index) => {
               const selectedOption = option.value === value;
               return (
                 <div
-                  aria-selected={selectedOption}
-                  className={cn(
-                    "memoir-select-option",
-                    selectedOption && "is-selected",
-                    index === activeIndex && "is-active",
+                  {...stylex.props(
+                    selectMenuStyles.option,
+                    selectedOption && selectMenuStyles.selected,
+                    index === activeIndex && selectMenuStyles.active,
                   )}
+                  aria-selected={selectedOption}
                   id={optionId(index)}
                   key={option.value}
                   onMouseDown={(event) => event.preventDefault()}
@@ -242,8 +249,14 @@ export function Select<T extends string>({
                   onClick={() => selectIndex(index)}
                   role="option"
                 >
-                  <span className="min-w-0 truncate">{option.label}</span>
-                  {selectedOption && <Check aria-hidden strokeWidth={2.4} />}
+                  <span {...stylex.props(selectMenuStyles.label)}>{option.label}</span>
+                  {selectedOption && (
+                    <Check
+                      {...stylex.props(selectMenuStyles.icon)}
+                      aria-hidden
+                      strokeWidth={2.4}
+                    />
+                  )}
                 </div>
               );
             })}
@@ -253,3 +266,87 @@ export function Select<T extends string>({
     </div>
   );
 }
+
+const focusShadow = `0 0 0 3px color-mix(in srgb, ${accents.primary} 14%, transparent), inset 0 1px rgb(255 255 255 / 36%)`;
+const darkFocusShadow = `0 0 0 3px color-mix(in srgb, ${accents.primary} 20%, transparent), inset 0 1px rgb(255 255 255 / 4%)`;
+
+const styles = stylex.create({
+  root: {
+    position: "relative",
+    display: "inline-flex",
+    minWidth: "168px",
+    maxWidth: "100%",
+  },
+  inputSurface: {
+    borderWidth: "1px",
+    borderStyle: "solid",
+    borderColor: {
+      default: `color-mix(in srgb, ${colors.border} 90%, transparent)`,
+      ":hover": colors.border,
+      ":focus": `color-mix(in srgb, ${accents.primary} 55%, ${colors.border})`,
+      ":focus-visible": `color-mix(in srgb, ${accents.primary} 55%, ${colors.border})`,
+    },
+    borderRadius: "8px",
+    backgroundColor: {
+      default: `color-mix(in srgb, ${colors.elevated} 88%, ${colors.panel})`,
+      ":focus": colors.elevated,
+      ":focus-visible": colors.elevated,
+    },
+    fontWeight: 450,
+    letterSpacing: 0,
+    boxShadow: {
+      default: "inset 0 1px rgb(255 255 255 / 36%)",
+      ":focus": focusShadow,
+      ":focus-visible": focusShadow,
+      ':is([data-theme="dark"] *)': {
+        default: "inset 0 1px rgb(255 255 255 / 4%)",
+        ":focus": darkFocusShadow,
+        ":focus-visible": darkFocusShadow,
+      },
+    },
+    outline: {
+      default: null,
+      ":focus": "none",
+      ":focus-visible": "none",
+    },
+    transitionProperty: "border-color, background-color, box-shadow",
+    transitionDuration: "150ms",
+    transitionTimingFunction: motion.ease,
+  },
+  field: {
+    appearance: "none",
+    display: "flex",
+    width: "100%",
+    height: "33px",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: "8px",
+    padding: "0 9px 0 11px",
+    color: colors.text,
+    fontFamily: "inherit",
+    fontSize: "12px",
+    fontWeight: 550,
+    lineHeight: 1,
+    margin: 0,
+    textAlign: "left",
+    cursor: "pointer",
+  },
+  value: {
+    minWidth: 0,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+  caret: {
+    flexShrink: 0,
+    width: "13px",
+    height: "13px",
+    color: colors.muted,
+    transitionProperty: "transform",
+    transitionDuration: motion.fast,
+    transitionTimingFunction: motion.ease,
+  },
+  caretOpen: {
+    transform: "rotate(180deg)",
+  },
+});

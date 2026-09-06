@@ -1,4 +1,4 @@
-const PREVIEW_SCROLL_SELECTOR = ".preview-pane";
+const PREVIEW_SCROLL_SELECTOR = "[data-preview-pane]";
 
 export function scrollHeadingInPreview(
   id: string,

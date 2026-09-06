@@ -1,6 +1,6 @@
+import * as stylex from "@stylexjs/stylex";
 import { ChevronRight } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { cn } from "../../components/ui";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { HeadingItem } from "../../domain/notes";
 import { useI18n } from "../../i18n/react";
 import {
@@ -12,9 +12,15 @@ import {
   writeCollapsedHeadingIds,
 } from "./outline-tree";
 import { scrollHeadingInPreview } from "./scroll-heading";
+import { useAppStore } from "../../store/app-store";
+import {
+  outlineRowMarker,
+  outlineStyles,
+  sharedLibraryStyles,
+} from "./library-styles.stylex";
 
 function prefersReducedMotion() {
-  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  return typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
 export function NoteOutline({
@@ -25,6 +31,7 @@ export function NoteOutline({
   headings: HeadingItem[];
 }) {
   const { t } = useI18n();
+  const compact = useAppStore((state) => state.settings.appearance.density === "compact");
   const [activeId, setActiveId] = useState<string | null>(headings[0]?.id ?? null);
   const [collapsedIds, setCollapsedIds] = useState(() =>
     pruneCollapsedHeadingIds(documentKey, headings),
@@ -117,19 +124,24 @@ export function NoteOutline({
   return (
     <nav
       aria-label={t("outline.label")}
-      className="outline-list memoir-fade-in flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-auto"
+      {...stylex.props(outlineStyles.list, sharedLibraryStyles.fadeIn)}
     >
-      <div className="outline-items">
+      <div {...stylex.props(outlineStyles.items)}>
         {visibleNodes.map((node) => {
           const current = node.heading.id === highlightId;
           const hasChildren = node.children.length > 0;
           const collapsed = hasChildren && collapsedIds.has(node.heading.id);
           return (
             <div
-              className={cn("outline-item", current && "is-active")}
               data-depth={node.level}
+              data-outline-inset={headingInset(node.level)}
+              data-outline-item=""
               key={node.heading.id}
-              style={{ "--outline-inset": `${headingInset(node.level)}px` } as CSSProperties}
+              {...stylex.props(
+                outlineRowMarker,
+                outlineStyles.item(headingInset(node.level)),
+                compact && outlineStyles.itemCompact,
+              )}
             >
               {hasChildren ? (
                 <button
@@ -139,37 +151,43 @@ export function NoteOutline({
                       ? t("outline.expand", { title: node.heading.text })
                       : t("outline.collapse", { title: node.heading.text })
                   }
-                  className="outline-item-toggle"
+                  data-outline-toggle=""
                   onClick={() => toggleCollapsed(node.heading.id)}
                   onMouseDown={preventFocusScroll}
                   type="button"
+                  {...stylex.props(outlineStyles.toggleSlot, outlineStyles.toggle)}
                 >
                   <ChevronRight
                     aria-hidden
-                    className={cn("outline-item-chevron", !collapsed && "is-open")}
                     strokeWidth={2}
+                    {...stylex.props(outlineStyles.chevron, !collapsed && outlineStyles.chevronOpen)}
                   />
                 </button>
               ) : (
-                <span aria-hidden className="outline-item-toggle-spacer" />
+                <span aria-hidden data-outline-toggle-spacer="" {...stylex.props(outlineStyles.toggleSlot)} />
               )}
               <button
                 aria-current={current ? "location" : undefined}
-                className={cn("outline-item-label", current && "is-active")}
                 data-depth={node.level}
                 onClick={() => activate(node.heading.id)}
                 onMouseDown={preventFocusScroll}
                 title={node.heading.text}
                 type="button"
+                {...stylex.props(
+                  outlineStyles.label,
+                  node.level === 1 && outlineStyles.labelDepthOne,
+                  current && outlineStyles.labelActive,
+                  compact && outlineStyles.labelCompact,
+                )}
               >
-                <span aria-hidden className="outline-item-mark" />
-                <span className="outline-item-text">{node.heading.text}</span>
+                <span aria-hidden {...stylex.props(outlineStyles.mark, current && outlineStyles.markActive)} />
+                <span {...stylex.props(outlineStyles.text)}>{node.heading.text}</span>
               </button>
             </div>
           );
         })}
         {!headings.length && (
-          <p className="outline-empty">{t("outline.empty")}</p>
+          <p {...stylex.props(outlineStyles.empty)}>{t("outline.empty")}</p>
         )}
       </div>
     </nav>

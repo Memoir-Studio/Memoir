@@ -1,6 +1,8 @@
+import * as stylex from "@stylexjs/stylex";
 import { Annotation, Compartment, EditorState, type Extension } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useRef } from "react";
+import { editorStyles } from "./editor-styles.stylex";
 
 export const ExternalChange = Annotation.define<boolean>();
 export const EDITOR_SNAPSHOT_DEBOUNCE_MS = 50;
@@ -16,7 +18,7 @@ export const CodeMirrorHost = forwardRef<
     doc: string;
     extensions: Extension[];
     debounceMs?: number;
-    className?: string;
+    style?: stylex.StyleXStyles;
     onChange: (value: string) => void;
     onCreateEditor?: (view: EditorView) => void;
   }
@@ -25,7 +27,7 @@ export const CodeMirrorHost = forwardRef<
     doc,
     extensions,
     debounceMs = EDITOR_SNAPSHOT_DEBOUNCE_MS,
-    className,
+    style,
     onChange,
     onCreateEditor,
   },
@@ -147,5 +149,5 @@ export const CodeMirrorHost = forwardRef<
     lastEmittedRef.current = doc;
   }, [doc]);
 
-  return <div className={className} ref={parentRef} />;
+  return <div {...stylex.props(editorStyles.codeMirrorHost, style)} ref={parentRef} />;
 });

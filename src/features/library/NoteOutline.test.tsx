@@ -18,7 +18,7 @@ function headingButtons(view: ReturnType<typeof render>) {
 
 function mountPreviewHeading(id: string) {
   const pane = document.createElement("section");
-  pane.className = "preview-pane";
+  pane.dataset.previewPane = "";
   pane.scrollTo = vi.fn() as HTMLElement["scrollTo"];
   const heading = document.createElement("h3");
   heading.id = id;
@@ -50,7 +50,6 @@ describe("NoteOutline", () => {
     expect(items[0]).toHaveAttribute("data-depth", "1");
     expect(items[3]).toHaveAttribute("data-depth", "3");
     expect(items[0]).toHaveAttribute("aria-current", "location");
-    expect(items[0]).toHaveClass("is-active");
     expect(items[3]).not.toHaveAttribute("aria-current");
     expect(view.getByRole("button", { name: "折叠“欢迎使用 Inkstone”" })).toHaveAttribute(
       "aria-expanded",
@@ -135,7 +134,6 @@ describe("NoteOutline", () => {
 
     const parent = view.getByRole("button", { name: /^Markdown 速查$/ });
     expect(parent).toHaveAttribute("aria-current", "location");
-    expect(parent).toHaveClass("is-active");
     expect(view.queryByRole("button", { name: /^链接、图片与笔记关系$/ })).not.toBeInTheDocument();
 
     pane.remove();
@@ -150,7 +148,6 @@ describe("NoteOutline", () => {
     await user.click(target);
 
     expect(target).toHaveAttribute("aria-current", "location");
-    expect(target).toHaveClass("is-active");
     expect(view.getByRole("button", { name: /^欢迎使用 Inkstone$/ })).not.toHaveAttribute(
       "aria-current",
     );
@@ -191,9 +188,9 @@ describe("NoteOutline", () => {
     expect(items[0]).toHaveAttribute("data-depth", "1");
     expect(items[1]).toHaveAttribute("data-depth", "1");
     expect(items[2]).toHaveAttribute("data-depth", "2");
-    const rows = view.container.querySelectorAll(".outline-item");
-    expect(rows[0]).toHaveStyle({ "--outline-inset": "14px" });
-    expect(rows[2]).toHaveStyle({ "--outline-inset": "32px" });
+    const rows = view.container.querySelectorAll("[data-outline-item]");
+    expect(rows[0]).toHaveAttribute("data-outline-inset", "14");
+    expect(rows[2]).toHaveAttribute("data-outline-inset", "32");
   });
 
   it("shows an empty state when the note has no headings", () => {

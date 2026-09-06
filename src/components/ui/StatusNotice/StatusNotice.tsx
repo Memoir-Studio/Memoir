@@ -1,7 +1,73 @@
+import * as stylex from "@stylexjs/stylex";
 import { X } from "lucide-react";
 import type { ReactNode } from "react";
 import { useI18n } from "../../../i18n/react";
-import { cn } from "../cn";
+import { colors, motion, typography } from "../../../styles/tokens.stylex";
+
+const noticeIn = stylex.keyframes({
+  from: {
+    opacity: 0,
+    transform: "translateY(-6px)",
+  },
+  to: {
+    opacity: 1,
+    transform: "none",
+  },
+});
+
+const styles = stylex.create({
+  notice: {
+    alignItems: "flex-start",
+    animationDuration: "180ms",
+    animationName: {
+      default: noticeIn,
+      "@media (prefers-reduced-motion: reduce)": "none",
+    },
+    animationTimingFunction: motion.ease,
+    backgroundColor: colors.elevated,
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderStyle: "solid",
+    borderWidth: 1,
+    boxShadow:
+      "0 10px 15px -3px rgb(0 0 0 / 10%), 0 4px 6px -4px rgb(0 0 0 / 10%)",
+    color: colors.text,
+    display: "flex",
+    fontFamily: typography.uiFont,
+    fontSize: 12,
+    gap: 12,
+    maxWidth: 448,
+    paddingBlock: 8,
+    paddingInline: 12,
+    position: "fixed",
+    right: 16,
+    top: 16,
+    zIndex: 40,
+  },
+  danger: {
+    borderColor: `color-mix(in srgb, ${colors.danger} 40%, transparent)`,
+    color: colors.danger,
+  },
+  content: {
+    lineHeight: "20px",
+  },
+  dismiss: {
+    appearance: "none",
+    alignItems: "center",
+    backgroundColor: "transparent",
+    borderWidth: 0,
+    color: "inherit",
+    cursor: "pointer",
+    display: "inline-flex",
+    justifyContent: "center",
+    margin: 0,
+    padding: 0,
+  },
+  icon: {
+    height: 14,
+    width: 14,
+  },
+});
 
 export function StatusNotice({
   children,
@@ -15,16 +81,18 @@ export function StatusNotice({
   const { t } = useI18n();
   return (
     <div
-      className={cn(
-        "memoir-notice fixed right-4 top-4 z-40 flex max-w-md items-start gap-3 rounded-lg border border-border bg-elevated px-3 py-2 text-xs text-text shadow-lg",
-        danger && "border-danger/40 text-danger",
-      )}
       role={danger ? "alert" : "status"}
+      {...stylex.props(styles.notice, danger && styles.danger)}
     >
-      <span className="leading-5">{children}</span>
+      <span {...stylex.props(styles.content)}>{children}</span>
       {onDismiss && (
-        <button aria-label={t("common.closeNotice")} onClick={onDismiss} type="button">
-          <X className="h-3.5 w-3.5" />
+        <button
+          {...stylex.props(styles.dismiss)}
+          aria-label={t("common.closeNotice")}
+          onClick={onDismiss}
+          type="button"
+        >
+          <X {...stylex.props(styles.icon)} />
         </button>
       )}
     </div>

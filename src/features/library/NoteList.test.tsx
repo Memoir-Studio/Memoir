@@ -184,7 +184,7 @@ describe("NoteList", () => {
     );
 
     expect(view.getByRole("button", { name: "排序" })).toBeInTheDocument();
-    expect(view.container.querySelector(".animate-spin")).not.toBeInTheDocument();
+    expect(view.queryByRole("progressbar")).not.toBeInTheDocument();
   });
 
   it("mounts only the virtual window when the page is long", () => {

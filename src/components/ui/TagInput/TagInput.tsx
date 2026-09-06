@@ -1,3 +1,4 @@
+import * as stylex from "@stylexjs/stylex";
 import { ChevronDown, Plus, X } from "lucide-react";
 import {
   useEffect,
@@ -10,13 +11,18 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { addUniqueTags, normalizeTag, parseTagTokens } from "../../../domain/notes";
-import { cn } from "../cn";
+import {
+  accents,
+  colors,
+  motion,
+} from "../../../styles/tokens.stylex";
 import {
   filterComboboxOptions,
   suggestAutocomplete,
   type ComboboxOption,
 } from "../Combobox";
 import { Tag } from "../Tag";
+import { selectMenuStyles } from "../select-menu.stylex";
 import { usePresence } from "../usePresence";
 
 const MENU_GAP = 6;
@@ -42,7 +48,7 @@ export function TagInput({
   createLabel,
   emptyLabel,
   removeLabel,
-  className,
+  style,
 }: {
   label: string;
   value: string[];
@@ -56,7 +62,7 @@ export function TagInput({
   createLabel?: (query: string) => string;
   emptyLabel?: string;
   removeLabel: (tag: string) => string;
-  className?: string;
+  style?: stylex.StyleXStyles;
 }) {
   const listId = useId();
   const fieldRef = useRef<HTMLDivElement>(null);
@@ -278,9 +284,9 @@ export function TagInput({
   };
 
   return (
-    <div className={cn("memoir-tag-input", className)}>
+    <div {...stylex.props(styles.root, style)}>
       <div
-        className="memoir-tag-input-field"
+        {...stylex.props(styles.field)}
         onClick={() => {
           inputRef.current?.focus();
           setOpen(true);
@@ -288,11 +294,11 @@ export function TagInput({
         ref={fieldRef}
       >
         {value.map((tag) => (
-          <Tag className="memoir-tag-input-chip" key={normalizeTag(tag)}>
+          <Tag key={normalizeTag(tag)} style={styles.chip}>
             {tag}
             <button
+              {...stylex.props(styles.removeButton)}
               aria-label={removeLabel(tag)}
-              className="memoir-tag-input-remove"
               onClick={(event) => {
                 event.preventDefault();
                 event.stopPropagation();
@@ -301,12 +307,13 @@ export function TagInput({
               onMouseDown={(event) => event.preventDefault()}
               type="button"
             >
-              <X aria-hidden strokeWidth={2.2} />
+              <X {...stylex.props(styles.removeIcon)} aria-hidden strokeWidth={2.2} />
             </button>
           </Tag>
         ))}
         <input
           ref={inputRef}
+          {...stylex.props(styles.input)}
           aria-activedescendant={open && items[activeIndex] ? optionId(activeIndex) : undefined}
           aria-autocomplete="list"
           aria-controls={listId}
@@ -335,8 +342,9 @@ export function TagInput({
           value={query}
         />
         <span
+          {...stylex.props(styles.caret, open && styles.caretOpen)}
           aria-hidden
-          className={cn("memoir-tag-input-caret", open && "is-open")}
+          data-state={open ? "open" : "closed"}
           onClick={(event) => {
             event.stopPropagation();
             setOpen((current) => !current);
@@ -352,24 +360,29 @@ export function TagInput({
         createPortal(
           <div
             ref={listRef}
+            {...stylex.props(
+              selectMenuStyles.menu,
+              visible && selectMenuStyles.visible,
+              selectMenuStyles.position(position.left, position.top, position.width),
+            )}
             aria-hidden={!open}
             aria-label={label}
-            className={cn("memoir-select-menu", visible && "is-open")}
+            data-state={visible ? "open" : "closed"}
             id={listId}
             role="listbox"
-            style={{ left: position.left, top: position.top, minWidth: position.width }}
           >
             {items.length === 0 ? (
-              <div className="memoir-select-empty">{emptyLabel}</div>
+              <div {...stylex.props(selectMenuStyles.empty)}>{emptyLabel}</div>
             ) : (
               items.map((item, index) => (
                 <div
-                  aria-selected={index === activeIndex}
-                  className={cn(
-                    "memoir-select-option",
-                    item.create && "is-create",
-                    index === activeIndex && "is-active",
+                  {...stylex.props(
+                    selectMenuStyles.option,
+                    item.create && selectMenuStyles.create,
+                    index === activeIndex && selectMenuStyles.active,
                   )}
+                  aria-selected={index === activeIndex}
+                  data-create={item.create || undefined}
                   id={optionId(index)}
                   key={item.create ? `${item.value}::create` : item.value}
                   onClick={() => commitTags([item.value])}
@@ -380,8 +393,14 @@ export function TagInput({
                   }}
                   role="option"
                 >
-                  <span className="min-w-0 truncate">{item.label}</span>
-                  {item.create && <Plus aria-hidden strokeWidth={2.2} />}
+                  <span {...stylex.props(selectMenuStyles.label)}>{item.label}</span>
+                  {item.create && (
+                    <Plus
+                      {...stylex.props(selectMenuStyles.icon)}
+                      aria-hidden
+                      strokeWidth={2.2}
+                    />
+                  )}
                 </div>
               ))
             )}
@@ -391,3 +410,114 @@ export function TagInput({
     </div>
   );
 }
+
+const styles = stylex.create({
+  root: {
+    position: "relative",
+    display: "block",
+    width: "100%",
+  },
+  field: {
+    position: "relative",
+    display: "flex",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: "5px",
+    minHeight: "32px",
+    padding: "4px 28px 4px 6px",
+    borderWidth: "1px",
+    borderStyle: "solid",
+    borderColor: {
+      default: `color-mix(in srgb, ${colors.border} 90%, transparent)`,
+      ":hover": colors.border,
+      ":focus-within": `color-mix(in srgb, ${accents.primary} 55%, ${colors.border})`,
+    },
+    borderRadius: "8px",
+    backgroundColor: {
+      default: `color-mix(in srgb, ${colors.elevated} 88%, ${colors.panel})`,
+      ":focus-within": colors.elevated,
+    },
+    boxShadow: {
+      default: "inset 0 1px rgb(255 255 255 / 36%)",
+      ":focus-within": `0 0 0 3px color-mix(in srgb, ${accents.primary} 14%, transparent), inset 0 1px rgb(255 255 255 / 36%)`,
+      ':is([data-theme="dark"] *)': {
+        default: "inset 0 1px rgb(255 255 255 / 4%)",
+        ":focus-within": `0 0 0 3px color-mix(in srgb, ${accents.primary} 20%, transparent), inset 0 1px rgb(255 255 255 / 4%)`,
+      },
+    },
+    transitionProperty: "border-color, background-color, box-shadow",
+    transitionDuration: "150ms",
+    transitionTimingFunction: motion.ease,
+  },
+  input: {
+    appearance: "none",
+    flex: "1 1 72px",
+    minWidth: "72px",
+    height: "22px",
+    padding: "0 2px",
+    borderWidth: 0,
+    backgroundColor: "transparent",
+    color: colors.text,
+    fontFamily: "inherit",
+    fontSize: "13px",
+    letterSpacing: 0,
+    margin: 0,
+    outline: "none",
+    "::placeholder": {
+      color: colors.muted,
+    },
+  },
+  chip: {
+    maxWidth: "100%",
+    gap: "1px",
+    paddingRight: "2px",
+  },
+  removeButton: {
+    appearance: "none",
+    display: "grid",
+    width: "16px",
+    height: "16px",
+    flexShrink: 0,
+    placeItems: "center",
+    padding: 0,
+    borderWidth: 0,
+    borderRadius: "4px",
+    backgroundColor: {
+      default: "transparent",
+      ":hover": `color-mix(in srgb, ${accents.soft} 80%, transparent)`,
+      ":focus-visible": `color-mix(in srgb, ${accents.soft} 80%, transparent)`,
+    },
+    color: {
+      default: colors.muted,
+      ":hover": colors.text,
+      ":focus-visible": colors.text,
+    },
+    cursor: "pointer",
+    margin: 0,
+    outline: {
+      default: null,
+      ":focus-visible": "none",
+    },
+  },
+  removeIcon: {
+    width: "11px",
+    height: "11px",
+  },
+  caret: {
+    position: "absolute",
+    top: "8px",
+    right: "8px",
+    display: "grid",
+    width: "16px",
+    height: "16px",
+    placeItems: "center",
+    color: colors.muted,
+    cursor: "pointer",
+    transitionProperty: "transform",
+    transitionDuration: motion.fast,
+    transitionTimingFunction: motion.ease,
+  },
+  caretOpen: {
+    transform: "rotate(180deg)",
+  },
+});

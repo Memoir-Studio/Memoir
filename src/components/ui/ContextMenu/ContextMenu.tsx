@@ -1,6 +1,9 @@
+import * as stylex from "@stylexjs/stylex";
 import { Check } from "lucide-react";
 import {
+  cloneElement,
   createContext,
+  isValidElement,
   useContext,
   useEffect,
   useId,
@@ -8,11 +11,18 @@ import {
   useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
+  type CSSProperties,
+  type ReactElement,
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
 import { useI18n } from "../../../i18n/react";
-import { cn } from "../cn";
+import {
+  accents,
+  colors,
+  motion,
+  typography,
+} from "../../../styles/tokens.stylex";
 import { usePresence } from "../usePresence";
 
 const ContextMenuCloseContext = createContext<(() => void) | null>(null);
@@ -25,6 +35,7 @@ export function ContextMenu({
   label,
   autoFocus = true,
   children,
+  style,
 }: {
   open: boolean;
   x: number;
@@ -33,6 +44,7 @@ export function ContextMenu({
   label?: string;
   autoFocus?: boolean;
   children: ReactNode;
+  style?: stylex.StyleXStyles;
 }) {
   const { t } = useI18n();
   const menuLabel = label ?? t("menu.fallback");
@@ -118,14 +130,19 @@ export function ContextMenu({
     <ContextMenuCloseContext.Provider value={onClose}>
       <div
         ref={menuRef}
+        {...stylex.props(
+          styles.menu,
+          visible && styles.menuVisible,
+          styles.menuPosition(position.left, position.top),
+          style,
+        )}
         aria-labelledby={labelId}
-        className={cn("memoir-context-menu", visible && "is-open")}
+        data-state={visible ? "open" : "closed"}
         onContextMenu={(event) => event.preventDefault()}
         onKeyDown={onMenuKeyDown}
         role="menu"
-        style={{ left: position.left, top: position.top }}
       >
-        <span className="sr-only" id={labelId}>
+        <span {...stylex.props(styles.screenReaderOnly)} id={labelId}>
           {menuLabel}
         </span>
         {children}
@@ -142,6 +159,7 @@ export function ContextMenuItem({
   disabled,
   checked,
   onSelect,
+  style,
 }: {
   icon?: ReactNode;
   label: string;
@@ -149,12 +167,19 @@ export function ContextMenuItem({
   disabled?: boolean;
   checked?: boolean;
   onSelect: () => void;
+  style?: stylex.StyleXStyles;
 }) {
   const onClose = useContext(ContextMenuCloseContext);
   return (
     <button
+      {...stylex.props(
+        styles.item,
+        checked && styles.itemChecked,
+        danger && styles.itemDanger,
+        style,
+      )}
       aria-checked={checked}
-      className={cn("memoir-context-menu-item", danger && "is-danger", checked && "is-checked")}
+      data-danger={danger || undefined}
       disabled={disabled}
       onClick={(event) => {
         event.preventDefault();
@@ -169,16 +194,16 @@ export function ContextMenuItem({
       role={checked === undefined ? "menuitem" : "menuitemradio"}
       type="button"
     >
-      <span className="memoir-context-menu-icon" aria-hidden="true">
-        {checked ? <Check /> : icon}
+      <span {...stylex.props(styles.iconSlot)} aria-hidden="true">
+        {checked ? <Check {...stylex.props(styles.icon)} /> : styleMenuIcon(icon)}
       </span>
-      <span className="min-w-0 truncate">{label}</span>
+      <span {...stylex.props(styles.itemLabel)}>{label}</span>
     </button>
   );
 }
 
-export function ContextMenuSeparator() {
-  return <div className="memoir-context-menu-separator" role="separator" />;
+export function ContextMenuSeparator({ style }: { style?: stylex.StyleXStyles } = {}) {
+  return <div {...stylex.props(styles.separator, style)} role="separator" />;
 }
 
 function menuItems(menu: HTMLElement | null) {
@@ -190,3 +215,132 @@ function menuItems(menu: HTMLElement | null) {
       ]
     : [];
 }
+
+function styleMenuIcon(icon: ReactNode) {
+  if (!isValidElement<{ className?: string; style?: CSSProperties }>(icon)) return icon;
+  const iconProps = stylex.props(styles.icon);
+  return cloneElement(icon as ReactElement<{ className?: string; style?: CSSProperties }>, {
+    ...iconProps,
+    className: [icon.props.className, iconProps.className].filter(Boolean).join(" "),
+    style: { ...icon.props.style, ...iconProps.style },
+  });
+}
+
+const styles = stylex.create({
+  menu: {
+    position: "fixed",
+    zIndex: 60,
+    minWidth: "188px",
+    padding: "5px",
+    borderWidth: "1px",
+    borderStyle: "solid",
+    borderColor: `color-mix(in srgb, ${colors.border} 86%, transparent)`,
+    borderRadius: "10px",
+    backgroundColor: `color-mix(in srgb, ${colors.elevated} 96%, ${colors.panel})`,
+    boxShadow: {
+      default:
+        "0 16px 40px rgb(37 33 27 / 18%), 0 4px 12px rgb(37 33 27 / 8%), inset 0 1px rgb(255 255 255 / 52%)",
+      ':is([data-theme="dark"] *)':
+        "0 28px 72px rgb(0 0 0 / 46%), 0 8px 24px rgb(0 0 0 / 26%), inset 0 1px rgb(255 255 255 / 5%)",
+    },
+    opacity: {
+      default: 0,
+      "@media (prefers-reduced-motion: reduce)": 1,
+    },
+    transform: {
+      default: "translateY(4px) scale(0.98)",
+      "@media (prefers-reduced-motion: reduce)": "none",
+    },
+    transitionProperty: "opacity, transform",
+    transitionDuration: {
+      default: motion.fast,
+      "@media (prefers-reduced-motion: reduce)": "0s",
+    },
+    transitionTimingFunction: motion.ease,
+  },
+  menuVisible: {
+    opacity: 1,
+    transform: "none",
+  },
+  menuPosition: (left: number, top: number) => ({
+    left,
+    top,
+  }),
+  screenReaderOnly: {
+    position: "absolute",
+    width: "1px",
+    height: "1px",
+    padding: 0,
+    margin: "-1px",
+    overflow: "hidden",
+    clip: "rect(0, 0, 0, 0)",
+    whiteSpace: "nowrap",
+    borderWidth: 0,
+  },
+  item: {
+    appearance: "none",
+    display: "grid",
+    gridTemplateColumns: "16px minmax(0, 1fr)",
+    alignItems: "center",
+    gap: "8px",
+    width: "100%",
+    height: "30px",
+    padding: "0 8px",
+    borderWidth: 0,
+    borderRadius: "7px",
+    backgroundColor: {
+      default: "transparent",
+      ":hover": `color-mix(in srgb, ${accents.soft} 82%, ${colors.elevated})`,
+      ":focus-visible": `color-mix(in srgb, ${accents.soft} 82%, ${colors.elevated})`,
+    },
+    color: colors.text,
+    cursor: "pointer",
+    fontFamily: typography.uiFont,
+    fontSize: "12px",
+    fontWeight: 500,
+    letterSpacing: 0,
+    margin: 0,
+    textAlign: "left",
+    outline: {
+      default: null,
+      ":focus-visible": "none",
+    },
+    opacity: {
+      default: 1,
+      ":disabled": 0.45,
+    },
+  },
+  itemChecked: {
+    fontWeight: 600,
+  },
+  itemDanger: {
+    color: colors.danger,
+    backgroundColor: {
+      default: "transparent",
+      ":hover": `color-mix(in srgb, ${colors.danger} 12%, ${colors.elevated})`,
+      ":focus-visible": `color-mix(in srgb, ${colors.danger} 12%, ${colors.elevated})`,
+    },
+  },
+  iconSlot: {
+    display: "grid",
+    width: "16px",
+    height: "16px",
+    placeItems: "center",
+    color: "currentColor",
+  },
+  icon: {
+    width: "14px",
+    height: "14px",
+  },
+  itemLabel: {
+    minWidth: 0,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+  separator: {
+    height: "1px",
+    margin: "4px 6px",
+    backgroundColor: `color-mix(in srgb, ${colors.border} 88%, transparent)`,
+  },
+});

@@ -181,8 +181,8 @@ describe("LibrarySidebar folders", () => {
     expect(view.getByRole("button", { name: "diary 2" })).toBeInTheDocument();
     expect(view.getByText("3")).toBeInTheDocument();
     expect(view.getByRole("button", { name: "最近编辑 2" })).toBeInTheDocument();
-    expect(view.getByText("日记")).toHaveClass("sidebar-nav-label");
-    expect(view.getByText("最近编辑")).toHaveClass("sidebar-nav-label");
+    expect(view.getByText("日记")).toHaveAttribute("data-sidebar-nav-label");
+    expect(view.getByText("最近编辑")).toHaveAttribute("data-sidebar-nav-label");
   });
 
   it("nests child folders beside the workspace root, not inside it", async () => {
@@ -204,15 +204,15 @@ describe("LibrarySidebar folders", () => {
 
     expect(view.getByRole("button", { name: "根目录" })).toBeInTheDocument();
     expect(view.queryByRole("button", { name: "折叠“根目录”" })).not.toBeInTheDocument();
-    const rootRow = view.getByRole("button", { name: "根目录" }).closest(".sidebar-folder-item");
-    expect(rootRow?.querySelector(".sidebar-folder-toggle")).toBeNull();
-    expect(rootRow?.querySelector(".sidebar-folder-toggle-spacer")).toBeNull();
+    const rootRow = view.getByRole("button", { name: "根目录" }).closest("[data-sidebar-folder-item]");
+    expect(rootRow?.querySelector("[data-sidebar-folder-toggle]")).toBeNull();
+    expect(rootRow?.querySelector("[data-sidebar-folder-toggle-spacer]")).toBeNull();
     expect(view.getByRole("button", { name: "lessons" })).toBeInTheDocument();
     expect(view.getByRole("button", { name: "折叠“lessons”" })).toBeInTheDocument();
     expect(view.getByRole("button", { name: "week1" })).toBeInTheDocument();
-    const leafRow = view.getByRole("button", { name: "week1" }).closest(".sidebar-folder-item");
-    expect(leafRow?.querySelector(".sidebar-folder-toggle")).toBeNull();
-    expect(leafRow?.querySelector(".sidebar-folder-toggle-spacer")).toBeInTheDocument();
+    const leafRow = view.getByRole("button", { name: "week1" }).closest("[data-sidebar-folder-item]");
+    expect(leafRow?.querySelector("[data-sidebar-folder-toggle]")).toBeNull();
+    expect(leafRow?.querySelector("[data-sidebar-folder-toggle-spacer]")).toBeInTheDocument();
     expect(view.getAllByText("3")).toHaveLength(2);
 
     await user.click(view.getByRole("button", { name: "折叠“lessons”" }));

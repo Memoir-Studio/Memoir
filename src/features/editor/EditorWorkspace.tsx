@@ -1,3 +1,4 @@
+import * as stylex from "@stylexjs/stylex";
 import {
   Bold,
   BookOpen,
@@ -21,7 +22,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { forwardRef, lazy, Suspense, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { IconButton, cn } from "../../components/ui";
+import { IconButton } from "../../components/ui";
 import { fileDropTargetFromPoint, watchNativeFileDrop } from "../../platform/file-drop";
 import { isTauriRuntime } from "../../platform/runtime";
 import {
@@ -51,6 +52,7 @@ import {
 } from "./scroll-sync";
 import { exportNotePdf } from "../export/export-note-pdf";
 import { useNoteGraph } from "../graph/useNoteGraph";
+import { editorStyles } from "./editor-styles.stylex";
 
 const EditorPane = lazy(() => import("./EditorPane"));
 const PreviewPane = lazy(() => import("../preview/PreviewPane"));
@@ -61,24 +63,20 @@ const PROGRAMMATIC_SCROLL_GUARD_MS = 160;
 const USER_SCROLL_INTENT_MS = 320;
 
 function PaneFallback({ label }: { label: string }) {
-  return (
-    <div className="grid min-h-0 min-w-0 place-items-center bg-canvas text-sm text-muted">
-      {label}
-    </div>
-  );
+  return <div {...stylex.props(editorStyles.fallback)}>{label}</div>;
 }
 
 export const EditorWorkspace = forwardRef<EditorHandle, {
   isDark: boolean;
   onRename: () => void;
   onDelete: () => void;
-  className?: string;
+  style?: stylex.StyleXStyles;
 }>(function EditorWorkspace(
   {
     isDark,
     onRename,
     onDelete,
-    className,
+    style,
   },
   forwardedRef,
 ) {
@@ -430,72 +428,81 @@ export const EditorWorkspace = forwardRef<EditorHandle, {
   ];
 
   return (
-    <section
-      className={cn(
-        "editor-workspace grid h-full min-h-0 min-w-0 grid-rows-[56px_42px_minmax(0,1fr)] bg-canvas",
-        className,
-      )}
-    >
+    <section data-editor-workspace="" {...stylex.props(editorStyles.workspace, style)}>
       <header
-        className="workspace-header flex min-w-0 items-center justify-between border-b border-border px-4"
+        {...stylex.props(editorStyles.header)}
         data-tauri-drag-region={isTauriRuntime() ? "" : undefined}
         onMouseDown={handleWindowDragMouseDown}
       >
-        <div className="min-w-0">
-          <h2 className="truncate text-[14px] font-semibold tracking-[-0.01em] text-text">
+        <div {...stylex.props(editorStyles.minWidth)}>
+          <h2 {...stylex.props(editorStyles.title)}>
             {hasDocument ? parsed.title : t("editor.noNoteTitle")}
           </h2>
-          <p className="mt-0.5 truncate text-[10px] text-muted">
+          <p {...stylex.props(editorStyles.subtitle)}>
             {hasDocument ? activePath : t("editor.noNoteSubtitle")}
           </p>
         </div>
-        <div className="flex items-center gap-1.5">
+        <div {...stylex.props(editorStyles.headerActions)}>
           <span
             aria-label={isSaving ? t("editor.saving") : isDirty ? t("editor.unsaved") : t("editor.saved")}
             aria-live="polite"
-            className="save-state-dot mr-1"
             data-state={isSaving ? "saving" : isDirty ? "dirty" : "saved"}
             role="status"
             title={isSaving ? t("editor.saving") : isDirty ? t("editor.unsaved") : t("editor.saved")}
+            {...stylex.props(
+              editorStyles.saveDot,
+              isSaving ? editorStyles.saveDotSaving : isDirty && editorStyles.saveDotDirty,
+            )}
           />
-          <div className="view-switcher flex items-center rounded-lg p-0.5">
+          <div {...stylex.props(editorStyles.viewSwitcher)}>
             <IconButton
               active={viewMode === "edit"}
               label={t("editor.edit")}
               onClick={() => setViewMode("edit")}
+              style={[
+                editorStyles.viewButton,
+                viewMode === "edit" && editorStyles.viewButtonActive,
+              ]}
             >
-              <BookOpen className="h-3.5 w-3.5" />
+              <BookOpen {...stylex.props(editorStyles.iconSmall)} />
             </IconButton>
             <IconButton
               active={viewMode === "split"}
               label={t("editor.split")}
               onClick={() => setViewMode("split")}
+              style={[
+                editorStyles.viewButton,
+                viewMode === "split" && editorStyles.viewButtonActive,
+              ]}
             >
-              <SplitSquareHorizontal className="h-3.5 w-3.5" />
+              <SplitSquareHorizontal {...stylex.props(editorStyles.iconSmall)} />
             </IconButton>
             <IconButton
               active={viewMode === "preview"}
               label={t("editor.preview")}
               onClick={() => setViewMode("preview")}
+              style={[
+                editorStyles.viewButton,
+                viewMode === "preview" && editorStyles.viewButtonActive,
+              ]}
             >
-              <LayoutPanelLeft className="h-3.5 w-3.5" />
+              <LayoutPanelLeft {...stylex.props(editorStyles.iconSmall)} />
             </IconButton>
           </div>
           <IconButton active={activeNote?.favorite} label={t("editor.favorite")} onClick={() => void toggleFavorite()}>
-            <Star className={cn("h-4 w-4 transition-colors duration-150", activeNote?.favorite && "fill-accent")} />
+            <Star {...stylex.props(editorStyles.favoriteIcon, activeNote?.favorite && editorStyles.favoriteIconActive)} />
           </IconButton>
           <IconButton label={t("editor.save")} onClick={() => void saveActiveNote()}>
-            <Save className="h-4 w-4" />
+            <Save {...stylex.props(editorStyles.icon)} />
           </IconButton>
           <IconButton
             disabled={!hasDocument || isExporting}
             label={isExporting ? t("editor.exportingPdf") : t("editor.exportPdf")}
             onClick={() => void exportActivePdf()}
           >
-            <FileDown className="h-4 w-4" />
+            <FileDown {...stylex.props(editorStyles.icon)} />
           </IconButton>
           <IconButton
-            className="max-[760px]:hidden"
             label={t("editor.openInSystem")}
             onClick={() => {
               if (!workspaceRoot || !activePath) return;
@@ -505,57 +512,49 @@ export const EditorWorkspace = forwardRef<EditorHandle, {
                 });
               });
             }}
+            style={editorStyles.mobileHidden}
           >
-            <ExternalLink className="h-4 w-4" />
+            <ExternalLink {...stylex.props(editorStyles.icon)} />
           </IconButton>
-          <IconButton className="max-[760px]:hidden" label={t("editor.rename")} onClick={() => onRename()}>
-            <Braces className="h-4 w-4" />
+          <IconButton style={editorStyles.mobileHidden} label={t("editor.rename")} onClick={() => onRename()}>
+            <Braces {...stylex.props(editorStyles.icon)} />
           </IconButton>
-          <IconButton className="max-[760px]:hidden" label={t("editor.delete")} onClick={() => onDelete()}>
-            <Trash2 className="h-4 w-4" />
+          <IconButton style={editorStyles.mobileHidden} label={t("editor.delete")} onClick={() => onDelete()}>
+            <Trash2 {...stylex.props(editorStyles.icon)} />
           </IconButton>
         </div>
       </header>
       <div
         aria-label={t("editor.toolbar")}
-        className="markdown-toolbar flex items-center gap-0.5 overflow-x-auto border-b border-border px-3.5"
         role="toolbar"
+        {...stylex.props(editorStyles.toolbar)}
       >
         {toolbar.map(({ label, icon: Icon, action, divider }) => (
-          <div className={cn("flex items-center", divider && "toolbar-divider ml-1 pl-1")} key={label}>
-            <IconButton className="format-button" label={label} onClick={action}>
-              <Icon className="h-3.5 w-3.5" />
+          <div {...stylex.props(editorStyles.toolbarGroup, divider && editorStyles.toolbarDivider)} key={label}>
+            <IconButton style={editorStyles.formatButton} label={label} onClick={action}>
+              <Icon {...stylex.props(editorStyles.iconSmall)} />
             </IconButton>
           </div>
         ))}
       </div>
 
       {!hasDocument ? (
-        <div className="grid place-items-center p-6 text-center">
+        <div {...stylex.props(editorStyles.empty)}>
           <div>
-            <h2 className="text-lg font-bold text-text">{t("editor.emptyTitle")}</h2>
-            <p className="mt-2 text-sm text-muted">{t("editor.emptyBody")}</p>
+            <h2 {...stylex.props(editorStyles.emptyTitle)}>{t("editor.emptyTitle")}</h2>
+            <p {...stylex.props(editorStyles.emptyBody)}>{t("editor.emptyBody")}</p>
           </div>
         </div>
       ) : (
         <div
-          className={cn(
-            "grid min-h-0 min-w-0 overflow-hidden",
-            viewMode === "split" && "editor-workspace-split",
-            viewMode !== "split" && "grid-cols-1",
-          )}
           ref={splitRef}
-          style={
-            viewMode === "split"
-              ? {
-                  ["--editor-split" as string]: `${editorSplit}fr`,
-                  ["--editor-split-rest" as string]: `${1 - editorSplit}fr`,
-                }
-              : undefined
-          }
+          {...stylex.props(
+            editorStyles.content,
+            viewMode === "split" ? editorStyles.splitPane(editorSplit) : editorStyles.singlePane,
+          )}
         >
           {viewMode !== "preview" && (
-            <div className="relative grid h-full min-h-0 min-w-0">
+            <div {...stylex.props(editorStyles.paneContainer)}>
               <Suspense fallback={<PaneFallback label={t("editor.loadingEditor")} />}>
                 <EditorPane
                   content={content}

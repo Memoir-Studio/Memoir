@@ -1,4 +1,38 @@
+import * as stylex from "@stylexjs/stylex";
 import type { ReactNode } from "react";
+import { colors, motion, typography } from "../../../styles/tokens.stylex";
+
+const styles = stylex.create({
+  root: {
+    display: "inline-flex",
+    position: "relative",
+  },
+  content: {
+    backgroundColor: colors.text,
+    borderRadius: 4,
+    color: colors.canvas,
+    fontFamily: typography.uiFont,
+    fontSize: 10,
+    left: "50%",
+    marginTop: 4,
+    opacity: {
+      default: 0,
+      ":is([data-memoir-tooltip]:hover *)": 1,
+      ":is([data-memoir-tooltip]:focus-within *)": 1,
+    },
+    paddingBlock: 4,
+    paddingInline: 8,
+    pointerEvents: "none",
+    position: "absolute",
+    top: "100%",
+    transform: "translateX(-50%)",
+    transitionDuration: "150ms",
+    transitionProperty: "opacity",
+    transitionTimingFunction: motion.ease,
+    whiteSpace: "nowrap",
+    zIndex: 20,
+  },
+});
 
 export function Tooltip({
   label,
@@ -8,9 +42,9 @@ export function Tooltip({
   children: ReactNode;
 }) {
   return (
-    <span className="group relative inline-flex">
+    <span data-memoir-tooltip="" {...stylex.props(styles.root)}>
       {children}
-      <span className="pointer-events-none absolute left-1/2 top-full z-20 mt-1 -translate-x-1/2 whitespace-nowrap rounded bg-text px-2 py-1 text-[10px] text-canvas opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100">
+      <span {...stylex.props(styles.content)}>
         {label}
       </span>
     </span>

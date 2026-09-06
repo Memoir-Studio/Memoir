@@ -1,14 +1,28 @@
+import * as stylex from "@stylexjs/stylex";
 import type { HTMLAttributes } from "react";
-import { cn } from "../cn";
+import { colors, typography } from "../../../styles/tokens.stylex";
 
-export function Tag({ className, ...props }: HTMLAttributes<HTMLSpanElement>) {
-  return (
-    <span
-      className={cn(
-        "inline-flex min-h-5 items-center rounded bg-panel px-1.5 text-[11px] text-muted",
-        className,
-      )}
-      {...props}
-    />
-  );
+const styles = stylex.create({
+  tag: {
+    alignItems: "center",
+    backgroundColor: colors.panel,
+    borderRadius: 4,
+    color: colors.muted,
+    display: "inline-flex",
+    fontFamily: typography.uiFont,
+    fontSize: 11,
+    minHeight: 20,
+    paddingInline: 6,
+  },
+});
+
+export type TagProps = Omit<
+  HTMLAttributes<HTMLSpanElement>,
+  "className" | "style"
+> & {
+  style?: stylex.StyleXStyles;
+};
+
+export function Tag({ style, ...props }: TagProps) {
+  return <span {...props} {...stylex.props(styles.tag, style)} />;
 }

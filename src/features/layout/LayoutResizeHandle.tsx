@@ -1,5 +1,6 @@
+import * as stylex from "@stylexjs/stylex";
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import { cn } from "../../components/ui";
+import { accents, media, motion } from "../../styles/tokens.stylex";
 
 function clamp(value: number, min: number, max: number) {
   if (min > max) return min;
@@ -14,7 +15,6 @@ export function LayoutResizeHandle({
   defaultValue,
   step = 12,
   disabled,
-  className,
   onChange,
 }: {
   label: string;
@@ -24,7 +24,6 @@ export function LayoutResizeHandle({
   defaultValue: number;
   step?: number;
   disabled?: boolean;
-  className?: string;
   onChange: (value: number) => void;
 }) {
   const dragRef = useRef<{
@@ -49,7 +48,7 @@ export function LayoutResizeHandle({
     if (!drag) return;
     dragRef.current = null;
     setDragging(false);
-    document.body.classList.remove("is-layout-resizing");
+    delete document.documentElement.dataset.layoutResizing;
     window.removeEventListener("pointermove", drag.move);
     window.removeEventListener("pointerup", drag.up);
     window.removeEventListener("pointercancel", drag.up);
@@ -60,7 +59,7 @@ export function LayoutResizeHandle({
       const drag = dragRef.current;
       if (!drag) return;
       dragRef.current = null;
-      document.body.classList.remove("is-layout-resizing");
+      delete document.documentElement.dataset.layoutResizing;
       window.removeEventListener("pointermove", drag.move);
       window.removeEventListener("pointerup", drag.up);
       window.removeEventListener("pointercancel", drag.up);
@@ -87,7 +86,7 @@ export function LayoutResizeHandle({
       up,
     };
     setDragging(true);
-    document.body.classList.add("is-layout-resizing");
+    document.documentElement.dataset.layoutResizing = "true";
     try {
       event.currentTarget.setPointerCapture(event.pointerId);
     } catch {
@@ -106,7 +105,6 @@ export function LayoutResizeHandle({
       aria-valuemax={Math.round(high)}
       aria-valuemin={Math.round(low)}
       aria-valuenow={Math.round(clamp(value, low, high))}
-      className={cn("layout-resize-handle", dragging && "is-active", className)}
       data-window-drag="ignore"
       onDoubleClick={() => {
         if (!canResize) return;
@@ -141,6 +139,54 @@ export function LayoutResizeHandle({
       onPointerCancel={() => stopDrag()}
       role="separator"
       tabIndex={canResize ? 0 : -1}
-    />
+      {...stylex.props(styles.handle, dragging && styles.handleActive)}
+    >
+      <span aria-hidden="true" {...stylex.props(styles.indicator)} />
+    </div>
   );
 }
+
+const styles = stylex.create({
+  handle: {
+    position: "absolute",
+    top: 0,
+    right: -4,
+    zIndex: 28,
+    display: {
+      default: "block",
+      [media.mobile]: "none",
+    },
+    width: 8,
+    height: "100%",
+    margin: 0,
+    padding: 0,
+    borderWidth: 0,
+    backgroundColor: "transparent",
+    color: {
+      default: "transparent",
+      ":hover": `color-mix(in srgb, ${accents.primary} 58%, transparent)`,
+      ":focus-visible": `color-mix(in srgb, ${accents.primary} 58%, transparent)`,
+    },
+    cursor: "col-resize",
+    touchAction: "none",
+    outline: "none",
+  },
+  handleActive: {
+    color: `color-mix(in srgb, ${accents.primary} 58%, transparent)`,
+  },
+  indicator: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    left: 3,
+    width: 2,
+    borderRadius: 1,
+    backgroundColor: "currentColor",
+    transitionProperty: "background-color",
+    transitionDuration: {
+      default: "120ms",
+      [media.reducedMotion]: "0s",
+    },
+    transitionTimingFunction: motion.ease,
+  },
+});

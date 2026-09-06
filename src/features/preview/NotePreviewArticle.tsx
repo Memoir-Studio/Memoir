@@ -1,3 +1,4 @@
+import * as stylex from "@stylexjs/stylex";
 import {
   Fragment,
   createElement,
@@ -41,6 +42,7 @@ import { useI18n } from "../../i18n/react";
 import { parseNote } from "../library/note-utils";
 import { rehypeSourceLines } from "./source-line";
 import { rehypeTaskOffsets, toggleTaskAtOffset } from "./task-list";
+import { accents, colors, typography } from "../../styles/tokens.stylex";
 
 const MDX_IMPORT_EXPORT_DISABLED = "MDX_IMPORT_EXPORT_DISABLED";
 export const MARKDOWN_PREVIEW_DELAY_MS = 200;
@@ -66,11 +68,12 @@ function Callout({
 }) {
   return (
     <aside
-      className="my-5 rounded-lg border border-border border-l-[3px] border-l-accent bg-panel/70 px-4 py-3"
       data-callout={type}
+      data-preview-callout=""
+      {...stylex.props(styles.callout)}
     >
-      {title && <strong className="mb-1 block text-sm">{title}</strong>}
-      <div className="text-sm leading-7 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">{children}</div>
+      {title && <strong {...stylex.props(styles.calloutTitle)}>{title}</strong>}
+      <div data-preview-trim-children="" {...stylex.props(styles.calloutBody)}>{children}</div>
     </aside>
   );
 }
@@ -81,20 +84,20 @@ function Badge({ children }: { children: ReactNode }) {
 
 function Card({ title, children }: { title?: string; children: ReactNode }) {
   return (
-    <section className="rounded-lg border border-border bg-panel p-4">
-      {title && <h3 className="mb-2 text-sm font-bold">{title}</h3>}
-      <div className="text-sm text-muted [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">{children}</div>
+    <section {...stylex.props(styles.mdxCard)}>
+      {title && <h3 {...stylex.props(styles.cardTitle)}>{title}</h3>}
+      <div data-preview-trim-children="" {...stylex.props(styles.cardBody)}>{children}</div>
     </section>
   );
 }
 
 function Columns({ children }: { children: ReactNode }) {
-  return <div className="my-4 grid gap-3 sm:grid-cols-2">{children}</div>;
+  return <div {...stylex.props(styles.columns)}>{children}</div>;
 }
 
 function Steps({ children }: { children: ReactNode }) {
   return (
-    <div className="my-4 grid gap-3 [counter-reset:step] [&>*]:relative [&>*]:pl-9 [&>*]:[counter-increment:step] [&>*]:before:absolute [&>*]:before:left-0 [&>*]:before:top-0.5 [&>*]:before:grid [&>*]:before:h-6 [&>*]:before:w-6 [&>*]:before:place-items-center [&>*]:before:rounded-full [&>*]:before:bg-accent [&>*]:before:text-xs [&>*]:before:font-extrabold [&>*]:before:text-accent-contrast [&>*]:before:content-[counter(step)]">
+    <div data-preview-steps="" {...stylex.props(styles.steps)}>
       {children}
     </div>
   );
@@ -129,7 +132,7 @@ function previewComponents(
       const url = readLinkCardProp({ ...props, node: _node }, "url");
       if (url) {
         return (
-          <div {...props} className={className}>
+          <div {...props} data-link-card-host="" {...stylex.props(styles.linkCardHost)}>
             <LinkCard
               label={readLinkCardProp({ ...props, node: _node }, "label")}
               onOpen={(href) => void gateway.openExternal(href)}
@@ -157,7 +160,8 @@ function previewComponents(
       return (
         <a
           {...props}
-          className={[className, missingWiki && "is-missing"].filter(Boolean).join(" ")}
+          className={className}
+          data-wiki-link-missing={missingWiki ? "" : undefined}
           href={href}
           title={missingWiki ? labels.missingWikiLink(targetRef) : props.title}
           onClick={(event) => {
@@ -214,7 +218,13 @@ function previewComponents(
     code: ({ className, children, ...props }: ComponentPropsWithoutRef<"code">) => {
       if (/language-mermaid/.test(className || "")) {
         return (
-          <Suspense fallback={<p className="text-sm text-muted" data-mermaid-pending="">{labels.loadingMermaid}</p>}>
+          <Suspense
+            fallback={
+              <p data-mermaid-pending="" {...stylex.props(styles.pending)}>
+                {labels.loadingMermaid}
+              </p>
+            }
+          >
             <MermaidBlock code={String(children).trim()} />
           </Suspense>
         );
@@ -258,7 +268,8 @@ export function NotePreviewArticle({
   note,
   content,
   articleRef,
-  className = "memoir-preview prose prose-neutral dark:prose-invert",
+  style,
+  exportMode = false,
   compileDelay = 350,
   onContentChange,
 }: {
@@ -267,7 +278,8 @@ export function NotePreviewArticle({
   note: NoteMeta | null;
   content: string;
   articleRef?: Ref<HTMLElement | null>;
-  className?: string;
+  style?: stylex.StyleXStyles;
+  exportMode?: boolean;
   compileDelay?: number;
   onContentChange?: (content: string) => void;
 }) {
@@ -275,6 +287,7 @@ export function NotePreviewArticle({
   const untitled = t("editor.untitledFallback");
   const { graph } = useNoteGraph();
   const selectNote = useAppStore((state) => state.selectNote);
+  const viewMode = useAppStore((state) => state.viewMode);
   const parsed = useMemo(
     () => parseNote(content, note?.fileName || untitled),
     [content, note?.fileName, untitled],
@@ -371,11 +384,18 @@ export function NotePreviewArticle({
   return (
     <article
       ref={articleRef}
-      className={className}
       data-mdx-pending={mdxPending ? "" : undefined}
+      data-pdf-preview={exportMode ? "" : undefined}
+      data-preview-root=""
+      {...stylex.props(
+        styles.article,
+        viewMode === "split" && styles.splitArticle,
+        exportMode && styles.exportArticle,
+        style,
+      )}
     >
       {error ? (
-        <pre className="whitespace-pre-wrap border-danger/30 bg-danger/5 text-danger">{error}</pre>
+        <pre {...stylex.props(styles.error)}>{error}</pre>
       ) : shouldCompileMdx && mdxComponent ? (
         <MDXProvider components={components}>
           {createElement(mdxComponent, { components })}
@@ -392,3 +412,112 @@ export function NotePreviewArticle({
     </article>
   );
 }
+
+const styles = stylex.create({
+  article: {
+    width: "100%",
+    maxWidth: {
+      default: 760,
+      [stylex.when.ancestor('[data-content-width="narrow"]')]: 590,
+      [stylex.when.ancestor('[data-content-width="wide"]')]: 860,
+      [stylex.when.ancestor('[data-content-width="full"]')]: "none",
+    },
+    marginInline: "auto",
+    paddingTop: 12,
+    paddingRight: 16,
+    paddingBottom: 72,
+    paddingLeft: 16,
+    color: colors.text,
+    fontFamily: {
+      default: typography.uiFont,
+      [stylex.when.ancestor('[data-body-font="serif"]')]: typography.serifFont,
+    },
+    fontSize: typography.bodySize,
+    lineHeight: typography.lineHeight,
+    letterSpacing: 0,
+    overflowWrap: "break-word",
+    userSelect: "text",
+    WebkitUserSelect: "text",
+  },
+  splitArticle: {
+    maxWidth: "none",
+  },
+  exportArticle: {
+    maxWidth: "none",
+    margin: 0,
+    paddingTop: 48,
+    paddingRight: 56,
+    paddingBottom: 64,
+    paddingLeft: 56,
+    color: "#222222",
+    backgroundColor: "#ffffff",
+  },
+  callout: {
+    marginBlock: 20,
+    paddingBlock: 12,
+    paddingInline: 16,
+    borderWidth: 1,
+    borderStyle: "solid",
+    borderColor: colors.border,
+    borderLeftWidth: 3,
+    borderLeftColor: accents.primary,
+    borderRadius: 8,
+    backgroundColor: `color-mix(in srgb, ${colors.panel} 70%, transparent)`,
+  },
+  calloutTitle: {
+    display: "block",
+    marginBottom: 4,
+    fontSize: 14,
+  },
+  calloutBody: {
+    fontSize: 14,
+    lineHeight: "28px",
+  },
+  mdxCard: {
+    padding: 16,
+    borderWidth: 1,
+    borderStyle: "solid",
+    borderColor: colors.border,
+    borderRadius: 8,
+    backgroundColor: colors.panel,
+  },
+  cardTitle: {
+    marginTop: 0,
+    marginBottom: 8,
+    fontSize: 14,
+    fontWeight: 700,
+  },
+  cardBody: {
+    color: colors.muted,
+    fontSize: 14,
+  },
+  columns: {
+    display: "grid",
+    gridTemplateColumns: {
+      default: "1fr",
+      "@media (min-width: 640px)": "repeat(2, minmax(0, 1fr))",
+    },
+    gap: 12,
+    marginBlock: 16,
+  },
+  steps: {
+    display: "grid",
+    gap: 12,
+    marginBlock: 16,
+    counterReset: "step",
+  },
+  linkCardHost: {
+    maxWidth: "100%",
+    marginBlock: "1.15em",
+  },
+  pending: {
+    color: colors.muted,
+    fontSize: 14,
+  },
+  error: {
+    whiteSpace: "pre-wrap",
+    color: colors.danger,
+    borderColor: `color-mix(in srgb, ${colors.danger} 30%, transparent)`,
+    backgroundColor: `color-mix(in srgb, ${colors.danger} 5%, transparent)`,
+  },
+});

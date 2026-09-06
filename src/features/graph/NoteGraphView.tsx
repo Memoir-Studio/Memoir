@@ -1,3 +1,4 @@
+import * as stylex from "@stylexjs/stylex";
 import { ArrowUpRight, GitBranch, Maximize2, Network, RotateCcw } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { IconButton, Toggle } from "../../components/ui";
@@ -6,7 +7,8 @@ import { useAppStore } from "../../store/app-store";
 import { useI18n } from "../../i18n/react";
 import { degreesFromEdges } from "./force-layout";
 import { NoteGraphScene } from "./graph-scene";
-import { themeFromCss } from "./graph-theme";
+import { graphCardMarker, graphStyles } from "./graph-styles.stylex";
+import { themeFromAppearance } from "./graph-theme";
 import { useNoteGraph } from "./useNoteGraph";
 
 export default function NoteGraphView() {
@@ -76,11 +78,12 @@ export default function NoteGraphView() {
   const selected = activePath
     ? graph.nodes.find((node) => node.relativePath === activePath)
     : undefined;
+  const graphTheme = themeFromAppearance(appearance);
 
   useEffect(() => {
     const host = stageRef.current;
     if (!host) return;
-    const scene = new NoteGraphScene(host, themeFromCss(), {
+    const scene = new NoteGraphScene(host, graphTheme, {
       onSelect: (id) => void selectNoteRef.current(id),
       onOpen: (id) => openNoteRef.current(id),
     });
@@ -92,8 +95,8 @@ export default function NoteGraphView() {
   }, []);
 
   useEffect(() => {
-    sceneRef.current?.setTheme(themeFromCss());
-  }, [appearance]);
+    sceneRef.current?.setTheme(graphTheme);
+  }, [graphTheme]);
 
   useEffect(() => {
     sceneRef.current?.setGraph(
@@ -111,84 +114,92 @@ export default function NoteGraphView() {
   }, [activePath]);
 
   return (
-    <section aria-label={t("graph.label")} className="note-graph-view flex h-full min-h-0 min-w-0 flex-col bg-canvas">
-      <header className="flex min-h-12 shrink-0 items-center justify-between gap-2 border-b border-border px-4 py-1.5">
-        <div className="min-w-0">
-          <h2 className="truncate text-[13px] font-semibold tracking-[-0.02em] text-text">
+    <section aria-label={t("graph.label")} {...stylex.props(graphStyles.view)}>
+      <header {...stylex.props(graphStyles.header)}>
+        <div {...stylex.props(graphStyles.minWidth)}>
+          <h2 {...stylex.props(graphStyles.heading)}>
             {t("graph.label")}
           </h2>
-          <p className="truncate text-[11px] text-muted">{t("graph.hint")}</p>
+          <p {...stylex.props(graphStyles.subtitle)}>{t("graph.hint")}</p>
         </div>
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          <div className="view-switcher graph-mode-switcher flex items-center rounded-lg p-0.5" role="group">
+        <div {...stylex.props(graphStyles.headerActions)}>
+          <div {...stylex.props(graphStyles.modeSwitcher)} role="group">
             <IconButton
               active={!localOnly}
               label={t("graph.all")}
               onClick={() => setLocalOnly(false)}
+              style={[
+                graphStyles.modeButton,
+                !localOnly && graphStyles.modeButtonActive,
+              ]}
             >
-              <Network className="h-3.5 w-3.5" strokeWidth={1.8} />
+              <Network {...stylex.props(graphStyles.smallIcon)} strokeWidth={1.8} />
               <span>{t("graph.all")}</span>
             </IconButton>
             <IconButton
               active={localOnly}
               label={t("graph.local")}
               onClick={() => setLocalOnly(true)}
+              style={[
+                graphStyles.modeButton,
+                localOnly && graphStyles.modeButtonActive,
+              ]}
             >
-              <GitBranch className="h-3.5 w-3.5" strokeWidth={1.8} />
+              <GitBranch {...stylex.props(graphStyles.smallIcon)} strokeWidth={1.8} />
               <span>{t("graph.local")}</span>
             </IconButton>
           </div>
-          <label className="flex items-center gap-2 text-[11px] text-muted">
+          <label {...stylex.props(graphStyles.orphanLabel)}>
             {t("graph.showOrphans")}
             <Toggle checked={showOrphans} label={t("graph.showOrphans")} onChange={setShowOrphans} />
           </label>
           <IconButton label={t("graph.fit")} onClick={() => sceneRef.current?.fit(true)}>
-            <Maximize2 className="h-4 w-4" />
+            <Maximize2 {...stylex.props(graphStyles.icon)} />
           </IconButton>
           <IconButton label={t("graph.reset")} onClick={() => sceneRef.current?.reset()}>
-            <RotateCcw className="h-4 w-4" />
+            <RotateCcw {...stylex.props(graphStyles.icon)} />
           </IconButton>
         </div>
       </header>
-      <div className="note-graph-stage relative min-h-0 flex-1 overflow-hidden" ref={stageRef}>
+      <div {...stylex.props(graphStyles.stage)} ref={stageRef}>
         {!graph.nodes.length && (
-          <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center text-sm text-muted">
+          <div {...stylex.props(graphStyles.emptyOverlay)}>
             {t("graph.empty")}
           </div>
         )}
-        <ul className="note-graph-legend">
-          <li>
-            <span className="note-graph-swatch is-selected" />
+        <ul {...stylex.props(graphStyles.legend)}>
+          <li {...stylex.props(graphStyles.legendItem)}>
+            <span {...stylex.props(graphStyles.swatch, graphStyles.swatchSelected)} />
             {t("graph.legendSelected")}
           </li>
-          <li>
-            <span className="note-graph-swatch is-linked" />
+          <li {...stylex.props(graphStyles.legendItem)}>
+            <span {...stylex.props(graphStyles.swatch, graphStyles.swatchLinked)} />
             {t("graph.legendLinked")}
           </li>
-          <li>
-            <span className="note-graph-swatch is-edge" />
+          <li {...stylex.props(graphStyles.legendItem)}>
+            <span {...stylex.props(graphStyles.swatch, graphStyles.swatchEdge)} />
             {t("graph.legendEdge")}
           </li>
         </ul>
         {selected && (
           <button
             aria-label={t("graph.openNote")}
-            className="note-graph-card"
             onClick={() => openNoteRef.current(selected.relativePath)}
             onPointerDown={(event) => event.stopPropagation()}
             type="button"
+            {...stylex.props(graphCardMarker, graphStyles.card)}
           >
-            <Network className="mt-0.5 h-4 w-4 shrink-0 text-accent" strokeWidth={1.8} />
-            <span className="min-w-0 flex-1 text-left">
-              <span className="block truncate text-[13px] font-semibold text-text">
+            <Network {...stylex.props(graphStyles.cardIcon)} strokeWidth={1.8} />
+            <span {...stylex.props(graphStyles.cardText)}>
+              <span {...stylex.props(graphStyles.cardTitle)}>
                 {selected.title || noteStem(selected.relativePath)}
               </span>
-              <span className="mt-0.5 block truncate text-[11px] text-muted">{selected.relativePath}</span>
-              <span className="mt-1 block text-[11px] text-muted">
+              <span {...stylex.props(graphStyles.cardPath)}>{selected.relativePath}</span>
+              <span {...stylex.props(graphStyles.cardMeta)}>
                 {tc("graph.connected", degrees.get(selected.relativePath) ?? 0)}
               </span>
             </span>
-            <ArrowUpRight className="note-graph-card-go mt-0.5 h-3.5 w-3.5 shrink-0" strokeWidth={1.8} />
+            <ArrowUpRight {...stylex.props(graphStyles.cardGo)} strokeWidth={1.8} />
           </button>
         )}
       </div>

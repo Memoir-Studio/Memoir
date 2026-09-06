@@ -118,6 +118,7 @@ bun run tauri dev    # 桌面壳
 提交 PR 前请跑完验证：
 
 ```bash
+bun run style:check
 bun run test
 bun run build
 cargo test --manifest-path src-tauri/Cargo.toml

@@ -1,6 +1,8 @@
+import * as stylex from "@stylexjs/stylex";
 import type { MouseEvent, ReactNode } from "react";
 import { useI18n } from "../../i18n/react";
 import { isTauriRuntime } from "../../platform/runtime";
+import { layout, media } from "../../styles/tokens.stylex";
 import {
   performWindowAction,
   startWindowResize,
@@ -8,22 +10,16 @@ import {
 } from "../../platform/window";
 import { handleWindowDragMouseDown } from "./window-drag";
 
-const resizeHandles: Array<{ direction: WindowResizeDirection; className: string }> = [
-  { direction: "North", className: "left-3 right-3 top-0 h-1.5 cursor-ns-resize" },
-  { direction: "South", className: "bottom-0 left-3 right-3 h-1.5 cursor-ns-resize" },
-  { direction: "West", className: "bottom-3 left-0 top-3 w-1.5 cursor-ew-resize" },
-  { direction: "East", className: "bottom-3 right-0 top-3 w-1.5 cursor-ew-resize" },
-  { direction: "NorthWest", className: "left-0 top-0 h-3.5 w-3.5 cursor-nwse-resize" },
-  { direction: "NorthEast", className: "right-0 top-0 h-3.5 w-3.5 cursor-nesw-resize" },
-  { direction: "SouthWest", className: "bottom-0 left-0 h-3.5 w-3.5 cursor-nesw-resize" },
-  { direction: "SouthEast", className: "bottom-0 right-0 h-3.5 w-3.5 cursor-nwse-resize" },
+const resizeHandles: WindowResizeDirection[] = [
+  "North",
+  "South",
+  "West",
+  "East",
+  "NorthWest",
+  "NorthEast",
+  "SouthWest",
+  "SouthEast",
 ];
-
-const windowControls = {
-  close: "bg-[#ff5f57]",
-  minimize: "bg-[#ffbd2e]",
-  maximize: "bg-[#28c840]",
-} as const;
 
 export function WindowChrome({ controlsHidden = false }: { controlsHidden?: boolean }) {
   const { t } = useI18n();
@@ -38,31 +34,31 @@ export function WindowChrome({ controlsHidden = false }: { controlsHidden?: bool
   return (
     <>
       {!controlsHidden && (
-        <div className="memoir-window-controls max-[760px]:hidden">
+        <div {...stylex.props(styles.controls)}>
           {(["close", "minimize", "maximize"] as const).map((type) => (
             <button
               aria-label={controlLabels[type]}
-              className={`h-[13px] w-[13px] rounded-full border border-text/10 ${windowControls[type]}`}
               key={type}
               onClick={() => void performWindowAction(type)}
               type="button"
+              {...stylex.props(styles.control, styles[type])}
             />
           ))}
         </div>
       )}
       <div
         aria-hidden="true"
-        className="memoir-window-resize pointer-events-none absolute inset-0 z-[80]"
+        {...stylex.props(styles.resizeLayer)}
       >
-        {resizeHandles.map(({ direction, className }) => (
+        {resizeHandles.map((direction) => (
           <div
-            className={`pointer-events-auto absolute ${className}`}
             data-window-drag="ignore"
             key={direction}
             onMouseDown={(event) => {
               event.stopPropagation();
               void startWindowResize(direction);
             }}
+            {...stylex.props(styles.resizeHandle, styles[direction])}
           />
         ))}
       </div>
@@ -84,17 +80,97 @@ export function WindowFrame({
     : undefined;
 
   return (
-    <div className="memoir-window-frame" onMouseDown={onSurfaceMouseDown}>
+    <div onMouseDown={onSurfaceMouseDown} {...stylex.props(styles.frame)}>
       <WindowChrome controlsHidden={controlsHidden} />
       {surfaceDrag && isTauriRuntime() && (
         <div
           aria-hidden="true"
-          className="memoir-window-drag-bar"
+          data-window-drag-bar=""
           data-tauri-drag-region=""
           onMouseDown={handleWindowDragMouseDown}
+          {...stylex.props(styles.dragBar)}
         />
       )}
       {children}
     </div>
   );
 }
+
+const styles = stylex.create({
+  frame: {
+    position: "relative",
+    boxSizing: "border-box",
+    width: "100%",
+    height: {
+      default: "100%",
+      [media.mobile]: "auto",
+    },
+    minHeight: {
+      default: null,
+      [media.mobile]: "100%",
+    },
+    padding: {
+      default: layout.windowInset,
+      [stylex.when.ancestor('[data-maximized="true"]')]: 0,
+      [stylex.when.ancestor('[data-window-frame="flush"]')]: 0,
+      [stylex.when.ancestor('[data-window-frame="native"]')]: 0,
+      [media.mobile]: 0,
+    },
+    backgroundColor: "transparent",
+  },
+  controls: {
+    position: "absolute",
+    left: `calc(${layout.windowInset} + 12px)`,
+    top: `calc(${layout.windowInset} + 16px)`,
+    zIndex: 30,
+    display: {
+      default: "flex",
+      [media.mobile]: "none",
+    },
+    gap: 8,
+  },
+  control: {
+    width: 13,
+    height: 13,
+    borderWidth: 1,
+    borderStyle: "solid",
+    borderColor: "color-mix(in srgb, var(--memoir-text) 10%, transparent)",
+    borderRadius: 999,
+  },
+  close: { backgroundColor: "#ff5f57" },
+  minimize: { backgroundColor: "#ffbd2e" },
+  maximize: { backgroundColor: "#28c840" },
+  dragBar: {
+    position: "absolute",
+    insetInline: layout.windowInset,
+    top: layout.windowInset,
+    zIndex: 25,
+    display: {
+      default: "block",
+      [media.mobile]: "none",
+    },
+    height: 44,
+  },
+  resizeLayer: {
+    pointerEvents: "none",
+    position: "absolute",
+    inset: 0,
+    zIndex: 80,
+    display: {
+      default: "block",
+      [stylex.when.ancestor('[data-maximized="true"]')]: "none",
+    },
+  },
+  resizeHandle: {
+    pointerEvents: "auto",
+    position: "absolute",
+  },
+  North: { left: 12, right: 12, top: 0, height: 6, cursor: "ns-resize" },
+  South: { bottom: 0, left: 12, right: 12, height: 6, cursor: "ns-resize" },
+  West: { bottom: 12, left: 0, top: 12, width: 6, cursor: "ew-resize" },
+  East: { bottom: 12, right: 0, top: 12, width: 6, cursor: "ew-resize" },
+  NorthWest: { left: 0, top: 0, width: 14, height: 14, cursor: "nwse-resize" },
+  NorthEast: { right: 0, top: 0, width: 14, height: 14, cursor: "nesw-resize" },
+  SouthWest: { bottom: 0, left: 0, width: 14, height: 14, cursor: "nesw-resize" },
+  SouthEast: { bottom: 0, right: 0, width: 14, height: 14, cursor: "nwse-resize" },
+});

@@ -1,6 +1,5 @@
 export { AlertDialog } from "./AlertDialog";
 export { Button, type ButtonProps } from "./Button";
-export { cn } from "./cn";
 export { ContextMenu, ContextMenuItem, ContextMenuSeparator } from "./ContextMenu";
 export { Dialog } from "./Dialog";
 export { IconButton } from "./IconButton";

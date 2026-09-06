@@ -60,8 +60,11 @@ export async function exportNotePdf(relativePath: string) {
 
     useAppStore.setState({ error: "", status: currentT("editor.exportingPdf") });
     const bytes = await renderNotePdf({
+      accent: settings.appearance.accent,
       bodyFont: settings.appearance.bodyFont,
+      bodyFontSize: settings.appearance.bodyFontSize,
       content: resolved.content,
+      lineHeight: settings.appearance.lineHeight,
       locale: resolveLocale(settings.appearance.locale),
       note: resolved.note,
       relativePath,

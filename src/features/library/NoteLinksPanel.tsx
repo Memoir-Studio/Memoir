@@ -1,10 +1,11 @@
+import * as stylex from "@stylexjs/stylex";
 import { ArrowLeftRight, ArrowUpRight, FileQuestion, Link2 } from "lucide-react";
 import { useMemo, type ReactNode } from "react";
-import { cn } from "../../components/ui";
 import { noteRefsFromGraph, noteStem, type NoteLinkItem } from "../../domain/note-links";
 import { useNoteGraph } from "../graph/useNoteGraph";
 import { useAppStore } from "../../store/app-store";
 import { useI18n } from "../../i18n/react";
+import { linkStyles, sharedLibraryStyles } from "./library-styles.stylex";
 
 export function NoteLinksPanel() {
   const activePath = useAppStore((state) => state.activePath);
@@ -19,17 +20,17 @@ export function NoteLinksPanel() {
 
   if (!activePath) {
     return (
-      <div className="grid flex-1 place-items-center px-6 text-center text-xs text-muted">
+      <div {...stylex.props(linkStyles.emptyPanel)}>
         {t("links.emptyNote")}
       </div>
     );
   }
 
   return (
-    <div className="note-links-panel memoir-fade-in flex min-h-0 flex-1 flex-col overflow-auto px-3 pb-4 pt-2.5">
+    <div {...stylex.props(linkStyles.panel, sharedLibraryStyles.fadeIn)}>
       <LinkSection
         empty={t("links.emptyOutgoing")}
-        icon={<ArrowUpRight className="h-3.5 w-3.5" />}
+        icon={<ArrowUpRight {...stylex.props(sharedLibraryStyles.iconSmall)} />}
         items={outgoing}
         onOpen={(item) => item.targetPath && void selectNote(item.targetPath)}
         title={`${t("links.outgoing")} · ${tc("links.count", outgoing.length)}`}
@@ -38,7 +39,7 @@ export function NoteLinksPanel() {
       />
       <LinkSection
         empty={t("links.emptyIncoming")}
-        icon={<ArrowLeftRight className="h-3.5 w-3.5" />}
+        icon={<ArrowLeftRight {...stylex.props(sharedLibraryStyles.iconSmall)} />}
         items={refs.incoming}
         onOpen={(item) => void selectNote(item.sourcePath)}
         title={`${t("links.incoming")} · ${tc("links.count", refs.incoming.length)}`}
@@ -47,7 +48,7 @@ export function NoteLinksPanel() {
       />
       <LinkSection
         empty={t("links.emptyUnresolved")}
-        icon={<FileQuestion className="h-3.5 w-3.5" />}
+        icon={<FileQuestion {...stylex.props(sharedLibraryStyles.iconSmall)} />}
         items={refs.unresolved}
         title={`${t("links.unresolved")} · ${tc("links.count", refs.unresolved.length)}`}
         titleFor={(item) => item.displayText || item.targetRef}
@@ -75,13 +76,13 @@ function LinkSection({
   subtitleFor: (item: NoteLinkItem) => string;
 }) {
   return (
-    <section className="mb-4">
-      <h3 className="mb-1.5 flex items-center gap-1.5 px-1 text-[11px] font-medium text-muted">
+    <section {...stylex.props(linkStyles.section)}>
+      <h3 {...stylex.props(linkStyles.heading)}>
         {icon}
         {title}
       </h3>
       {items.length ? (
-        <ul className="grid gap-1">
+        <ul {...stylex.props(linkStyles.list)}>
           {items.map((item) => (
             <li key={`${item.sourcePath}:${item.targetRef}:${item.kind}:${item.heading}`}>
               <LinkRow
@@ -93,7 +94,7 @@ function LinkSection({
           ))}
         </ul>
       ) : (
-        <p className="px-1 text-[11px] leading-5 text-muted">{empty}</p>
+        <p {...stylex.props(linkStyles.empty)}>{empty}</p>
       )}
     </section>
   );
@@ -108,22 +109,18 @@ function LinkRow({
   subtitle: string;
   onOpen?: () => void;
 }) {
-  const className = cn(
-    "note-link-row grid w-full grid-cols-[16px_minmax(0,1fr)] items-start gap-2 rounded-lg px-2 py-1.5 text-left",
-    onOpen && "is-openable",
-  );
   const inner = (
     <>
-      <Link2 className="mt-0.5 h-3.5 w-3.5 text-muted" strokeWidth={1.8} />
-      <span className="min-w-0">
-        <span className="block truncate text-[12px] font-medium text-text">{title}</span>
-        <span className="block truncate text-[10px] text-muted">{subtitle}</span>
+      <Link2 {...stylex.props(linkStyles.rowIcon)} strokeWidth={1.8} />
+      <span {...stylex.props(sharedLibraryStyles.minWidth)}>
+        <span {...stylex.props(linkStyles.rowTitle)}>{title}</span>
+        <span {...stylex.props(linkStyles.rowSubtitle)}>{subtitle}</span>
       </span>
     </>
   );
-  if (!onOpen) return <div className={className}>{inner}</div>;
+  if (!onOpen) return <div {...stylex.props(linkStyles.row)}>{inner}</div>;
   return (
-    <button className={className} onClick={onOpen} type="button">
+    <button onClick={onOpen} type="button" {...stylex.props(linkStyles.row, linkStyles.openable)}>
       {inner}
     </button>
   );

@@ -10,18 +10,16 @@ function ToggleHarness() {
 }
 
 describe("Toggle", () => {
-  it("keeps the thumb inside the track with a single translate", async () => {
+  it("exposes and toggles its checked state", async () => {
     const user = userEvent.setup();
     const view = render(<ToggleHarness />);
     const control = view.getByRole("switch", { name: "自动换行" });
-    const thumb = control.querySelector("span");
 
     expect(control).toHaveAttribute("aria-checked", "true");
-    expect(thumb).toHaveClass("translate-x-4");
-    expect(thumb).not.toHaveStyle({ transform: "translateX(16px)" });
+    expect(control).toHaveAttribute("data-state", "checked");
 
     await user.click(control);
     expect(control).toHaveAttribute("aria-checked", "false");
-    expect(thumb).not.toHaveClass("translate-x-4");
+    expect(control).toHaveAttribute("data-state", "unchecked");
   });
 });

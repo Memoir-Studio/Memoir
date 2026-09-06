@@ -1,5 +1,7 @@
+import * as stylex from "@stylexjs/stylex";
 import { useI18n } from "../../i18n/react";
 import type { NoteMeta } from "../../domain/notes";
+import { colors, commonStyles, media } from "../../styles/tokens.stylex";
 import { NotePreviewArticle } from "./NotePreviewArticle";
 
 export function PreviewPane({
@@ -29,12 +31,13 @@ export function PreviewPane({
     <section
       ref={paneRef}
       aria-label={t("preview.label")}
-      className="preview-pane min-h-0 min-w-0 overflow-auto bg-canvas max-[760px]:min-h-[calc(100vh-138px)] max-[760px]:border-r-0"
+      data-preview-pane=""
       onKeyDownCapture={onScrollIntent}
       onPointerDownCapture={onScrollIntent}
       onScroll={onScroll}
       onTouchStartCapture={onScrollIntent}
       onWheelCapture={onScrollIntent}
+      {...stylex.props(styles.pane, commonStyles.fadeIn)}
     >
       <NotePreviewArticle
         articleRef={articleRef}
@@ -50,3 +53,20 @@ export function PreviewPane({
 }
 
 export default PreviewPane;
+
+const styles = stylex.create({
+  pane: {
+    minWidth: 0,
+    minHeight: {
+      default: 0,
+      [media.mobile]: "calc(100vh - 138px)",
+    },
+    overflow: "auto",
+    overflowAnchor: "none",
+    overscrollBehavior: "contain",
+    borderRightWidth: {
+      [media.mobile]: 0,
+    },
+    backgroundColor: colors.canvas,
+  },
+});

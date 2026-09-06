@@ -1,8 +1,8 @@
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import stylex from "@stylexjs/unplugin";
 import { defineConfig } from "vitest/config";
-import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 
 // @ts-expect-error process is a nodejs global
@@ -22,7 +22,15 @@ function cargoPackageVersion() {
 
 // https://vite.dev/config/
 export default defineConfig(async () => ({
-  plugins: [react(), tailwindcss()],
+  plugins: [
+    stylex.vite({
+      useCSSLayers: {
+        before: ["reset", "preview-compat"],
+        prefix: "stylex",
+      },
+    }),
+    react(),
+  ],
   define: {
     __APP_VERSION__: JSON.stringify(cargoPackageVersion()),
   },
