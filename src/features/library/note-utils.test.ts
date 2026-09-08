@@ -31,7 +31,7 @@ type CorpusCase = {
 
 const corpusPath = join(
   dirname(fileURLToPath(import.meta.url)),
-  "fixtures/note-parse-corpus.json",
+  "../../domain/notes/fixtures/note-parse-corpus.json",
 );
 const corpus = JSON.parse(readFileSync(corpusPath, "utf8")) as CorpusCase[];
 

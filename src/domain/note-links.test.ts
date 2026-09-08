@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import corpus from "../features/library/fixtures/note-links-corpus.json";
+import corpus from "./notes/fixtures/note-links-corpus.json";
 import {
   buildNoteGraph,
   extractNoteLinks,

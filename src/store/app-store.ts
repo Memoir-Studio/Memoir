@@ -40,14 +40,24 @@ import {
   libraryQueryFromFilters,
   type LibraryPage,
   type LibraryQuery,
-  type NoteMeta,
-  type RawNoteFile,
 } from "../domain/notes";
 import { flushLiveEditor } from "../domain/live-editor";
-import { parseNote } from "../features/library/note-utils";
+import { parseNote } from "../domain/notes/note-utils";
+import {
+  loadWorkspaceSnapshot,
+  prepareLibraryProjection,
+} from "../application/library/library-use-cases";
 import { resolveLocale } from "../i18n/locale";
 import { t, tc, type MessageKey, type MessageParams } from "../i18n/translate";
 import type { AppStore } from "./types";
+import { createAutosaveController } from "./autosave-controller";
+import { createDebouncedTask } from "./debounced-task";
+import { createUiSlice } from "./slices/ui";
+import { createLibrarySlice } from "./slices/library";
+import { createEditorSlice } from "./slices/editor";
+import { createWorkspaceSlice } from "./slices/workspace";
+import { createSyncSlice } from "./slices/sync";
+import { createAttachmentSlice } from "./slices/attachments";
 
 function storeLocale(settings: AppSettings) {
   return resolveLocale(settings.appearance.locale);
@@ -65,6 +75,10 @@ const CLOUD_SYNC_OPEN_DELAY_MS = 2_000;
 export const AUTOSAVE_INTERVAL_MS = 3000;
 export const NOTE_METADATA_DEBOUNCE_MS = 80;
 const NOTE_CONTENT_CACHE_LIMIT = 6;
+
+function favoriteSet(favorites: Record<string, string[]>, root: string) {
+  return new Set(favorites[root] || []);
+}
 
 type CachedNoteContent = {
   content: string;
@@ -99,44 +113,6 @@ function isOpenUnsavedNote(state: {
   );
 }
 
-function favoriteSet(favorites: Record<string, string[]>, root: string) {
-  return new Set(favorites[root] || []);
-}
-
-async function assembleNotes(
-  gateways: AppGateways,
-  root: string,
-  files: RawNoteFile[],
-  favorites: Set<string>,
-  draftPaths: string[],
-): Promise<NoteMeta[]> {
-  const draftSet = new Set(draftPaths);
-  return Promise.all(
-    files.map(async (file): Promise<NoteMeta> => {
-      const favorite = favorites.has(file.relativePath);
-      if (!draftSet.has(file.relativePath)) {
-        return { ...file, favorite, dirty: false };
-      }
-      try {
-        const draft = await gateways.persistence.readDraft(root, file.relativePath);
-        if (draft == null) {
-          return { ...file, favorite, dirty: false };
-        }
-        const parsed = parseNote(draft, file.fileName);
-        return { ...file, ...parsed, favorite, dirty: true };
-      } catch {
-        return {
-          ...file,
-          title: file.fileName.replace(/\.(md|mdx)$/i, ""),
-          tags: [],
-          excerpt: "",
-          favorite,
-        };
-      }
-    }),
-  );
-}
-
 function toMessage(error: unknown) {
   return mapGatewayError(error).message;
 }
@@ -153,9 +129,6 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
   let preferencesTimer: number | null = null;
   let draftTimer: number | null = null;
   let draftIdentity: string | null = null;
-  let autosaveTimer: number | null = null;
-  let queryTimer: number | null = null;
-  let querySeq = 0;
   let cloudSyncTimer: number | null = null;
   let cloudSyncInFlight = false;
   let cloudSyncPending = false;
@@ -340,14 +313,8 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
       preferredPath?: string | null,
       options?: { selectIfNeeded?: boolean; scanAttachments?: boolean },
     ) => {
-      const appState = await gateways.persistence.loadAppState();
-      const favorites = favoriteSet(appState.favorites, root);
-      const favoritePaths = [...favorites];
-      const draftPaths = await gateways.persistence.draftsExist(
-        root,
-        page.notes.map((file) => file.relativePath),
-      );
-      const notes = await assembleNotes(gateways, root, page.notes, favorites, draftPaths);
+      const projection = await prepareLibraryProjection(gateways, root, page);
+      const { notes, favoritePaths, folderAppearances } = projection;
       const current = get();
       const overlaid = isOpenUnsavedNote(current)
         ? notes.map((note) =>
@@ -377,7 +344,7 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
         notes: overlaid,
         libraryStats: page.stats,
         favoritePaths,
-        folderAppearances: folderAppearancesForWorkspace(appState.folderAppearances, root),
+        folderAppearances,
         isLoading: false,
         status: tc(storeLocale(get().settings), "status.noteCount", page.stats.total),
         ...(selectIfNeeded ? { activePath: selected } : {}),
@@ -385,17 +352,16 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
       if (selectIfNeeded && selected && !alreadyOpen) await get().selectNote(selected);
     };
 
-    const runLibraryQuery = async () => {
-      const seq = ++querySeq;
+    const runLibraryQuery = async (seq: number) => {
       const state = get();
       const root = state.workspaceRoot;
       if (!root) return;
       try {
         const page = await gateways.workspace.queryLibrary(root, currentQuery(state));
-        if (seq !== querySeq || get().workspaceRoot !== root) return;
+        if (!libraryQuery.isCurrent(seq) || get().workspaceRoot !== root) return;
         await applyLibraryPage(root, page, null, { selectIfNeeded: false });
       } catch (error) {
-        if (seq !== querySeq) return;
+        if (!libraryQuery.isCurrent(seq)) return;
         set({
           error: storeT(get().settings, "errors.refreshWorkspace", {
             message: toMessage(error),
@@ -404,12 +370,533 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
       }
     };
 
-    const scheduleLibraryQuery = () => {
-      if (queryTimer !== null) window.clearTimeout(queryTimer);
-      queryTimer = window.setTimeout(() => {
-        queryTimer = null;
-        void runLibraryQuery();
-      }, QUERY_DEBOUNCE_MS);
+    const libraryQuery = createDebouncedTask(runLibraryQuery, QUERY_DEBOUNCE_MS);
+
+    const saveActiveNoteAction = async () => {
+      syncLiveEditorContent();
+      const { workspaceRoot, activePath, content, loadedContentPath, isSaving } = get();
+      if (!workspaceRoot || !activePath || loadedContentPath !== activePath || isSaving) return;
+      const saveRoot = workspaceRoot;
+      const savePath = activePath;
+      const saveContent = content;
+      set({ isSaving: true, error: "" });
+      try {
+        await gateways.workspace.writeNote(saveRoot, savePath, saveContent);
+        await gateways.persistence.deleteDraft(saveRoot, savePath);
+        set((state) => {
+          if (state.workspaceRoot !== saveRoot || state.activePath !== savePath) {
+            return { isSaving: false };
+          }
+          const stillDirty = state.content !== saveContent;
+          return {
+            isSaving: false,
+            savedContent: saveContent,
+            status: stillDirty ? state.status : storeT(state.settings, "status.saved"),
+            notes: state.notes.map((note) =>
+              note.relativePath === savePath
+                ? {
+                    ...note,
+                    ...parseNote(saveContent, note.fileName),
+                    modifiedMs: Date.now(),
+                    dirty: stillDirty,
+                  }
+                : note,
+            ),
+          };
+        });
+        scheduleCloudSync();
+      } catch (error) {
+        set((state) => ({
+          isSaving: state.activePath === savePath ? false : state.isSaving,
+          error: storeT(state.settings, "errors.saveNote", { message: toMessage(error) }),
+        }));
+      }
+    };
+
+    const selectNoteAction = async (relativePath: string) => {
+      syncLiveEditorContent();
+      const current = get();
+      const root = current.workspaceRoot;
+      if (!root) return;
+      if (current.activePath === relativePath && current.loadedContentPath === relativePath) {
+        if (current.mobilePanel !== "editor") set({ mobilePanel: "editor" });
+        return;
+      }
+      if (current.activePath && current.loadedContentPath === current.activePath) {
+        cacheNoteContent(root, current.activePath, current.content, current.savedContent,
+          current.notes.find((note) => note.relativePath === current.activePath)?.modifiedMs ?? null);
+      }
+      const targetModifiedMs = current.notes.find((note) => note.relativePath === relativePath)?.modifiedMs ?? null;
+      const cacheKey = contentCacheKey(root, relativePath);
+      const cached = noteContentCache.get(cacheKey);
+      if (cached && cached.modifiedMs === targetModifiedMs) {
+        noteContentCache.delete(cacheKey);
+        noteContentCache.set(cacheKey, cached);
+        set({ activePath: relativePath, content: cached.content, savedContent: cached.savedContent,
+          loadedContentPath: relativePath, isLoading: false, error: "", mobilePanel: "editor",
+          isSaving: false, status: cached.content !== cached.savedContent
+            ? storeT(current.settings, "status.draftRestored") : storeT(current.settings, "status.loaded") });
+        return;
+      }
+      noteContentCache.delete(cacheKey);
+      set({ activePath: relativePath, isLoading: true, error: "", mobilePanel: "editor", isSaving: false });
+      try {
+        const [savedContent, draft] = await Promise.all([
+          gateways.workspace.readNote(root, relativePath),
+          gateways.persistence.readDraft(root, relativePath),
+        ]);
+        if (get().activePath !== relativePath) return;
+        cacheNoteContent(root, relativePath, draft ?? savedContent, savedContent, targetModifiedMs);
+        set({ content: draft ?? savedContent, savedContent, loadedContentPath: relativePath,
+          isLoading: false, status: draft !== null && draft !== savedContent
+            ? storeT(get().settings, "status.draftRestored") : storeT(get().settings, "status.loaded") });
+      } catch (error) {
+        set({ isLoading: false, error: storeT(get().settings, "errors.loadNote", { message: toMessage(error) }) });
+      }
+    };
+
+    const setFolderAppearanceAction = async (folder: string, appearance: import("../domain/folders").FolderAppearance | null) => {
+      const { workspaceRoot, folderAppearances } = get();
+      if (!workspaceRoot) return;
+      const key = normalizeFolderKey(folder);
+      const nextAppearance = appearance ? normalizeFolderAppearance(appearance) : undefined;
+      const next = { ...folderAppearances };
+      if (nextAppearance) next[key] = nextAppearance;
+      else delete next[key];
+      set({ folderAppearances: next });
+      try {
+        const state = await gateways.persistence.setFolderAppearance(
+          workspaceRoot,
+          key,
+          nextAppearance ?? null,
+        );
+        set({
+          folderAppearances: folderAppearancesForWorkspace(state.folderAppearances, workspaceRoot),
+        });
+      } catch (error) {
+        set({
+          folderAppearances,
+          error: storeT(get().settings, "errors.saveFolderAppearance", {
+            message: toMessage(error),
+          }),
+        });
+      }
+    };
+
+    const toggleFavoriteAction = async (relativePath?: string) => {
+      const { workspaceRoot, activePath, notes, favoritePaths, libraryStats, navFilter } = get();
+      const path = relativePath ?? activePath;
+      if (!workspaceRoot || !path) return;
+      const favorite = !favoritePaths.includes(path);
+      const nextFavorites = favorite
+        ? [...favoritePaths, path]
+        : favoritePaths.filter((item) => item !== path);
+      set({
+        favoritePaths: nextFavorites,
+        notes: notes.map((item) => item.relativePath === path ? { ...item, favorite } : item),
+        libraryStats: {
+          ...libraryStats,
+          favorites: Math.max(0, libraryStats.favorites + (favorite ? 1 : -1)),
+        },
+      });
+      try {
+        await gateways.persistence.setFavorite(workspaceRoot, path, favorite);
+        if (navFilter === "favorites") libraryQuery.runNow();
+      } catch (error) {
+        set({
+          notes,
+          favoritePaths,
+          libraryStats,
+          error: storeT(get().settings, "errors.saveFavorite", { message: toMessage(error) }),
+        });
+      }
+    };
+
+    const createNoteAction = async (input: {
+      title: string;
+      extension: "md" | "mdx";
+      folder?: string;
+      tags?: string[];
+    }) => {
+      syncLiveEditorContent();
+      const root = get().workspaceRoot;
+      if (!root) return;
+      set({ isLoading: true, error: "" });
+      try {
+        const created = await gateways.workspace.createNote({ root, ...input });
+        const page = await gateways.workspace.queryLibrary(root, currentQuery());
+        await applyLibraryPage(root, page, created.relativePath);
+      } catch (error) {
+        set({
+          isLoading: false,
+          error: storeT(get().settings, "errors.createNote", { message: toMessage(error) }),
+        });
+      }
+    };
+
+    const rebuildIndexAction = async () => {
+      const root = get().workspaceRoot;
+      if (!root) return;
+      set({ isLoading: true, error: "" });
+      try {
+        const page = await gateways.workspace.rebuildIndex(root, currentQuery());
+        await applyLibraryPage(root, page);
+        set({ status: storeT(get().settings, "status.indexRebuilt") });
+      } catch (error) {
+        set({
+          isLoading: false,
+          error: storeT(get().settings, "errors.rebuildIndex", { message: toMessage(error) }),
+        });
+      }
+    };
+
+    const renameNoteAction = async (relativePath: string, newRelativePath: string) => {
+      syncLiveEditorContent();
+      const { workspaceRoot, activePath, content, savedContent, notes } = get();
+      const trimmed = newRelativePath.trim();
+      if (!workspaceRoot || !relativePath || !trimmed || relativePath === trimmed) return;
+      set({ isLoading: true, error: "" });
+      try {
+        const renamed = await gateways.workspace.renameNote(workspaceRoot, relativePath, trimmed);
+        const note = notes.find((item) => item.relativePath === relativePath);
+        const draft = await gateways.persistence.readDraft(workspaceRoot, relativePath);
+        const nextDraft = relativePath === activePath && content !== savedContent ? content : draft;
+        await gateways.persistence.deleteDraft(workspaceRoot, relativePath);
+        if (nextDraft !== null) {
+          await gateways.persistence.writeDraft(workspaceRoot, renamed.note.relativePath, nextDraft);
+        }
+        const favoritePaths = get().favoritePaths.includes(relativePath) || Boolean(note?.favorite)
+          ? [...get().favoritePaths.filter((path) => path !== relativePath), renamed.note.relativePath]
+          : get().favoritePaths;
+        if (note?.favorite || get().favoritePaths.includes(relativePath)) {
+          await gateways.persistence.setFavorite(workspaceRoot, relativePath, false);
+          await gateways.persistence.setFavorite(workspaceRoot, renamed.note.relativePath, true);
+        }
+        const wasActive = relativePath === activePath;
+        set(wasActive
+          ? { activePath: renamed.note.relativePath, loadedContentPath: renamed.note.relativePath, favoritePaths }
+          : { favoritePaths });
+        const page = await gateways.workspace.queryLibrary(workspaceRoot, currentQuery());
+        await applyLibraryPage(workspaceRoot, page, wasActive ? renamed.note.relativePath : undefined, {
+          selectIfNeeded: wasActive,
+        });
+      } catch (error) {
+        set({
+          isLoading: false,
+          error: storeT(get().settings, "errors.renameNote", { message: toMessage(error) }),
+        });
+      }
+    };
+
+    const renameActiveNoteAction = async (newRelativePath: string) => {
+      const { activePath } = get();
+      if (activePath) await renameNoteAction(activePath, newRelativePath);
+    };
+
+    const deleteNoteAction = async (relativePath: string) => {
+      syncLiveEditorContent();
+      const { workspaceRoot, activePath, notes } = get();
+      if (!workspaceRoot || !relativePath) return;
+      set({ isLoading: true, error: "" });
+      try {
+        const note = notes.find((item) => item.relativePath === relativePath);
+        await gateways.workspace.deleteNote(workspaceRoot, relativePath);
+        await gateways.persistence.deleteDraft(workspaceRoot, relativePath);
+        if (note?.favorite) await gateways.persistence.setFavorite(workspaceRoot, relativePath, false);
+        const nextFavorites = get().favoritePaths.filter((path) => path !== relativePath);
+        if (relativePath === activePath) {
+          set({ activePath: null, loadedContentPath: null, content: "", savedContent: "", favoritePaths: nextFavorites });
+        } else set({ favoritePaths: nextFavorites });
+        const page = await gateways.workspace.queryLibrary(workspaceRoot, currentQuery());
+        await applyLibraryPage(workspaceRoot, page, null, { selectIfNeeded: relativePath === activePath });
+      } catch (error) {
+        set({
+          isLoading: false,
+          error: storeT(get().settings, "errors.deleteNote", { message: toMessage(error) }),
+        });
+      }
+    };
+
+    const deleteActiveNoteAction = async () => {
+      const { activePath } = get();
+      if (activePath) await deleteNoteAction(activePath);
+    };
+
+    const refreshWorkspaceAction = async (preferredPath?: string | null) => {
+      const root = get().workspaceRoot;
+      if (!root) return;
+      set({ isLoading: true, error: "" });
+      try {
+        const { page, attachments } = await loadWorkspaceSnapshot(gateways, root, currentQuery());
+        set({ attachments });
+        await applyLibraryPage(root, page, preferredPath);
+      } catch (error) {
+        set({
+          isLoading: false,
+          error: storeT(get().settings, "errors.refreshWorkspace", { message: toMessage(error) }),
+        });
+      }
+    };
+
+    const initializeAction = async () => {
+      ensureCloudSyncProgressWatch();
+      try {
+        const appState = await gateways.persistence.loadAppState();
+        const settings = mergeSettings(appState.preferences);
+        const workspaceRoot = appState.lastWorkspace;
+        set({
+          settings,
+          viewMode: settings.editor.defaultView,
+          workspaceRoot,
+          recentWorkspaces: appState.recentWorkspaces,
+          isSidebarCollapsed: appState.sidebarCollapsed,
+          layout: mergeLayout(appState.layout),
+          favoritePaths: workspaceRoot ? [...favoriteSet(appState.favorites, workspaceRoot)] : [],
+          folderAppearances: workspaceRoot
+            ? folderAppearancesForWorkspace(appState.folderAppearances, workspaceRoot)
+            : {},
+        });
+        if (workspaceRoot) {
+          await loadCloudSyncProfile(workspaceRoot);
+          await get().refreshWorkspace();
+          scheduleCloudSync(CLOUD_SYNC_OPEN_DELAY_MS);
+        }
+        set({ initialized: true });
+      } catch (error) {
+        set({
+          initialized: true,
+          error: storeT(get().settings, "errors.loadAppState", { message: toMessage(error) }),
+        });
+      }
+    };
+
+    const openWorkspaceAction = async (root?: string) => {
+      syncLiveEditorContent();
+      const current = get();
+      if (isOpenUnsavedNote(current) && current.workspaceRoot && current.activePath) {
+        try {
+          await gateways.persistence.writeDraft(current.workspaceRoot, current.activePath, current.content);
+        } catch {
+          // Switching still proceeds; only this unsaved burst may be lost.
+        }
+      }
+      if (draftTimer !== null) {
+        window.clearTimeout(draftTimer);
+        draftTimer = null;
+      }
+      draftIdentity = null;
+      set({ isLoading: true, error: "" });
+      try {
+        const selectedRoot = root ?? await gateways.workspace.chooseWorkspace(
+          storeT(get().settings, "workspace.chooseFolder"),
+        );
+        if (!selectedRoot) {
+          set({ isLoading: false });
+          return;
+        }
+        const persistedState = await gateways.persistence.savePreferences(
+          get().settings,
+          selectedRoot,
+          get().isSidebarCollapsed,
+          get().layout,
+        );
+        const workspaceRoot = persistedState.lastWorkspace || selectedRoot;
+        const recentWorkspaces = persistedState.recentWorkspaces.length
+          ? persistedState.recentWorkspaces
+          : [workspaceRoot];
+        if (workspaceRoot === get().workspaceRoot) {
+          set({ recentWorkspaces });
+          await loadCloudSyncProfile(workspaceRoot);
+          await get().refreshWorkspace();
+          scheduleCloudSync(CLOUD_SYNC_OPEN_DELAY_MS);
+          return;
+        }
+        noteContentCache.clear();
+        set({
+          workspaceRoot,
+          recentWorkspaces,
+          favoritePaths: [...favoriteSet(persistedState.favorites, workspaceRoot)],
+          folderAppearances: folderAppearancesForWorkspace(persistedState.folderAppearances, workspaceRoot),
+          attachments: [],
+          activePath: null,
+          loadedContentPath: null,
+          content: "",
+          savedContent: "",
+          query: "",
+          navFilter: "all",
+          scopedFilter: null,
+          libraryPanelMode: "notes",
+        });
+        await loadCloudSyncProfile(workspaceRoot);
+        await get().refreshWorkspace();
+        scheduleCloudSync(CLOUD_SYNC_OPEN_DELAY_MS);
+      } catch (error) {
+        set({
+          isLoading: false,
+          error: storeT(get().settings, "errors.openWorkspace", { message: toMessage(error) }),
+        });
+      }
+    };
+
+    const refreshAttachmentsAction = async () => {
+      const root = get().workspaceRoot;
+      if (!root) {
+        set({ attachments: [] });
+        return;
+      }
+      try {
+        set({ attachments: await gateways.attachments.scanAttachments(root) });
+      } catch (error) {
+        set({
+          error: storeT(get().settings, "errors.loadAttachments", { message: toMessage(error) }),
+        });
+      }
+    };
+
+    const saveAttachmentsAction = async (inputs: SaveAttachmentInput[]) => {
+      const root = get().workspaceRoot;
+      if (!root || inputs.length === 0) return [];
+      try {
+        const saved: AttachmentFile[] = [];
+        for (const input of inputs) saved.push(await gateways.attachments.saveAttachment(root, input));
+        set({
+          attachments: mergeAttachments(get().attachments, saved),
+          status: storeT(get().settings, "status.attachmentSaved"),
+          error: "",
+        });
+        scheduleCloudSync();
+        return saved;
+      } catch (error) {
+        set({ error: storeT(get().settings, "errors.saveAttachment", { message: toMessage(error) }) });
+        return [];
+      }
+    };
+
+    const savePastedImagesAction = async (files: File[]) => {
+      const { workspaceRoot, activePath, settings } = get();
+      if (!workspaceRoot) return "";
+      if (!activePath) {
+        set({ error: storeT(settings, "errors.pasteNeedsNote") });
+        return "";
+      }
+      if (files.some((file) => file.size > MAX_ATTACHMENT_BYTES)) {
+        set({ error: storeT(settings, "errors.attachmentTooLarge") });
+        return "";
+      }
+      const inputs = await Promise.all(files.map(async (file) => ({
+        bytesBase64: await fileToBase64(file),
+        fileName: suggestedPasteFileName(file),
+        mimeType: file.type,
+      })));
+      const saved = await saveAttachmentsAction(inputs);
+      return markdownForAttachments(get().activePath, saved);
+    };
+
+    const importDroppedImagesAction = async (sourcePaths: string[]) => {
+      const { workspaceRoot, activePath, settings } = get();
+      const paths = imagePathsFromDrop(sourcePaths);
+      if (!workspaceRoot || paths.length === 0) return "";
+      if (!activePath) {
+        set({ error: storeT(settings, "errors.pasteNeedsNote") });
+        return "";
+      }
+      try {
+        const imported = await gateways.attachments.importAttachmentsFromPaths(workspaceRoot, paths);
+        if (!imported.length) return "";
+        set({ attachments: mergeAttachments(get().attachments, imported), status: storeT(get().settings, "status.attachmentSaved"), error: "" });
+        return markdownForAttachments(get().activePath, imported);
+      } catch (error) {
+        set({ error: storeT(get().settings, "errors.importAttachment", { message: toMessage(error) }) });
+        return "";
+      }
+    };
+
+    const importAttachmentsAction = async () => {
+      const root = get().workspaceRoot;
+      if (!root) return [];
+      try {
+        const imported = await gateways.attachments.importAttachments(root);
+        if (imported.length) set({ attachments: mergeAttachments(get().attachments, imported), status: storeT(get().settings, "status.attachmentsImported"), error: "" });
+        return imported;
+      } catch (error) {
+        set({ error: storeT(get().settings, "errors.importAttachment", { message: toMessage(error) }) });
+        return [];
+      }
+    };
+
+    const deleteAttachmentAction = async (relativePath: string) => {
+      const root = get().workspaceRoot;
+      if (!root || !relativePath) return;
+      try {
+        await gateways.attachments.deleteAttachment(root, relativePath);
+        set({ attachments: get().attachments.filter((item) => item.relativePath !== relativePath), status: storeT(get().settings, "status.attachmentDeleted"), error: "" });
+      } catch (error) {
+        set({ error: storeT(get().settings, "errors.deleteAttachment", { message: toMessage(error) }) });
+      }
+    };
+
+    const saveCloudSyncProfileAction = async (profile: CloudSyncProfileInput) => {
+      const root = get().workspaceRoot;
+      if (!root) return;
+      try {
+        const saved = await gateways.cloudSync.saveProfile(root, profile);
+        set({
+          cloudSyncProfile: mergeCloudSyncProfile(saved),
+          status: storeT(get().settings, "status.cloudSyncSaved"),
+        });
+      } catch (error) {
+        set({
+          error: storeT(get().settings, "errors.saveCloudSync", { message: toMessage(error) }),
+        });
+        throw error;
+      }
+    };
+
+    const testCloudSyncAction = (profile: CloudSyncProfileInput) =>
+      gateways.cloudSync.testConnection(profile);
+
+    const runCloudSyncAction = async (profile?: CloudSyncProfileInput) => {
+      const root = get().workspaceRoot;
+      if (!root) return null;
+      if (cloudSyncInFlight) {
+        cloudSyncPending = true;
+        return null;
+      }
+      ensureCloudSyncProgressWatch();
+      cloudSyncInFlight = true;
+      set({ cloudSyncProgress: initialCloudSyncProgress() });
+      const unsaved = isOpenUnsavedNote(get());
+      const activePath = get().activePath;
+      try {
+        const result = await gateways.cloudSync.runSync(root, profile);
+        const report = mergeCloudSyncReport(result.report) ?? result.report;
+        set({
+          cloudSyncProfile: mergeCloudSyncProfile(result.profile),
+          status: storeT(get().settings, "status.cloudSyncComplete"),
+        });
+        if (cloudSyncTouchedLocal(report)) await get().refreshWorkspace();
+        if (
+          !unsaved &&
+          activePath &&
+          get().activePath === activePath &&
+          cloudSyncChangedActiveNote(report, activePath)
+        ) {
+          await get().selectNote(activePath);
+        }
+        return { ...result, report };
+      } catch (error) {
+        set({
+          error: storeT(get().settings, "errors.runCloudSync", { message: toMessage(error) }),
+        });
+        throw error;
+      } finally {
+        cloudSyncInFlight = false;
+        set({ cloudSyncProgress: null });
+        if (cloudSyncPending) {
+          cloudSyncPending = false;
+          void get().runCloudSync();
+        }
+      }
     };
 
     return {
@@ -443,735 +930,57 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
       cloudSyncProgress: null,
       mobilePanel: "editor",
 
-      async initialize() {
-        ensureCloudSyncProgressWatch();
-        try {
-          const appState = await gateways.persistence.loadAppState();
-          const settings = mergeSettings(appState.preferences);
-          const workspaceRoot = appState.lastWorkspace;
-          set({
-            settings,
-            viewMode: settings.editor.defaultView,
-            workspaceRoot,
-            recentWorkspaces: appState.recentWorkspaces,
-            isSidebarCollapsed: appState.sidebarCollapsed,
-            layout: mergeLayout(appState.layout),
-            favoritePaths: workspaceRoot
-              ? [...favoriteSet(appState.favorites, workspaceRoot)]
-              : [],
-            folderAppearances: workspaceRoot
-              ? folderAppearancesForWorkspace(appState.folderAppearances, workspaceRoot)
-              : {},
-          });
-          if (workspaceRoot) {
-            await loadCloudSyncProfile(workspaceRoot);
-            await get().refreshWorkspace();
-            scheduleCloudSync(CLOUD_SYNC_OPEN_DELAY_MS);
-          }
-          set({ initialized: true });
-        } catch (error) {
-          set({
-            initialized: true,
-            error: storeT(get().settings, "errors.loadAppState", { message: toMessage(error) }),
-          });
-        }
-      },
-
-      async openWorkspace(root) {
-        syncLiveEditorContent();
-        const current = get();
-        if (isOpenUnsavedNote(current) && current.workspaceRoot && current.activePath) {
-          try {
-            await gateways.persistence.writeDraft(
-              current.workspaceRoot,
-              current.activePath,
-              current.content,
-            );
-          } catch {
-            // Switching still proceeds; only this unsaved burst may be lost.
-          }
-        }
-        if (draftTimer !== null) {
-          window.clearTimeout(draftTimer);
-          draftTimer = null;
-        }
-        draftIdentity = null;
-
-        set({ isLoading: true, error: "" });
-        try {
-          const selectedRoot =
-            root ??
-            (await gateways.workspace.chooseWorkspace(
-              storeT(get().settings, "workspace.chooseFolder"),
-            ));
-          if (!selectedRoot) {
-            set({ isLoading: false });
-            return;
-          }
-          const persistedState = await gateways.persistence.savePreferences(
-            get().settings,
-            selectedRoot,
-            get().isSidebarCollapsed,
-            get().layout,
-          );
-          const workspaceRoot = persistedState.lastWorkspace || selectedRoot;
-          const recentWorkspaces = persistedState.recentWorkspaces.length
-            ? persistedState.recentWorkspaces
-            : [workspaceRoot];
-          if (workspaceRoot === get().workspaceRoot) {
-            set({ recentWorkspaces });
-            await loadCloudSyncProfile(workspaceRoot);
-            await get().refreshWorkspace();
-            scheduleCloudSync(CLOUD_SYNC_OPEN_DELAY_MS);
-            return;
-          }
-          noteContentCache.clear();
-          set({
-            workspaceRoot,
-            recentWorkspaces,
-            favoritePaths: [...favoriteSet(persistedState.favorites, workspaceRoot)],
-            folderAppearances: folderAppearancesForWorkspace(
-              persistedState.folderAppearances,
-              workspaceRoot,
-            ),
-            attachments: [],
-            activePath: null,
-            loadedContentPath: null,
-            content: "",
-            savedContent: "",
-            query: "",
-            navFilter: "all",
-            scopedFilter: null,
-            libraryPanelMode: "notes",
-          });
-          await loadCloudSyncProfile(workspaceRoot);
-          await get().refreshWorkspace();
-          scheduleCloudSync(CLOUD_SYNC_OPEN_DELAY_MS);
-        } catch (error) {
-          set({
-            isLoading: false,
-            error: storeT(get().settings, "errors.openWorkspace", { message: toMessage(error) }),
-          });
-        }
-      },
-
       // Reconcile is the only walk: initialize, openWorkspace, and explicit refresh.
       // Mutate paths (create/rename/delete/save) and filter changes must not call this.
-      async refreshWorkspace(preferredPath) {
-        const root = get().workspaceRoot;
-        if (!root) return;
-        set({ isLoading: true, error: "" });
-        try {
-          const [page, attachments] = await Promise.all([
-            gateways.workspace.reconcileWorkspace(root, currentQuery()),
-            gateways.workspace.scanAttachments(root),
-          ]);
-          set({ attachments });
-          await applyLibraryPage(root, page, preferredPath);
-        } catch (error) {
-          set({
-            isLoading: false,
-            error: storeT(get().settings, "errors.refreshWorkspace", {
-              message: toMessage(error),
-            }),
-          });
-        }
-      },
 
-      async selectNote(relativePath) {
-        syncLiveEditorContent();
-        const current = get();
-        const root = current.workspaceRoot;
-        if (!root) return;
-        if (current.activePath === relativePath && current.loadedContentPath === relativePath) {
-          if (current.mobilePanel !== "editor") set({ mobilePanel: "editor" });
-          return;
-        }
+      ...createEditorSlice({ setContent: applyContentUpdate, saveActiveNote: saveActiveNoteAction, selectNote: selectNoteAction }),
 
-        if (current.activePath && current.loadedContentPath === current.activePath) {
-          cacheNoteContent(
-            root,
-            current.activePath,
-            current.content,
-            current.savedContent,
-            current.notes.find((note) => note.relativePath === current.activePath)?.modifiedMs ?? null,
-          );
-        }
-        const targetModifiedMs =
-          current.notes.find((note) => note.relativePath === relativePath)?.modifiedMs ?? null;
-        const cacheKey = contentCacheKey(root, relativePath);
-        const cached = noteContentCache.get(cacheKey);
-        if (cached && cached.modifiedMs === targetModifiedMs) {
-          noteContentCache.delete(cacheKey);
-          noteContentCache.set(cacheKey, cached);
-          set({
-            activePath: relativePath,
-            content: cached.content,
-            savedContent: cached.savedContent,
-            loadedContentPath: relativePath,
-            isLoading: false,
-            error: "",
-            mobilePanel: "editor",
-            isSaving: false,
-            status:
-              cached.content !== cached.savedContent
-                ? storeT(current.settings, "status.draftRestored")
-                : storeT(current.settings, "status.loaded"),
-          });
-          return;
-        }
-        noteContentCache.delete(cacheKey);
-        set({
-          activePath: relativePath,
-          isLoading: true,
-          error: "",
-          mobilePanel: "editor",
-          isSaving: false,
-        });
-        try {
-          const [savedContent, draft] = await Promise.all([
-            gateways.workspace.readNote(root, relativePath),
-            gateways.persistence.readDraft(root, relativePath),
-          ]);
-          if (get().activePath !== relativePath) return;
-          cacheNoteContent(root, relativePath, draft ?? savedContent, savedContent, targetModifiedMs);
-          set({
-            content: draft ?? savedContent,
-            savedContent,
-            loadedContentPath: relativePath,
-            isLoading: false,
-            status:
-              draft !== null && draft !== savedContent
-                ? storeT(get().settings, "status.draftRestored")
-                : storeT(get().settings, "status.loaded"),
-          });
-        } catch (error) {
-          set({
-            isLoading: false,
-            error: storeT(get().settings, "errors.loadNote", { message: toMessage(error) }),
-          });
-        }
-      },
+      ...createWorkspaceSlice({
+        openWorkspace: openWorkspaceAction,
+        initialize: initializeAction,
+        refreshWorkspace: refreshWorkspaceAction,
+        createNote: createNoteAction,
+        rebuildIndex: rebuildIndexAction,
+        renameNote: renameNoteAction,
+        renameActiveNote: renameActiveNoteAction,
+        deleteNote: deleteNoteAction,
+        deleteActiveNote: deleteActiveNoteAction,
+        setFolderAppearance: setFolderAppearanceAction,
+        toggleFavorite: toggleFavoriteAction,
+      }),
 
-      setContent(content) {
-        applyContentUpdate(content);
-      },
-
-      async saveActiveNote() {
-        syncLiveEditorContent();
-        const { workspaceRoot, activePath, content, loadedContentPath, isSaving } = get();
-        if (!workspaceRoot || !activePath || loadedContentPath !== activePath || isSaving) return;
-        const saveRoot = workspaceRoot;
-        const savePath = activePath;
-        const saveContent = content;
-        set({ isSaving: true, error: "" });
-        try {
-          await gateways.workspace.writeNote(saveRoot, savePath, saveContent);
-          await gateways.persistence.deleteDraft(saveRoot, savePath);
-          set((state) => {
-            if (state.workspaceRoot !== saveRoot || state.activePath !== savePath) {
-              return { isSaving: false };
-            }
-            const stillDirty = state.content !== saveContent;
-            return {
-              isSaving: false,
-              savedContent: saveContent,
-              status: stillDirty ? state.status : storeT(state.settings, "status.saved"),
-              notes: state.notes.map((note) =>
-                note.relativePath === savePath
-                  ? {
-                      ...note,
-                      ...parseNote(saveContent, note.fileName),
-                      modifiedMs: Date.now(),
-                      dirty: stillDirty,
-                    }
-                  : note,
-              ),
-            };
-          });
-          scheduleCloudSync();
-        } catch (error) {
-          set((state) => ({
-            isSaving: state.activePath === savePath ? false : state.isSaving,
-            error: storeT(state.settings, "errors.saveNote", { message: toMessage(error) }),
-          }));
-        }
-      },
-
-      async createNote(input) {
-        syncLiveEditorContent();
-        const root = get().workspaceRoot;
-        if (!root) return;
-        set({ isLoading: true, error: "" });
-        try {
-          const created = await gateways.workspace.createNote({ root, ...input });
-          const page = await gateways.workspace.queryLibrary(root, currentQuery());
-          await applyLibraryPage(root, page, created.relativePath);
-        } catch (error) {
-          set({
-            isLoading: false,
-            error: storeT(get().settings, "errors.createNote", { message: toMessage(error) }),
-          });
-        }
-      },
-
-      async renameNote(relativePath, newRelativePath) {
-        syncLiveEditorContent();
-        const { workspaceRoot, activePath, content, savedContent, notes } = get();
-        const trimmed = newRelativePath.trim();
-        if (!workspaceRoot || !relativePath || !trimmed || relativePath === trimmed) return;
-        set({ isLoading: true, error: "" });
-        try {
-          const renamed = await gateways.workspace.renameNote(
-            workspaceRoot,
-            relativePath,
-            trimmed,
-          );
-          const note = notes.find((item) => item.relativePath === relativePath);
-          const draft = await gateways.persistence.readDraft(workspaceRoot, relativePath);
-          const nextDraft =
-            relativePath === activePath && content !== savedContent ? content : draft;
-          await gateways.persistence.deleteDraft(workspaceRoot, relativePath);
-          if (nextDraft !== null) {
-            await gateways.persistence.writeDraft(workspaceRoot, renamed.note.relativePath, nextDraft);
-          }
-          const favoritePaths = get().favoritePaths.includes(relativePath)
-            || Boolean(note?.favorite)
-            ? [
-                ...get().favoritePaths.filter((path) => path !== relativePath),
-                renamed.note.relativePath,
-              ]
-            : get().favoritePaths;
-          if (note?.favorite || get().favoritePaths.includes(relativePath)) {
-            await gateways.persistence.setFavorite(workspaceRoot, relativePath, false);
-            await gateways.persistence.setFavorite(workspaceRoot, renamed.note.relativePath, true);
-          }
-          const wasActive = relativePath === activePath;
-          if (wasActive) {
-            set({
-              activePath: renamed.note.relativePath,
-              loadedContentPath: renamed.note.relativePath,
-              favoritePaths,
-            });
-          } else {
-            set({ favoritePaths });
-          }
-          const page = await gateways.workspace.queryLibrary(workspaceRoot, currentQuery());
-          await applyLibraryPage(
-            workspaceRoot,
-            page,
-            wasActive ? renamed.note.relativePath : undefined,
-            { selectIfNeeded: wasActive },
-          );
-        } catch (error) {
-          set({
-            isLoading: false,
-            error: storeT(get().settings, "errors.renameNote", { message: toMessage(error) }),
-          });
-        }
-      },
-
-      async renameActiveNote(newRelativePath) {
-        const { activePath } = get();
-        if (!activePath) return;
-        await get().renameNote(activePath, newRelativePath);
-      },
-
-      async deleteNote(relativePath) {
-        syncLiveEditorContent();
-        const { workspaceRoot, activePath, notes } = get();
-        if (!workspaceRoot || !relativePath) return;
-        set({ isLoading: true, error: "" });
-        try {
-          const note = notes.find((item) => item.relativePath === relativePath);
-          await gateways.workspace.deleteNote(workspaceRoot, relativePath);
-          await gateways.persistence.deleteDraft(workspaceRoot, relativePath);
-          if (note?.favorite) {
-            await gateways.persistence.setFavorite(workspaceRoot, relativePath, false);
-          }
-          const nextFavorites = get().favoritePaths.filter((path) => path !== relativePath);
-          if (relativePath === activePath) {
-            set({
-              activePath: null,
-              loadedContentPath: null,
-              content: "",
-              savedContent: "",
-              favoritePaths: nextFavorites,
-            });
-          } else {
-            set({ favoritePaths: nextFavorites });
-          }
-          const page = await gateways.workspace.queryLibrary(workspaceRoot, currentQuery());
-          await applyLibraryPage(workspaceRoot, page, null, { selectIfNeeded: relativePath === activePath });
-        } catch (error) {
-          set({
-            isLoading: false,
-            error: storeT(get().settings, "errors.deleteNote", { message: toMessage(error) }),
-          });
-        }
-      },
-
-      async deleteActiveNote() {
-        const { activePath } = get();
-        if (!activePath) return;
-        await get().deleteNote(activePath);
-      },
-
-      async setFolderAppearance(folder, appearance) {
-        const { workspaceRoot, folderAppearances } = get();
-        if (!workspaceRoot) return;
-        const key = normalizeFolderKey(folder);
-        const nextAppearance = appearance ? normalizeFolderAppearance(appearance) : undefined;
-        const next = { ...folderAppearances };
-        if (nextAppearance) next[key] = nextAppearance;
-        else delete next[key];
-        set({ folderAppearances: next });
-        try {
-          const state = await gateways.persistence.setFolderAppearance(
-            workspaceRoot,
-            key,
-            nextAppearance ?? null,
-          );
-          set({
-            folderAppearances: folderAppearancesForWorkspace(state.folderAppearances, workspaceRoot),
-          });
-        } catch (error) {
-          set({
-            folderAppearances,
-            error: storeT(get().settings, "errors.saveFolderAppearance", {
-              message: toMessage(error),
-            }),
-          });
-        }
-      },
-
-      async toggleFavorite(relativePath) {
-        const { workspaceRoot, activePath, notes, favoritePaths, libraryStats, navFilter } = get();
-        const path = relativePath ?? activePath;
-        if (!workspaceRoot || !path) return;
-        const favorite = !favoritePaths.includes(path);
-        const nextFavorites = favorite
-          ? [...favoritePaths, path]
-          : favoritePaths.filter((item) => item !== path);
-        set({
-          favoritePaths: nextFavorites,
-          notes: notes.map((item) =>
-            item.relativePath === path ? { ...item, favorite } : item,
-          ),
-          libraryStats: {
-            ...libraryStats,
-            favorites: Math.max(0, libraryStats.favorites + (favorite ? 1 : -1)),
-          },
-        });
-        try {
-          await gateways.persistence.setFavorite(workspaceRoot, path, favorite);
-          if (navFilter === "favorites") await runLibraryQuery();
-        } catch (error) {
-          set({
-            notes,
-            favoritePaths,
-            libraryStats,
-            error: storeT(get().settings, "errors.saveFavorite", { message: toMessage(error) }),
-          });
-        }
-      },
-
-      async refreshAttachments() {
-        const root = get().workspaceRoot;
-        if (!root) {
-          set({ attachments: [] });
-          return;
-        }
-        try {
-          set({ attachments: await gateways.workspace.scanAttachments(root) });
-        } catch (error) {
-          set({
-            error: storeT(get().settings, "errors.loadAttachments", { message: toMessage(error) }),
-          });
-        }
-      },
-
-      async saveAttachments(inputs: SaveAttachmentInput[]) {
-        const root = get().workspaceRoot;
-        if (!root || inputs.length === 0) return [];
-        try {
-          const saved: AttachmentFile[] = [];
-          for (const input of inputs) {
-            saved.push(await gateways.workspace.saveAttachment(root, input));
-          }
-          set({
-            attachments: mergeAttachments(get().attachments, saved),
-            status: storeT(get().settings, "status.attachmentSaved"),
-            error: "",
-          });
-          scheduleCloudSync();
-          return saved;
-        } catch (error) {
-          set({
-            error: storeT(get().settings, "errors.saveAttachment", { message: toMessage(error) }),
-          });
-          return [];
-        }
-      },
-
-      async savePastedImages(files: File[]) {
-        const { workspaceRoot, activePath, settings } = get();
-        if (!workspaceRoot) return "";
-        if (!activePath) {
-          set({ error: storeT(settings, "errors.pasteNeedsNote") });
-          return "";
-        }
-        const oversized = files.find((file) => file.size > MAX_ATTACHMENT_BYTES);
-        if (oversized) {
-          set({ error: storeT(settings, "errors.attachmentTooLarge") });
-          return "";
-        }
-        const inputs = await Promise.all(
-          files.map(async (file) => ({
-            bytesBase64: await fileToBase64(file),
-            fileName: suggestedPasteFileName(file),
-            mimeType: file.type,
-          })),
-        );
-        const saved = await get().saveAttachments(inputs);
-        return markdownForAttachments(get().activePath, saved);
-      },
-
-      async importDroppedImages(sourcePaths) {
-        const { workspaceRoot, activePath, settings } = get();
-        const paths = imagePathsFromDrop(sourcePaths);
-        if (!workspaceRoot || paths.length === 0) return "";
-        if (!activePath) {
-          set({ error: storeT(settings, "errors.pasteNeedsNote") });
-          return "";
-        }
-        try {
-          const imported = await gateways.workspace.importAttachmentsFromPaths(
-            workspaceRoot,
-            paths,
-          );
-          if (!imported.length) return "";
-          set({
-            attachments: mergeAttachments(get().attachments, imported),
-            status: storeT(get().settings, "status.attachmentSaved"),
-            error: "",
-          });
-          return markdownForAttachments(get().activePath, imported);
-        } catch (error) {
-          set({
-            error: storeT(get().settings, "errors.importAttachment", { message: toMessage(error) }),
-          });
-          return "";
-        }
-      },
-
-      async importAttachments() {
-        const root = get().workspaceRoot;
-        if (!root) return [];
-        try {
-          const imported = await gateways.workspace.importAttachments(root);
-          if (imported.length) {
-            set({
-              attachments: mergeAttachments(get().attachments, imported),
-              status: storeT(get().settings, "status.attachmentsImported"),
-              error: "",
-            });
-          }
-          return imported;
-        } catch (error) {
-          set({
-            error: storeT(get().settings, "errors.importAttachment", { message: toMessage(error) }),
-          });
-          return [];
-        }
-      },
-
-      async deleteAttachment(relativePath) {
-        const root = get().workspaceRoot;
-        if (!root || !relativePath) return;
-        try {
-          await gateways.workspace.deleteAttachment(root, relativePath);
-          set({
-            attachments: get().attachments.filter((item) => item.relativePath !== relativePath),
-            status: storeT(get().settings, "status.attachmentDeleted"),
-            error: "",
-          });
-        } catch (error) {
-          set({
-            error: storeT(get().settings, "errors.deleteAttachment", { message: toMessage(error) }),
-          });
-        }
-      },
-
-      async rebuildIndex() {
-        const root = get().workspaceRoot;
-        if (!root) return;
-        set({ isLoading: true, error: "" });
-        try {
-          const page = await gateways.workspace.rebuildIndex(root, currentQuery());
-          await applyLibraryPage(root, page);
-          set({ status: storeT(get().settings, "status.indexRebuilt") });
-        } catch (error) {
-          set({
-            isLoading: false,
-            error: storeT(get().settings, "errors.rebuildIndex", { message: toMessage(error) }),
-          });
-        }
-      },
-
-      setQuery(query) {
-        set({ query });
-        scheduleLibraryQuery();
-      },
-      setNavFilter(navFilter) {
-        set({ navFilter, scopedFilter: null, mobilePanel: "library", libraryPanelMode: "notes" });
-        void runLibraryQuery();
-      },
-      setScopedFilter(scopedFilter) {
-        set({ scopedFilter, navFilter: "all", mobilePanel: "library", libraryPanelMode: "notes" });
-        void runLibraryQuery();
-      },
-      setLibraryPanelMode(libraryPanelMode) {
-        set({
-          libraryPanelMode,
-          mobilePanel: libraryPanelMode === "graph" ? "editor" : "library",
-        });
-      },
-      setViewMode(viewMode) {
-        set({ viewMode });
-      },
-      setSidebarCollapsed(isSidebarCollapsed) {
-        set({ isSidebarCollapsed });
-        persistPreferences();
-      },
-      setLayout(partial) {
-        const layout = mergeLayout({ ...get().layout, ...partial });
-        const current = get().layout;
-        if (
-          layout.sidebarWidth === current.sidebarWidth &&
-          layout.libraryWidth === current.libraryWidth &&
-          layout.editorSplit === current.editorSplit
-        ) {
-          return;
-        }
-        set({ layout });
-        persistPreferences();
-      },
-      setSettings(settings) {
-        set({ settings: mergeSettings(settings) });
-        persistPreferences();
-      },
-      resetSettings() {
-        set({ settings: DEFAULT_SETTINGS });
-        persistPreferences();
-      },
-      openSettings(settingsSection = "appearance") {
-        set({ settingsOpen: true, settingsSection });
-      },
-      closeSettings() {
-        set({ settingsOpen: false });
-      },
-      setSettingsSection(settingsSection) {
-        set({ settingsSection });
-      },
-      async saveCloudSyncProfile(profile: CloudSyncProfileInput) {
-        const root = get().workspaceRoot;
-        if (!root) return;
-        try {
-          const saved = await gateways.cloudSync.saveProfile(root, profile);
-          set({
-            cloudSyncProfile: mergeCloudSyncProfile(saved),
-            status: storeT(get().settings, "status.cloudSyncSaved"),
-          });
-        } catch (error) {
-          set({
-            error: storeT(get().settings, "errors.saveCloudSync", { message: toMessage(error) }),
-          });
-          throw error;
-        }
-      },
-      async testCloudSync(profile: CloudSyncProfileInput) {
-        return gateways.cloudSync.testConnection(profile);
-      },
-      async runCloudSync(profile?: CloudSyncProfileInput) {
-        const root = get().workspaceRoot;
-        if (!root) return null;
-        if (cloudSyncInFlight) {
-          cloudSyncPending = true;
-          return null;
-        }
-        ensureCloudSyncProgressWatch();
-        cloudSyncInFlight = true;
-        set({ cloudSyncProgress: initialCloudSyncProgress() });
-        const unsaved = isOpenUnsavedNote(get());
-        const activePath = get().activePath;
-        try {
-          const result = await gateways.cloudSync.runSync(root, profile);
-          const report = mergeCloudSyncReport(result.report) ?? result.report;
-          set({
-            cloudSyncProfile: mergeCloudSyncProfile(result.profile),
-            status: storeT(get().settings, "status.cloudSyncComplete"),
-          });
-          if (cloudSyncTouchedLocal(report)) {
-            await get().refreshWorkspace();
-          }
-          if (
-            !unsaved &&
-            activePath &&
-            get().activePath === activePath &&
-            cloudSyncChangedActiveNote(report, activePath)
-          ) {
-            await get().selectNote(activePath);
-          }
-          return { ...result, report };
-        } catch (error) {
-          set({
-            error: storeT(get().settings, "errors.runCloudSync", { message: toMessage(error) }),
-          });
-          throw error;
-        } finally {
-          cloudSyncInFlight = false;
-          set({ cloudSyncProgress: null });
-          if (cloudSyncPending) {
-            cloudSyncPending = false;
-            void get().runCloudSync();
-          }
-        }
-      },
-      setMobilePanel(mobilePanel) {
-        set({ mobilePanel });
-      },
-      clearError() {
-        set({ error: "" });
-      },
+      ...createAttachmentSlice({
+        refreshAttachments: refreshAttachmentsAction,
+        saveAttachments: saveAttachmentsAction,
+        savePastedImages: savePastedImagesAction,
+        importDroppedImages: importDroppedImagesAction,
+        importAttachments: importAttachmentsAction,
+        deleteAttachment: deleteAttachmentAction,
+      }),
+      ...createLibrarySlice({
+        set,
+        scheduleQuery: libraryQuery.schedule,
+        runQueryNow: () => {
+          libraryQuery.runNow();
+        },
+      }),
+      ...createUiSlice({ set, get, persistPreferences }),
+      ...createSyncSlice({
+        saveProfile: saveCloudSyncProfileAction,
+        testConnection: testCloudSyncAction,
+        run: runCloudSyncAction,
+      }),
     };
   });
 
-  const stopAutosave = () => {
-    if (autosaveTimer !== null) {
-      window.clearInterval(autosaveTimer);
-      autosaveTimer = null;
-    }
-  };
-
-  const syncAutosave = () => {
-    if (!isOpenUnsavedNote(store.getState())) {
-      stopAutosave();
-      return;
-    }
-    if (autosaveTimer !== null) return;
-    autosaveTimer = window.setInterval(() => {
-      const state = store.getState();
-      if (!isOpenUnsavedNote(state)) {
-        stopAutosave();
-        return;
-      }
-      if (state.isSaving) return;
-      void state.saveActiveNote();
-    }, AUTOSAVE_INTERVAL_MS);
-  };
-
-  store.subscribe(syncAutosave);
+  const autosave = createAutosaveController({
+    getState: store.getState,
+    isDirty: isOpenUnsavedNote,
+    isSaving: (state) => state.isSaving,
+    save: (state) => state.saveActiveNote(),
+    intervalMs: AUTOSAVE_INTERVAL_MS,
+  });
+  store.subscribe(autosave.sync);
   return store;
 }
 

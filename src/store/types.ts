@@ -16,7 +16,7 @@ import type {
   CloudSyncRunResult,
 } from "../domain/cloud-sync";
 import type { WorkspaceLayoutState } from "../domain/layout";
-import type { SettingsSection } from "../features/settings/types";
+import type { SettingsSection } from "../domain/settings";
 
 export type WorkspaceSlice = {
   workspaceRoot: string | null;

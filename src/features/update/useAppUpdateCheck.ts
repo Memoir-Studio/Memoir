@@ -47,7 +47,7 @@ export function useAppUpdateCheck() {
   const openRelease = useCallback(async () => {
     const url = notice?.releaseUrl;
     if (!url || !isAllowedReleaseUrl(url)) return;
-    await getGateways().workspace.openExternal(url);
+    await getGateways().system.openExternal(url);
     setNotice(null);
   }, [notice]);
 

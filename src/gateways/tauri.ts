@@ -257,8 +257,11 @@ export class TauriCloudSyncGateway implements CloudSyncGateway {
 }
 
 export function createTauriGateways(): AppGateways {
+  const workspace = new TauriWorkspaceGateway();
   return {
-    workspace: new TauriWorkspaceGateway(),
+    workspace,
+    attachments: workspace,
+    system: workspace,
     persistence: new TauriPersistenceGateway(),
     cloudSync: new TauriCloudSyncGateway(),
   };

@@ -1,1 +1,1 @@
-export type SettingsSection = "general" | "appearance" | "editor" | "about";
+export type { SettingsSection } from "../../domain/settings";

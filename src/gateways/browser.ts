@@ -21,7 +21,7 @@ import {
 import { indexInfoFromNotes, type WorkspaceIndexInfo } from "../domain/index-info";
 import { buildNoteGraph, type NoteGraph } from "../domain/note-links";
 import type { LibraryPage, LibraryQuery, RawNoteFile, RenamedNote } from "../domain/notes";
-import { parseNote, queryNotesInMemory } from "../features/library/note-utils";
+import { parseNote, queryNotesInMemory } from "../domain/notes/note-utils";
 import { DEFAULT_SETTINGS } from "../domain/settings";
 import { APP_VERSION } from "../platform/app-version";
 import {
@@ -551,8 +551,11 @@ function pickBrowserFiles() {
 }
 
 export function createBrowserGateways(): AppGateways {
+  const workspace = new BrowserWorkspaceGateway();
   return {
-    workspace: new BrowserWorkspaceGateway(),
+    workspace,
+    attachments: workspace,
+    system: workspace,
     persistence: new BrowserPersistenceGateway(),
     cloudSync: new BrowserCloudSyncGateway(),
   };

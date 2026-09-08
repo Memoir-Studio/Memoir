@@ -72,7 +72,7 @@ export function IndexInspector() {
   const openIndexFolder = async () => {
     if (!workspaceRoot) return;
     try {
-      await getGateways().workspace.revealPath(
+      await getGateways().system.revealPath(
         resolveWorkspaceFilePath(workspaceRoot, INDEX_RELATIVE_PATH),
       );
     } catch (error) {

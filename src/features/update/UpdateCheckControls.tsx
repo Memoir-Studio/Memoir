@@ -53,7 +53,7 @@ export function UpdateCheckControls() {
   async function download() {
     const url = result?.releaseUrl;
     if (!url || !isAllowedReleaseUrl(url)) return;
-    await getGateways().workspace.openExternal(url);
+      await getGateways().system.openExternal(url);
   }
 
   return (

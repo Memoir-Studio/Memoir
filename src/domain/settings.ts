@@ -10,6 +10,7 @@ export type LocalePreference = "system" | AppLocale;
 export type CloseBehavior = "tray" | "quit";
 export type NoteSortField = "name" | "modified" | "title";
 export type NoteSortDirection = "asc" | "desc";
+export type SettingsSection = "general" | "appearance" | "editor" | "about";
 
 export const MIN_UI_SCALE = 0.8;
 export const MAX_UI_SCALE = 2;

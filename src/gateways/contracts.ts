@@ -55,6 +55,26 @@ export interface WorkspaceGateway {
   writeExportFile(path: string, bytesBase64: string): Promise<void>;
 }
 
+export type AttachmentGateway = Pick<
+  WorkspaceGateway,
+  | "scanAttachments"
+  | "saveAttachment"
+  | "importAttachments"
+  | "importAttachmentsFromPaths"
+  | "deleteAttachment"
+  | "resolveMediaPath"
+>;
+
+export type SystemGateway = Pick<
+  WorkspaceGateway,
+  | "chooseWorkspace"
+  | "openPath"
+  | "revealPath"
+  | "openExternal"
+  | "chooseExportPath"
+  | "writeExportFile"
+>;
+
 export interface PersistenceGateway {
   loadAppState(): Promise<AppState>;
   savePreferences(
@@ -88,6 +108,8 @@ export interface CloudSyncGateway {
 
 export type AppGateways = {
   workspace: WorkspaceGateway;
+  attachments: AttachmentGateway;
+  system: SystemGateway;
   persistence: PersistenceGateway;
   cloudSync: CloudSyncGateway;
 };

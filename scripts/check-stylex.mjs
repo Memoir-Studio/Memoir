@@ -55,6 +55,20 @@ for (const path of walk(sourceRoot)) {
 
   if (!/\.(?:ts|tsx)$/.test(file)) continue;
   const source = readFileSync(path, "utf8");
+
+  if (
+    /^(src\/(?:domain|gateways|store)\/)/.test(file) &&
+    /from\s+["'][^"']*\/features\//.test(source)
+  ) {
+    failures.push(`${file}: core layers must not import feature modules`);
+  }
+
+  if (
+    file.startsWith("src/features/") &&
+    /from\s+["']@tauri-apps\//.test(source)
+  ) {
+    failures.push(`${file}: features must use gateway/platform adapters instead of Tauri APIs`);
+  }
   const classAssignments = countJsxClassNames(path, source);
   if (file === generatedClassHost) {
     if (classAssignments !== 3) {

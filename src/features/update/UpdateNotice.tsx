@@ -182,7 +182,7 @@ function ReleaseNotesLink({
       onClick={(event) => {
         event.preventDefault();
         if (href && /^https?:\/\//i.test(href)) {
-          void getGateways().workspace.openExternal(href);
+          void getGateways().system.openExternal(href);
         }
       }}
       {...stylex.props(styles.link)}

@@ -12,7 +12,7 @@ import {
 import { indexInfoFromNotes, type WorkspaceIndexInfo } from "../domain/index-info";
 import { buildNoteGraph, type NoteGraph } from "../domain/note-links";
 import type { LibraryPage, LibraryQuery, RawNoteFile, RenamedNote } from "../domain/notes";
-import { parseNote, queryNotesInMemory } from "../features/library/note-utils";
+import { parseNote, queryNotesInMemory } from "../domain/notes/note-utils";
 import { DEFAULT_WORKSPACE_LAYOUT, mergeLayout, type WorkspaceLayoutState } from "../domain/layout";
 import { DEFAULT_SETTINGS } from "../domain/settings";
 import {
@@ -434,8 +434,11 @@ export function createMockGateways(): AppGateways & {
   persistence: MockPersistenceGateway;
   cloudSync: MockCloudSyncGateway;
 } {
+  const workspace = new MockWorkspaceGateway();
   return {
-    workspace: new MockWorkspaceGateway(),
+    workspace,
+    attachments: workspace,
+    system: workspace,
     persistence: new MockPersistenceGateway(),
     cloudSync: new MockCloudSyncGateway(),
   };

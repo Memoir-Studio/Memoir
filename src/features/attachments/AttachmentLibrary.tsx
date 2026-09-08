@@ -71,7 +71,7 @@ export function AttachmentLibrary({
       <div {...stylex.props(styles.grid)}>
         {filtered.map((attachment) => {
           const src = workspaceRoot
-            ? getGateways().workspace.resolveMediaPath(
+            ? getGateways().attachments.resolveMediaPath(
                 resolveWorkspaceFilePath(workspaceRoot, attachment.relativePath),
               )
             : "";

@@ -1,12 +1,17 @@
 export function mermaidSourceKey(code: string) {
-  return code;
+  return `${getMermaidTheme()}:${code}`;
 }
 
 const svgCache = new Map<string, string>();
 const inflight = new Map<string, Promise<string>>();
 const MAX_CACHE = 40;
 let mermaidInitialized = false;
+let mermaidTheme = "";
 let idSeq = 0;
+
+export function getMermaidTheme() {
+  return document.documentElement.dataset.theme === "dark" ? "dark" : "default";
+}
 
 export function getCachedMermaidSvg(code: string) {
   return svgCache.get(mermaidSourceKey(code));
@@ -30,9 +35,11 @@ export async function renderMermaidDiagram(code: string) {
 
   const request = (async () => {
     const { default: mermaid } = await import("mermaid");
-    if (!mermaidInitialized) {
-      mermaid.initialize({ startOnLoad: false, theme: "neutral", securityLevel: "strict" });
+    const theme = getMermaidTheme();
+    if (!mermaidInitialized || mermaidTheme !== theme) {
+      mermaid.initialize({ startOnLoad: false, theme, securityLevel: "strict" });
       mermaidInitialized = true;
+      mermaidTheme = theme;
     }
     idSeq += 1;
     const result = await mermaid.render(`memoir-mmd-${idSeq}`, code);
@@ -49,5 +56,6 @@ export function resetMermaidRuntime() {
   svgCache.clear();
   inflight.clear();
   mermaidInitialized = false;
+  mermaidTheme = "";
   idSeq = 0;
 }

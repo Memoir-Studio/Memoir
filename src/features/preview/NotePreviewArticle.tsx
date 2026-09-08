@@ -118,6 +118,8 @@ function previewComponents(
   onOpenNote?: (path: string) => void,
 ): MDXComponents {
   const gateway = getGateways().workspace;
+  const system = getGateways().system;
+  const attachments = getGateways().attachments;
   const directory = relativePath ? noteDirectory(relativePath) : "";
   return {
     Callout,
@@ -137,7 +139,7 @@ function previewComponents(
           <div {...props} data-link-card-host="" {...stylex.props(styles.linkCardHost)}>
             <LinkCard
               label={readLinkCardProp({ ...props, node: _node }, "label")}
-              onOpen={(href) => void gateway.openExternal(href)}
+              onOpen={(href) => void system.openExternal(href)}
               url={url}
             />
           </div>
@@ -170,7 +172,7 @@ function previewComponents(
             if (!href) return;
             event.preventDefault();
             if (/^https?:/i.test(href)) {
-              void gateway.openExternal(href);
+              void system.openExternal(href);
               return;
             }
             if (resolved) {
@@ -195,7 +197,7 @@ function previewComponents(
         <img
           {...props}
           alt={alt || ""}
-          src={gateway.resolveMediaPath(
+          src={attachments.resolveMediaPath(
             resolveWorkspaceFilePath(root, directory, decodeMediaHref(src)),
           )}
         />

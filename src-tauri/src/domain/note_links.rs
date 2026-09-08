@@ -518,7 +518,7 @@ mod tests {
     fn load_corpus() -> Corpus {
         let raw = include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../src/features/library/fixtures/note-links-corpus.json"
+            "/../src/domain/notes/fixtures/note-links-corpus.json"
         ));
         serde_json::from_str(raw).expect("corpus json")
     }

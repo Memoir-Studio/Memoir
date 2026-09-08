@@ -52,7 +52,7 @@ export async function exportNotePdf(relativePath: string) {
     const { settings, workspaceRoot } = useAppStore.getState();
     const title = parseNote(resolved.content, resolved.note.fileName).title;
     const fileName = suggestedPdfFileName(title, relativePath);
-    const chosen = await getGateways().workspace.chooseExportPath({
+  const chosen = await getGateways().system.chooseExportPath({
       defaultPath: defaultExportPath(workspaceRoot, relativePath, fileName),
       title: currentT("dialog.exportPdf"),
     });
@@ -71,7 +71,7 @@ export async function exportNotePdf(relativePath: string) {
       root: workspaceRoot,
     });
     const bytesBase64 = bytesToBase64(bytes);
-    await getGateways().workspace.writeExportFile(chosen, bytesBase64);
+  await getGateways().system.writeExportFile(chosen, bytesBase64);
     useAppStore.setState({ status: currentT("status.exportedPdf") });
     return chosen;
   } catch (error) {

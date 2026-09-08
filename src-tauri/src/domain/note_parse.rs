@@ -309,7 +309,7 @@ mod tests {
     fn rust_parse_matches_shared_corpus() {
         let raw = include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../src/features/library/fixtures/note-parse-corpus.json"
+            "/../src/domain/notes/fixtures/note-parse-corpus.json"
         ));
         let cases: Vec<CorpusCase> = serde_json::from_str(raw).expect("corpus json");
         assert!(!cases.is_empty());

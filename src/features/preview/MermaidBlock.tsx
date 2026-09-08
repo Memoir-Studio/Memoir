@@ -1,12 +1,19 @@
 import * as stylex from "@stylexjs/stylex";
 import { useEffect, useState } from "react";
 import { colors } from "../../styles/tokens.stylex";
-import { getCachedMermaidSvg, renderMermaidDiagram } from "./mermaid-runtime";
+import { getCachedMermaidSvg, getMermaidTheme, renderMermaidDiagram } from "./mermaid-runtime";
 
 export default function MermaidBlock({ code }: { code: string }) {
+  const [theme, setTheme] = useState(getMermaidTheme);
   const cached = getCachedMermaidSvg(code);
   const [svg, setSvg] = useState(cached || "");
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    const observer = new MutationObserver(() => setTheme(getMermaidTheme()));
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     const hit = getCachedMermaidSvg(code);
@@ -31,7 +38,7 @@ export default function MermaidBlock({ code }: { code: string }) {
     return () => {
       cancelled = true;
     };
-  }, [code]);
+  }, [code, theme]);
 
   if (error) {
     return <pre {...stylex.props(styles.error)}>{error}</pre>;

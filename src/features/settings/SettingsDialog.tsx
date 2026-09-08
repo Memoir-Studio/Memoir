@@ -446,7 +446,7 @@ export default function SettingsDialog({
                 href={GITHUB_REPO_URL}
                 onClick={(event) => {
                   event.preventDefault();
-                  void getGateways().workspace.openExternal(GITHUB_REPO_URL);
+                  void getGateways().system.openExternal(GITHUB_REPO_URL);
                 }}
                 rel="noreferrer"
                 target="_blank"
