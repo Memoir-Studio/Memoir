@@ -124,7 +124,7 @@ bun run build
 cargo test --manifest-path src-tauri/Cargo.toml
 ```
 
-GitHub Actions runs the same checks on pull requests and pushes to `dev`. Installer builds wait for them to pass.
+GitHub Actions runs the same checks on pull requests and pushes to `main`. Installer builds wait for them to pass.
 
 ### Layout
 

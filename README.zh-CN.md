@@ -124,7 +124,7 @@ bun run build
 cargo test --manifest-path src-tauri/Cargo.toml
 ```
 
-GitHub Actions 会在 pull request 和推送到 `dev` 时跑同一套检查。安装包构建会等这些检查通过。
+GitHub Actions 会在 pull request 和推送到 `main` 时跑同一套检查。安装包构建会等这些检查通过。
 
 ### 目录
 
