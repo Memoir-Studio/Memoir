@@ -1,0 +1,241 @@
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { describe, expect, it } from "vitest";
+import {
+  addUniqueTags,
+  extractHeadings,
+  extractTitle,
+  filterNotes,
+  folderName,
+  noteBelongsToFolder,
+  noteDisplayName,
+  queryNotesInMemory,
+  isRootFolder,
+  noteStats,
+  parseNote,
+  parseTagTokens,
+  resolveNoteRenamePath,
+  sortLibraryNotes,
+} from "./note-utils";
+import type { NoteMeta } from "../../domain/notes";
+
+type CorpusCase = {
+  name: string;
+  content: string;
+  fallbackFileName: string;
+  title: string;
+  tags: string[];
+  excerpt: string;
+};
+
+const corpusPath = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "../../domain/notes/fixtures/note-parse-corpus.json",
+);
+const corpus = JSON.parse(readFileSync(corpusPath, "utf8")) as CorpusCase[];
+
+const notes: NoteMeta[] = [
+  {
+    relativePath: "work/alpha.md",
+    fileName: "alpha.md",
+    extension: "md",
+    modifiedMs: 100,
+    size: 10,
+    title: "Alpha",
+    tags: ["work"],
+    excerpt: "First project",
+    favorite: true,
+  },
+  {
+    relativePath: "beta.mdx",
+    fileName: "beta.mdx",
+    extension: "mdx",
+    modifiedMs: 1,
+    size: 20,
+    title: "Beta",
+    tags: [],
+    excerpt: "Second note",
+    favorite: false,
+  },
+];
+
+describe("note utilities", () => {
+  it("matches the shared parse corpus", () => {
+    expect(corpus.length).toBeGreaterThan(0);
+    for (const fixture of corpus) {
+      const parsed = parseNote(fixture.content, fixture.fallbackFileName);
+      expect(parsed.title, fixture.name).toBe(fixture.title);
+      expect(parsed.tags, fixture.name).toEqual(fixture.tags);
+      expect(parsed.excerpt, fixture.name).toBe(fixture.excerpt);
+    }
+  });
+
+  it("parses frontmatter title tags and excerpt", () => {
+    const parsed = parseNote(
+      "---\ntitle: Project Plan\ntags: [roadmap, team]\n---\n\n# Ignored\n\nUseful summary.",
+      "fallback.md",
+    );
+    expect(parsed.title).toBe("Project Plan");
+    expect(parsed.tags).toEqual(["roadmap", "team"]);
+    expect(parsed.excerpt).toContain("Useful summary");
+  });
+
+  it("reuses parsed metadata for the same document content", () => {
+    const content = `# Long note\n\n${"paragraph ".repeat(10_000)}`;
+    expect(parseNote(content, "long.md")).toBe(parseNote(content, "long.md"));
+  });
+
+  it("resolves title from frontmatter, then first h1, then filename", () => {
+    expect(
+      parseNote("---\ntitle: 今天吃什么\ntags: []\n---\n\n# Two Sum\n\nbody", "memoir.mdx").title,
+    ).toBe("今天吃什么");
+    expect(parseNote("---\ntitle: \"  \"\n---\n\n# Real heading\n", "note.md").title).toBe(
+      "Real heading",
+    );
+    expect(parseNote("# First heading\n\n## Second\n", "journal.md").title).toBe("First heading");
+    expect(parseNote("## Not a title\n\nplain text", "notes.md").title).toBe("notes");
+    expect(extractTitle("no headings here", "diary.mdx")).toBe("diary");
+  });
+
+  it("ignores headings inside fenced examples and prefers a real h1", () => {
+    const readmeLike = `<p align="center">
+  <img src="docs/assets/logo.svg" width="96" alt="Memoir" />
+</p>
+
+<h1 align="center">Memoir</h1>
+
+## Features
+
+\`\`\`\`md
+---
+title: Two Sum
+---
+
+# Two Sum
+\`\`\`\`
+`;
+    expect(parseNote(readmeLike, "memoir.mdx").title).toBe("Memoir");
+    expect(parseNote("````md\n# Two Sum\n````\n\n## Features\n", "README.md").title).toBe("README");
+    expect(parseNote("# **Bold Title**\n", "a.md").title).toBe("Bold Title");
+  });
+
+  it("extracts stable heading ids and word statistics", () => {
+    expect(extractHeadings("# Hello\n## Hello\n### 世界")).toEqual([
+      { id: "hello", depth: 1, text: "Hello" },
+      { id: "hello-1", depth: 2, text: "Hello" },
+      { id: "世界", depth: 3, text: "世界" },
+    ]);
+    expect(extractHeadings("# Real\n```\n# Fake\n```\n## Also real")).toEqual([
+      { id: "real", depth: 1, text: "Real" },
+      { id: "also-real", depth: 2, text: "Also real" },
+    ]);
+    expect(noteStats("Hello world 世界")).toEqual({
+      words: 4,
+      chars: 14,
+      minutes: 1,
+    });
+  });
+
+  it("filters by query navigation folder and tag", () => {
+    expect(filterNotes(notes, "project", "all", null, 100)).toEqual([notes[0]]);
+    expect(filterNotes(notes, "", "favorites", null, 100)).toEqual([notes[0]]);
+    expect(filterNotes(notes, "", "uncategorized", null, 100)).toEqual([notes[1]]);
+    expect(
+      filterNotes(notes, "", "all", { type: "folder", value: "work" }, 100),
+    ).toEqual([notes[0]]);
+    expect(filterNotes(notes, "", "all", { type: "folder", value: "" }, 100)).toEqual([
+      notes[1],
+    ]);
+    expect(noteBelongsToFolder("work/nested/gamma.md", "work")).toBe(true);
+    expect(noteBelongsToFolder("workshop/gamma.md", "work")).toBe(false);
+    expect(
+      filterNotes(
+        [
+          ...notes,
+          {
+            relativePath: "work/nested/gamma.md",
+            fileName: "gamma.md",
+            extension: "md",
+            modifiedMs: 2,
+            size: 4,
+            title: "Gamma",
+            tags: [],
+            excerpt: "",
+            favorite: false,
+          },
+        ],
+        "",
+        "all",
+        { type: "folder", value: "work" },
+        100,
+      ).map((note) => note.relativePath),
+    ).toEqual(["work/alpha.md", "work/nested/gamma.md"]);
+    expect(filterNotes(notes, "", "all", { type: "tag", value: "WORK" }, 100)).toEqual([
+      notes[0],
+    ]);
+  });
+
+  it("builds an in-memory library page with the same filter semantics", () => {
+    const files = notes.map(({ favorite: _favorite, ...file }) => file);
+    const page = queryNotesInMemory(files, {
+      q: "project",
+      nav: "all",
+      folder: null,
+      tag: null,
+      nowMs: 100,
+    });
+    expect(page.notes.map((note) => note.relativePath)).toEqual(["work/alpha.md"]);
+    expect(page.stats.total).toBe(2);
+    expect(page.stats.uncategorized).toBe(1);
+  });
+
+  it("parses and deduplicates tag tokens", () => {
+    expect(parseTagTokens("leetcode, rust，算法")).toEqual(["leetcode", "rust", "算法"]);
+    expect(parseTagTokens("  work , , diary  ")).toEqual(["work", "diary"]);
+    expect(addUniqueTags(["Work"], ["work", "diary", "  "])).toEqual(["Work", "diary"]);
+  });
+
+  it("uses a stable sentinel for workspace-root notes", () => {
+    expect(folderName("beta.mdx")).toBe("");
+    expect(folderName("work/alpha.md")).toBe("work");
+    expect(isRootFolder(folderName("beta.mdx"))).toBe(true);
+    expect(isRootFolder(folderName("work/alpha.md"))).toBe(false);
+  });
+
+  it("lists notes by file name and keeps rename on the same path", () => {
+    expect(noteDisplayName(notes[0]!)).toBe("alpha");
+    expect(noteDisplayName(notes[1]!)).toBe("beta");
+    expect(resolveNoteRenamePath("work/alpha.md", "gamma")).toBe("work/gamma.md");
+    expect(resolveNoteRenamePath("work/alpha.md", "gamma.mdx")).toBe("work/gamma.mdx");
+    expect(resolveNoteRenamePath("work/alpha.md", "inbox/gamma.md")).toBe("inbox/gamma.md");
+    expect(
+      sortLibraryNotes(
+        [
+          { fileName: "10.md", relativePath: "lessons/10.md", modifiedMs: 3, title: "Ten" },
+          { fileName: "2.md", relativePath: "lessons/2.md", modifiedMs: 1, title: "Two" },
+          { fileName: "beta.mdx", relativePath: "beta.mdx", modifiedMs: 2, title: "Beta" },
+        ],
+        { field: "name", direction: "asc" },
+      ).map((note) => note.relativePath),
+    ).toEqual(["beta.mdx", "lessons/2.md", "lessons/10.md"]);
+    expect(
+      sortLibraryNotes(
+        [
+          { fileName: "10.md", relativePath: "lessons/10.md", modifiedMs: 3, title: "Ten" },
+          { fileName: "2.md", relativePath: "lessons/2.md", modifiedMs: 1, title: "Two" },
+        ],
+        { field: "modified", direction: "desc" },
+      ).map((note) => note.relativePath),
+    ).toEqual(["lessons/10.md", "lessons/2.md"]);
+    expect(
+      sortLibraryNotes(
+        [
+          { fileName: "a.md", relativePath: "a.md", modifiedMs: 1, title: "Zebra" },
+          { fileName: "b.md", relativePath: "b.md", modifiedMs: 2, title: "Apple" },
+        ],
+        { field: "title", direction: "asc" },
+      ).map((note) => note.relativePath),
+    ).toEqual(["b.md", "a.md"]);
+  });
+});

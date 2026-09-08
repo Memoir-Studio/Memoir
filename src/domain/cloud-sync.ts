@@ -1,0 +1,294 @@
+/**
+ * Identifiers are deliberately kept at the domain boundary. UI, gateways and
+ * the Rust provider registry all use the same small set, while the sync
+ * planner itself only deals in files.
+ */
+export const CLOUD_PROVIDER_IDS = ["webdav", "s3"] as const;
+export type CloudProviderId = (typeof CLOUD_PROVIDER_IDS)[number];
+
+export type CloudSyncStatus = "idle" | "ok" | "error";
+
+export const CLOUD_SYNC_PROGRESS_EVENT = "cloud-sync-progress";
+
+export const CLOUD_SYNC_PHASES = ["scanning", "listing", "planning", "working", "finishing"] as const;
+export type CloudSyncPhase = (typeof CLOUD_SYNC_PHASES)[number];
+
+export const CLOUD_SYNC_ACTIONS = ["upload", "download", "deleteRemote", "deleteLocal"] as const;
+export type CloudSyncAction = (typeof CLOUD_SYNC_ACTIONS)[number];
+
+export type CloudSyncProgress = {
+  phase: CloudSyncPhase;
+  path: string | null;
+  action: CloudSyncAction | null;
+  current: number;
+  total: number;
+};
+
+export type WebDavSettings = {
+  url: string;
+  username: string;
+  password: string;
+  insecureTls: boolean;
+};
+
+/**
+ * S3 Signature V4 settings. An empty endpoint uses AWS S3 for the selected
+ * region; a custom endpoint makes MinIO, Cloudflare R2 and other S3-compatible
+ * stores possible without another sync implementation.
+ */
+export type S3Settings = {
+  endpoint: string;
+  region: string;
+  bucket: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+  sessionToken: string;
+  forcePathStyle: boolean;
+  insecureTls: boolean;
+};
+
+export type CloudSyncFileError = {
+  path: string;
+  message: string;
+};
+
+export type CloudSyncReport = {
+  uploaded: number;
+  downloaded: number;
+  deletedRemote: number;
+  deletedLocal: number;
+  skipped: number;
+  conflicts: number;
+  errors: CloudSyncFileError[];
+  completedMs: number;
+  durationMs: number;
+  changedLocalPaths: string[];
+};
+
+export type CloudSyncProfile = {
+  enabled: boolean;
+  provider: CloudProviderId;
+  remotePrefix: string;
+  webdav: WebDavSettings;
+  s3: S3Settings;
+  lastSyncMs: number | null;
+  lastStatus: CloudSyncStatus;
+  lastError: string | null;
+  lastReport: CloudSyncReport | null;
+};
+
+export type CloudSyncProfileInput = {
+  enabled: boolean;
+  provider: CloudProviderId;
+  remotePrefix: string;
+  webdav: WebDavSettings;
+  /** Optional for profiles saved before S3 support; the backend supplies defaults. */
+  s3?: S3Settings;
+};
+
+export type CloudSyncProbe = {
+  ok: boolean;
+  message: string;
+};
+
+export type CloudSyncRunResult = {
+  profile: CloudSyncProfile;
+  report: CloudSyncReport;
+};
+
+export const DEFAULT_WEBDAV_SETTINGS: WebDavSettings = {
+  url: "",
+  username: "",
+  password: "",
+  insecureTls: false,
+};
+
+export const DEFAULT_S3_SETTINGS: S3Settings = {
+  endpoint: "",
+  region: "us-east-1",
+  bucket: "",
+  accessKeyId: "",
+  secretAccessKey: "",
+  sessionToken: "",
+  forcePathStyle: false,
+  insecureTls: false,
+};
+
+export function defaultCloudSyncProfile(): CloudSyncProfile {
+  return {
+    enabled: false,
+    provider: "webdav",
+    remotePrefix: "",
+    webdav: { ...DEFAULT_WEBDAV_SETTINGS },
+    s3: { ...DEFAULT_S3_SETTINGS },
+    lastSyncMs: null,
+    lastStatus: "idle",
+    lastError: null,
+    lastReport: null,
+  };
+}
+
+export function isCloudProviderId(value: unknown): value is CloudProviderId {
+  return CLOUD_PROVIDER_IDS.includes(value as CloudProviderId);
+}
+
+export function isCloudSyncStatus(value: unknown): value is CloudSyncStatus {
+  return value === "idle" || value === "ok" || value === "error";
+}
+
+export function isCloudSyncPhase(value: unknown): value is CloudSyncPhase {
+  return CLOUD_SYNC_PHASES.includes(value as CloudSyncPhase);
+}
+
+export function isCloudSyncAction(value: unknown): value is CloudSyncAction {
+  return CLOUD_SYNC_ACTIONS.includes(value as CloudSyncAction);
+}
+
+export function initialCloudSyncProgress(): CloudSyncProgress {
+  return { phase: "scanning", path: null, action: null, current: 0, total: 0 };
+}
+
+export function mergeCloudSyncProgress(
+  progress?: Partial<CloudSyncProgress> | null,
+): CloudSyncProgress | null {
+  if (!progress || !isCloudSyncPhase(progress.phase)) return null;
+  return {
+    phase: progress.phase,
+    path: asTrimmedString(progress.path) || null,
+    action: isCloudSyncAction(progress.action) ? progress.action : null,
+    current: Math.max(0, asFiniteNumber(progress.current) ?? 0),
+    total: Math.max(0, asFiniteNumber(progress.total) ?? 0),
+  };
+}
+
+export function cloudSyncProgressRatio(progress: CloudSyncProgress): number | null {
+  if (progress.total <= 0) return null;
+  return Math.min(1, progress.current / progress.total);
+}
+
+function asTrimmedString(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function asBoolean(value: unknown, fallback: boolean): boolean {
+  return typeof value === "boolean" ? value : fallback;
+}
+
+function asFiniteNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim()) {
+    const numeric = Number(value);
+    if (Number.isFinite(numeric)) return numeric;
+  }
+  return null;
+}
+
+export function mergeWebDavSettings(settings?: Partial<WebDavSettings> | null): WebDavSettings {
+  return {
+    url: asTrimmedString(settings?.url),
+    username: asTrimmedString(settings?.username),
+    password: typeof settings?.password === "string" ? settings.password : "",
+    insecureTls: asBoolean(settings?.insecureTls, false),
+  };
+}
+
+export function mergeS3Settings(settings?: Partial<S3Settings> | null): S3Settings {
+  return {
+    // Keep a partially typed URL/region intact in the setup form. The Rust
+    // service normalizes the final saved profile, after the user is finished
+    // entering `https://` or replacing a default region.
+    endpoint: asTrimmedString(settings?.endpoint),
+    region:
+      typeof settings?.region === "string"
+        ? asTrimmedString(settings.region)
+        : DEFAULT_S3_SETTINGS.region,
+    bucket: asTrimmedString(settings?.bucket),
+    accessKeyId: asTrimmedString(settings?.accessKeyId),
+    secretAccessKey:
+      typeof settings?.secretAccessKey === "string" ? settings.secretAccessKey : "",
+    sessionToken: typeof settings?.sessionToken === "string" ? settings.sessionToken.trim() : "",
+    forcePathStyle: asBoolean(settings?.forcePathStyle, DEFAULT_S3_SETTINGS.forcePathStyle),
+    insecureTls: asBoolean(settings?.insecureTls, DEFAULT_S3_SETTINGS.insecureTls),
+  };
+}
+
+export function mergeCloudSyncReport(report?: Partial<CloudSyncReport> | null): CloudSyncReport | null {
+  if (!report) return null;
+  const errors = Array.isArray(report.errors)
+    ? report.errors
+        .map((item) => ({
+          path: asTrimmedString((item as CloudSyncFileError | undefined)?.path),
+          message: asTrimmedString((item as CloudSyncFileError | undefined)?.message),
+        }))
+        .filter((item) => item.path || item.message)
+    : [];
+  return {
+    uploaded: asFiniteNumber(report.uploaded) ?? 0,
+    downloaded: asFiniteNumber(report.downloaded) ?? 0,
+    deletedRemote: asFiniteNumber(report.deletedRemote) ?? 0,
+    deletedLocal: asFiniteNumber(report.deletedLocal) ?? 0,
+    skipped: asFiniteNumber(report.skipped) ?? 0,
+    conflicts: asFiniteNumber(report.conflicts) ?? 0,
+    errors,
+    completedMs: asFiniteNumber(report.completedMs) ?? 0,
+    durationMs: asFiniteNumber(report.durationMs) ?? 0,
+    changedLocalPaths: Array.isArray(report.changedLocalPaths)
+      ? report.changedLocalPaths.map((item) => asTrimmedString(item)).filter(Boolean)
+      : [],
+  };
+}
+
+export function cloudSyncTouchedLocal(report: CloudSyncReport): boolean {
+  return report.downloaded > 0 || report.deletedLocal > 0 || report.conflicts > 0;
+}
+
+export function cloudSyncChangedActiveNote(
+  report: CloudSyncReport,
+  activePath: string | null,
+): boolean {
+  if (!activePath) return false;
+  const changed = report.changedLocalPaths;
+  return Array.isArray(changed) && changed.includes(activePath);
+}
+
+export function mergeCloudSyncProfile(
+  profile?: Partial<CloudSyncProfile> | null,
+): CloudSyncProfile {
+  const defaults = defaultCloudSyncProfile();
+  return {
+    enabled: asBoolean(profile?.enabled, defaults.enabled),
+    provider: isCloudProviderId(profile?.provider) ? profile.provider : defaults.provider,
+    remotePrefix: asTrimmedString(profile?.remotePrefix).replace(/^\/+|\/+$/g, ""),
+    webdav: mergeWebDavSettings(profile?.webdav),
+    s3: mergeS3Settings(profile?.s3),
+    lastSyncMs: asFiniteNumber(profile?.lastSyncMs),
+    lastStatus: isCloudSyncStatus(profile?.lastStatus) ? profile.lastStatus : defaults.lastStatus,
+    lastError: typeof profile?.lastError === "string" && profile.lastError.trim()
+      ? profile.lastError.trim()
+      : null,
+    lastReport: mergeCloudSyncReport(profile?.lastReport),
+  };
+}
+
+export function toCloudSyncProfileInput(profile: CloudSyncProfile): CloudSyncProfileInput {
+  return {
+    enabled: profile.enabled,
+    provider: profile.provider,
+    remotePrefix: profile.remotePrefix,
+    webdav: { ...profile.webdav },
+    s3: { ...profile.s3 },
+  };
+}
+
+export function hasCloudSyncCredentials(profile: CloudSyncProfileInput): boolean {
+  if (profile.provider === "webdav") {
+    return Boolean(profile.webdav.url);
+  }
+  if (profile.provider === "s3") {
+    const s3 = mergeS3Settings(profile.s3);
+    return Boolean(
+      s3.region && s3.bucket && s3.accessKeyId && s3.secretAccessKey,
+    );
+  }
+  return false;
+}

@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none" role="img" aria-label="Memoir">
+  <title>Memoir</title>
+  <defs>
+    <linearGradient id="memoir-page" x1="18" y1="2" x2="112" y2="126" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#f5f6f7"/>
+      <stop offset="1" stop-color="#d2d6db"/>
+    </linearGradient>
+    <linearGradient id="memoir-flap" x1="100" y1="2" x2="126" y2="28" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2a2e34"/>
+      <stop offset="1" stop-color="#121418"/>
+    </linearGradient>
+    <linearGradient id="memoir-cover" x1="30" y1="32" x2="52" y2="102" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#3a4048"/>
+      <stop offset="1" stop-color="#171a1e"/>
+    </linearGradient>
+    <linearGradient id="memoir-leaf-lit" x1="50" y1="34" x2="64" y2="90" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#c9d0d7"/>
+      <stop offset="1" stop-color="#8b939c"/>
+    </linearGradient>
+    <linearGradient id="memoir-leaf-shade" x1="64" y1="34" x2="80" y2="90" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#5a616a"/>
+      <stop offset="1" stop-color="#2c3138"/>
+    </linearGradient>
+  </defs>
+  <path
+    fill="url(#memoir-page)"
+    d="M36 0h64L128 28v64c0 19.9-16.1 36-36 36H36C16.1 128 0 111.9 0 92V36C0 16.1 16.1 0 36 0z"
+  />
+  <path fill="#7d838b" opacity=".3" d="M100 0l28 28-3.6.05L100 3.7z"/>
+  <path fill="url(#memoir-flap)" d="M100 0l28 28H108a8 8 0 0 1-8-8V0z"/>
+  <path fill="url(#memoir-cover)" d="M30 40c0-4.4 3.6-8 8-8h12v68H38c-4.4 0-8-3.6-8-8V40z"/>
+  <path fill="url(#memoir-cover)" d="M78 32h12c4.4 0 8 3.6 8 8v52c0 4.4-3.6 8-8 8H78V32z"/>
+  <path fill="url(#memoir-leaf-lit)" d="M52 36l12 28v28L52 64V36z"/>
+  <path fill="url(#memoir-leaf-shade)" d="M64 64l12-28v28L64 92V64z"/>
+</svg>

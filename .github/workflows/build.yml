@@ -1,0 +1,223 @@
+name: Build Installers
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Platforms to build
+        type: choice
+        required: true
+        default: all
+        options:
+          - all
+          - linux
+          - windows
+          - macos
+      draft_release:
+        description: Also upload installers to a draft GitHub Release
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-installers-${{ github.ref }}-${{ inputs.platform }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    name: Test
+    uses: ./.github/workflows/test.yml
+
+  changelog:
+    name: Release notes
+    needs: test
+    runs-on: ubuntu-24.04
+    outputs:
+      body: ${{ steps.notes.outputs.body }}
+    steps:
+      - name: Checkout
+        if: ${{ inputs.draft_release }}
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Generate changelog
+        id: notes
+        env:
+          DRAFT: ${{ inputs.draft_release }}
+        run: |
+          if [ "${DRAFT}" != "true" ]; then
+            echo "body=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          python3 .github/scripts/release_notes.py
+
+  prepare:
+    name: Prepare matrix
+    needs: test
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - id: set-matrix
+        env:
+          PLATFORM: ${{ inputs.platform }}
+        run: |
+          python3 <<'PY'
+          import json
+          import os
+
+          targets = [
+              {
+                  "name": "linux-x86_64",
+                  "family": "linux",
+                  "runner": "ubuntu-22.04",
+                  "rust_target": "",
+                  "args": "--bundles deb,rpm,appimage",
+              },
+              {
+                  "name": "windows-x86_64",
+                  "family": "windows",
+                  "runner": "windows-2025",
+                  "rust_target": "",
+                  "args": "--bundles nsis",
+              },
+              {
+                  "name": "macos-aarch64",
+                  "family": "macos",
+                  "runner": "macos-26",
+                  "rust_target": "aarch64-apple-darwin",
+                  "args": "--target aarch64-apple-darwin --bundles dmg",
+              },
+              {
+                  "name": "macos-x86_64",
+                  "family": "macos",
+                  "runner": "macos-26",
+                  "rust_target": "x86_64-apple-darwin",
+                  "args": "--target x86_64-apple-darwin --bundles dmg",
+              },
+          ]
+
+          platform = os.environ["PLATFORM"]
+          selected = targets if platform == "all" else [t for t in targets if t["family"] == platform]
+          matrix = json.dumps({"include": selected}, separators=(",", ":"))
+
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as fh:
+              fh.write(f"matrix={matrix}\n")
+          PY
+
+  build:
+    name: ${{ matrix.name }}
+    needs: [prepare, changelog]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.prepare.outputs.matrix) }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_target }}
+
+      - name: Cache Rust
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: ./src-tauri -> target
+          shared-key: ${{ matrix.name }}
+          prefix-key: v1-rust
+          # Cleaning workspace crate-types (rlib/staticlib/cdylib) can drop
+          # dependency rlibs while leaving their fingerprints intact.
+          cache-all-crates: true
+
+      - name: Install Linux build dependencies
+        if: matrix.family == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            xdg-utils \
+            rpm
+
+      - name: Install frontend dependencies
+        run: bun install --frozen-lockfile
+
+      # Apple Silicon treats unsigned GitHub downloads as damaged.
+      # "-" is Tauri's ad-hoc identity; it does not notarize or skip Gatekeeper.
+      - name: Configure macOS ad-hoc signing
+        if: matrix.family == 'macos'
+        run: echo "APPLE_SIGNING_IDENTITY=-" >> "$GITHUB_ENV"
+
+      - name: Build installers
+        uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          APPLE_SIGNING_IDENTITY: ${{ matrix.family == 'macos' && '-' || '' }}
+        with:
+          tauriScript: bun tauri
+          args: ${{ matrix.args }}
+          uploadWorkflowArtifacts: true
+          workflowArtifactNamePattern: memoir-[platform]-[arch]-[bundle]
+          tagName: ${{ inputs.draft_release && 'v__VERSION__' || '' }}
+          releaseName: ${{ inputs.draft_release && 'Memoir v__VERSION__' || '' }}
+          releaseBody: ${{ inputs.draft_release && needs.changelog.outputs.body || '' }}
+          releaseDraft: ${{ inputs.draft_release }}
+          prerelease: false
+
+      # `--bundles dmg` signs memoir.app, packs the DMG, then deletes the
+      # intermediate .app. Check the signed copy users actually download.
+      - name: Verify macOS ad-hoc signature
+        if: matrix.family == 'macos'
+        run: |
+          set -euo pipefail
+          bundle_dir="src-tauri/target/${{ matrix.rust_target }}/release/bundle"
+          shopt -s nullglob
+          dmgs=("$bundle_dir"/dmg/*.dmg)
+          if [ "${#dmgs[@]}" -ne 1 ]; then
+            echo "Expected exactly one DMG under $bundle_dir/dmg, found ${#dmgs[@]}"
+            ls -la "$bundle_dir" "$bundle_dir/dmg" || true
+            exit 1
+          fi
+          dmg="${dmgs[0]}"
+          echo "Attaching $dmg"
+          attach_output="$(hdiutil attach -nobrowse -readonly "$dmg")"
+          echo "$attach_output"
+          mount_point="$(echo "$attach_output" | sed -n 's/.*[[:space:]]\(\/Volumes\/.*\)$/\1/p' | tail -n 1)"
+          if [ -z "$mount_point" ]; then
+            echo "Failed to parse mount point from hdiutil output"
+            exit 1
+          fi
+          cleanup() { hdiutil detach "$mount_point" -quiet || hdiutil detach "$mount_point" -force || true; }
+          trap cleanup EXIT
+
+          app="$mount_point/memoir.app"
+          if [ ! -d "$app" ]; then
+            echo "memoir.app missing from DMG at $mount_point"
+            ls -la "$mount_point"
+            exit 1
+          fi
+          codesign --verify --verbose=2 "$app"
+          codesign -dv --verbose=2 "$app" 2>&1 | tee /tmp/codesign.txt
+          if ! grep -q 'Signature=adhoc' /tmp/codesign.txt; then
+            echo "Expected Signature=adhoc"
+            cat /tmp/codesign.txt
+            exit 1
+          fi

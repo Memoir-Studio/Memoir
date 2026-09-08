@@ -1,0 +1,111 @@
+mod commands;
+mod domain;
+mod infrastructure;
+mod services;
+#[cfg(test)]
+mod tests;
+mod tray;
+mod window_frame;
+
+use commands::{
+    check_app_update, create_note, delete_attachment, delete_draft, delete_note, drafts_exist,
+    fetch_link_preview_html, get_cloud_sync_profile, get_index_info, get_note_graph,
+    import_attachment, load_app_state, migrate_legacy_state, query_library, read_draft, read_note,
+    rebuild_index, reconcile_workspace, rename_note, run_cloud_sync, save_attachment,
+    save_cloud_sync_profile, save_preferences, scan_attachments, set_favorite,
+    set_folder_appearance, skip_app_update, test_cloud_sync, write_draft, write_export_file,
+    write_note, AppServices,
+};
+use infrastructure::{app_data::AppDataRepository, filesystem::LocalFileSystem};
+use services::{AppStateService, CloudSyncService, WorkspaceService};
+use tauri::Manager;
+
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    let builder = tauri::Builder::default();
+    // Register first so duplicate launches exit before creating a window or tray.
+    #[cfg(desktop)]
+    let builder = builder.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+        tray::show_main(app);
+    }));
+
+    builder
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_opener::init())
+        .setup(|app| {
+            let app_data_dir = app.path().app_data_dir()?;
+            let app_data = AppDataRepository::new(app_data_dir);
+            let app_state = AppStateService::new(app_data.clone());
+            let filesystem = LocalFileSystem::new();
+            let workspace = WorkspaceService::new(filesystem.clone());
+            if let Some(window) = app.get_webview_window("main") {
+                let frame = app_state
+                    .load()
+                    .map(|state| state.window)
+                    .unwrap_or_default();
+                window_frame::restore(&window, &frame);
+                window_frame::persist_on_changes(window.clone(), app_state.clone(), frame.clone());
+                window_frame::reveal(&window, frame.maximized);
+            }
+            let close_policy = tray::install(app, &app_state)?;
+            app.manage(close_policy);
+            app.manage(AppServices {
+                workspace: workspace.clone(),
+                cloud_sync: CloudSyncService::new(
+                    filesystem,
+                    app_state.clone(),
+                    app_data,
+                    workspace,
+                ),
+                app_state,
+            });
+            Ok(())
+        })
+        .invoke_handler(tauri::generate_handler![
+            reconcile_workspace,
+            query_library,
+            get_index_info,
+            get_note_graph,
+            rebuild_index,
+            read_note,
+            write_note,
+            create_note,
+            rename_note,
+            delete_note,
+            scan_attachments,
+            drafts_exist,
+            save_attachment,
+            import_attachment,
+            delete_attachment,
+            load_app_state,
+            check_app_update,
+            skip_app_update,
+            save_preferences,
+            set_favorite,
+            set_folder_appearance,
+            read_draft,
+            write_draft,
+            delete_draft,
+            migrate_legacy_state,
+            write_export_file,
+            get_cloud_sync_profile,
+            save_cloud_sync_profile,
+            test_cloud_sync,
+            run_cloud_sync,
+            fetch_link_preview_html
+        ])
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Reopen {
+                has_visible_windows: false,
+                ..
+            } = event
+            {
+                tray::show_main(&app);
+            }
+            #[cfg(not(target_os = "macos"))]
+            let _ = (app, event);
+        });
+}

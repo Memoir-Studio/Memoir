@@ -1,0 +1,192 @@
+*,
+::before,
+::after,
+::backdrop,
+::file-selector-button {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  border: 0 solid;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+}
+
+html {
+  line-height: 1.5;
+  tab-size: 4;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  min-width: 0;
+  min-height: 100vh;
+  overflow: hidden;
+  background: transparent;
+  letter-spacing: 0;
+}
+
+:root[data-maximized="true"] body,
+:root[data-window-frame="flush"] body {
+  background: var(--memoir-canvas);
+}
+
+#root {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+a {
+  color: inherit;
+  text-decoration: inherit;
+}
+
+b,
+strong {
+  font-weight: bolder;
+}
+
+code,
+kbd,
+samp,
+pre {
+  font-family: var(--memoir-mono-font);
+  font-size: 1em;
+}
+
+ol,
+ul,
+menu {
+  list-style: none;
+}
+
+img,
+svg,
+video,
+canvas,
+audio,
+iframe,
+embed,
+object {
+  display: block;
+  vertical-align: middle;
+}
+
+img,
+video {
+  max-width: 100%;
+  height: auto;
+}
+
+table {
+  border-color: inherit;
+  border-collapse: collapse;
+  text-indent: 0;
+}
+
+button,
+input,
+select,
+optgroup,
+textarea,
+::file-selector-button {
+  border-radius: 0;
+  background-color: transparent;
+  color: inherit;
+  font: inherit;
+  font-feature-settings: inherit;
+  font-variation-settings: inherit;
+  letter-spacing: inherit;
+  opacity: 1;
+}
+
+button,
+[role="button"] {
+  cursor: pointer;
+}
+
+button:disabled,
+[role="button"][aria-disabled="true"] {
+  cursor: default;
+}
+
+button,
+input,
+[role="button"] {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:focus-visible,
+input:focus-visible,
+[role="button"]:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--memoir-accent) 58%, transparent);
+  outline-offset: 1px;
+}
+
+textarea {
+  resize: vertical;
+}
+
+::placeholder {
+  color: color-mix(in srgb, currentcolor 50%, transparent);
+  opacity: 1;
+}
+
+::selection {
+  background: var(--memoir-accent-soft);
+}
+
+* {
+  scrollbar-color: color-mix(in srgb, var(--memoir-muted) 28%, transparent) transparent;
+  scrollbar-width: thin;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--memoir-muted) 25%, transparent);
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  border: 2px solid transparent;
+  background: color-mix(in srgb, var(--memoir-muted) 42%, transparent);
+  background-clip: padding-box;
+}
+
+:root[data-layout-resizing="true"],
+:root[data-layout-resizing="true"] * {
+  cursor: col-resize !important;
+  user-select: none !important;
+}
+
+[hidden]:not([hidden="until-found"]) {
+  display: none !important;
+}
+
+@media (max-width: 760px) {
+  body {
+    overflow: auto;
+  }
+}
