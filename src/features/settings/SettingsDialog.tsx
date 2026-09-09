@@ -107,12 +107,10 @@ function GeneralSettings({
         <SegmentedControl
           label={t("settings.closeBehavior")}
           onChange={(closeBehavior) => update({ closeBehavior })}
-          optionStyle={styles.segmentedOption}
           options={[
             { value: "tray", label: t("settings.closeToTray") },
             { value: "quit", label: t("settings.quitDirectly") },
           ]}
-          style={styles.segmented}
           value={general.closeBehavior}
         />
       </SettingRow>
@@ -151,13 +149,11 @@ function AppearanceSettings({
         <SegmentedControl
           label={t("settings.theme")}
           onChange={(theme) => update({ theme })}
-          optionStyle={styles.segmentedOption}
           options={[
             { value: "system", label: t("settings.themeSystem") },
             { value: "light", label: t("settings.themeLight") },
             { value: "dark", label: t("settings.themeDark") },
           ]}
-          style={styles.segmented}
           value={appearance.theme}
         />
       </SettingRow>
@@ -191,12 +187,10 @@ function AppearanceSettings({
         <SegmentedControl
           label={t("settings.background")}
           onChange={(background) => update({ background })}
-          optionStyle={styles.segmentedOption}
           options={[
             { value: "paper", label: t("settings.backgroundPaper") },
             { value: "pure", label: t("settings.backgroundPure") },
           ]}
-          style={styles.segmented}
           value={appearance.background}
         />
       </SettingRow>
@@ -204,12 +198,10 @@ function AppearanceSettings({
         <SegmentedControl
           label={t("settings.density")}
           onChange={(density) => update({ density })}
-          optionStyle={styles.segmentedOption}
           options={[
             { value: "comfortable", label: t("settings.densityComfortable") },
             { value: "compact", label: t("settings.densityCompact") },
           ]}
-          style={styles.segmented}
           value={appearance.density}
         />
       </SettingRow>
@@ -228,12 +220,10 @@ function AppearanceSettings({
         <SegmentedControl
           label={t("settings.bodyFont")}
           onChange={(bodyFont) => update({ bodyFont })}
-          optionStyle={styles.segmentedOption}
           options={[
             { value: "sans", label: t("settings.fontSans") },
             { value: "serif", label: t("settings.fontSerif") },
           ]}
-          style={styles.segmented}
           value={appearance.bodyFont}
         />
       </SettingRow>
@@ -262,14 +252,12 @@ function AppearanceSettings({
         <SegmentedControl
           label={t("settings.contentWidth")}
           onChange={(contentWidth) => update({ contentWidth })}
-          optionStyle={styles.segmentedOption}
           options={[
             { value: "narrow", label: t("settings.widthNarrow") },
             { value: "standard", label: t("settings.widthStandard") },
             { value: "wide", label: t("settings.widthWide") },
             { value: "full", label: t("settings.widthFull") },
           ]}
-          style={styles.segmented}
           value={appearance.contentWidth}
         />
       </SettingRow>
@@ -332,13 +320,11 @@ function EditorSettings({
         <SegmentedControl
           label={t("settings.defaultView")}
           onChange={(defaultView) => update({ defaultView })}
-          optionStyle={styles.segmentedOption}
           options={[
             { value: "edit", label: t("settings.viewEdit") },
             { value: "split", label: t("settings.viewSplit") },
             { value: "preview", label: t("settings.viewPreview") },
           ]}
-          style={styles.segmented}
           value={editor.defaultView}
         />
       </SettingRow>

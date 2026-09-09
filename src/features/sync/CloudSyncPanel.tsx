@@ -1,7 +1,7 @@
 import * as stylex from "@stylexjs/stylex";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Cloud, Loader2, RefreshCw, Settings2 } from "lucide-react";
-import { Button, IconButton, Input, Select, Toggle } from "../../components/ui";
+import { Button, IconButton, Input, SegmentedControl, Select, Toggle } from "../../components/ui";
 import {
   cloudSyncProgressRatio,
   hasCloudSyncCredentials,
@@ -220,32 +220,16 @@ export function CloudSyncPanel() {
         onMouseDown={handleWindowDragMouseDown}
         {...stylex.props(styles.header)}
       >
-        <div {...stylex.props(styles.modeSwitcher)}>
-          <IconButton
-            active={section === "status"}
-            label={t("sync.tabStatus")}
-            onClick={() => setSection("status")}
-            style={[
-              styles.switcherButton,
-              section === "status" && styles.switcherButtonActive,
-            ]}
-          >
-            <Cloud {...stylex.props(styles.smallIcon)} />
-            <span>{t("sync.tabStatus")}</span>
-          </IconButton>
-          <IconButton
-            active={section === "setup"}
-            label={t("sync.tabSetup")}
-            onClick={() => setSection("setup")}
-            style={[
-              styles.switcherButton,
-              section === "setup" && styles.switcherButtonActive,
-            ]}
-          >
-            <Settings2 {...stylex.props(styles.smallIcon)} />
-            <span>{t("sync.tabSetup")}</span>
-          </IconButton>
-        </div>
+        <SegmentedControl
+          display="icon-text"
+          label={t("sync.tabStatus")}
+          onChange={setSection}
+          options={[
+            { value: "status", label: t("sync.tabStatus"), icon: <Cloud size={14} /> },
+            { value: "setup", label: t("sync.tabSetup"), icon: <Settings2 size={14} /> },
+          ]}
+          value={section}
+        />
         {section === "status" ? (
           <IconButton
             disabled={busy !== null || syncing || !desktop}
@@ -566,36 +550,6 @@ const styles = stylex.create({
     gap: 8,
     paddingInline: 16,
   },
-  modeSwitcher: {
-    display: "flex",
-    alignItems: "center",
-    padding: 3,
-    borderWidth: 1,
-    borderStyle: "solid",
-    borderColor: `color-mix(in srgb, ${colors.border} 88%, transparent)`,
-    borderRadius: 10,
-    backgroundColor: `color-mix(in srgb, ${colors.panel} 74%, transparent)`,
-  },
-  switcherButton: {
-    width: "auto",
-    minWidth: 52,
-    height: 30,
-    gap: 5,
-    paddingInline: 8,
-    borderRadius: 8,
-    fontSize: 11,
-    transitionDuration: {
-      default: "150ms",
-      [media.reducedMotion]: "0s",
-    },
-  },
-  switcherButtonActive: {
-    backgroundColor: colors.elevated,
-    boxShadow:
-      "0 1px 2px rgb(35 33 29 / 10%), inset 0 0 0 1px rgb(255 255 255 / 46%)",
-    color: colors.text,
-  },
-  smallIcon: { width: 14, height: 14 },
   icon: { width: 16, height: 16 },
   iconSpacer: { width: 32, height: 32 },
   spinning: {

@@ -36,7 +36,13 @@ import {
   Undo2,
 } from "lucide-react";
 import { forwardRef, lazy, Suspense, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ContextMenu, ContextMenuItem, ContextMenuSeparator, IconButton } from "../../components/ui";
+import {
+  ContextMenu,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  IconButton,
+  SegmentedControl,
+} from "../../components/ui";
 import { fileDropTargetFromPoint, watchNativeFileDrop } from "../../platform/file-drop";
 import { isTauriRuntime } from "../../platform/runtime";
 import {
@@ -496,41 +502,17 @@ export const EditorWorkspace = forwardRef<EditorHandle, {
               isSaving ? editorStyles.saveDotSaving : isDirty && editorStyles.saveDotDirty,
             )}
           />
-          <div {...stylex.props(editorStyles.viewSwitcher)}>
-            <IconButton
-              active={viewMode === "edit"}
-              label={t("editor.edit")}
-              onClick={() => setViewMode("edit")}
-              style={[
-                editorStyles.viewButton,
-                viewMode === "edit" && editorStyles.viewButtonActive,
-              ]}
-            >
-              <BookOpen {...stylex.props(editorStyles.iconSmall)} />
-            </IconButton>
-            <IconButton
-              active={viewMode === "split"}
-              label={t("editor.split")}
-              onClick={() => setViewMode("split")}
-              style={[
-                editorStyles.viewButton,
-                viewMode === "split" && editorStyles.viewButtonActive,
-              ]}
-            >
-              <SplitSquareHorizontal {...stylex.props(editorStyles.iconSmall)} />
-            </IconButton>
-            <IconButton
-              active={viewMode === "preview"}
-              label={t("editor.preview")}
-              onClick={() => setViewMode("preview")}
-              style={[
-                editorStyles.viewButton,
-                viewMode === "preview" && editorStyles.viewButtonActive,
-              ]}
-            >
-              <LayoutPanelLeft {...stylex.props(editorStyles.iconSmall)} />
-            </IconButton>
-          </div>
+          <SegmentedControl
+            display="icon"
+            label={t("settings.defaultView")}
+            onChange={setViewMode}
+            options={[
+              { value: "edit", label: t("editor.edit"), icon: <BookOpen size={14} /> },
+              { value: "split", label: t("editor.split"), icon: <SplitSquareHorizontal size={14} /> },
+              { value: "preview", label: t("editor.preview"), icon: <LayoutPanelLeft size={14} /> },
+            ]}
+            value={viewMode}
+          />
           <IconButton active={activeNote?.favorite} label={t("editor.favorite")} onClick={() => void toggleFavorite()}>
             <Star {...stylex.props(editorStyles.favoriteIcon, activeNote?.favorite && editorStyles.favoriteIconActive)} />
           </IconButton>

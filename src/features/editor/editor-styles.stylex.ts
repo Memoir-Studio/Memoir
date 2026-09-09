@@ -95,30 +95,6 @@ export const editorStyles = stylex.create({
     animationIterationCount: "infinite",
     animationTimingFunction: "ease-in-out",
   },
-  viewSwitcher: {
-    display: "flex",
-    alignItems: "center",
-    padding: "2px",
-    borderWidth: "1px",
-    borderStyle: "solid",
-    borderColor: `color-mix(in srgb, ${colors.border} 88%, transparent)`,
-    borderRadius: "8px",
-    backgroundColor: `color-mix(in srgb, ${colors.panel} 74%, transparent)`,
-  },
-  viewButton: {
-    width: "27px",
-    height: "25px",
-    borderRadius: "6px",
-    transitionDuration: {
-      default: "150ms",
-      "@media (prefers-reduced-motion: reduce)": "0s",
-    },
-  },
-  viewButtonActive: {
-    backgroundColor: colors.elevated,
-    color: colors.text,
-    boxShadow: "0 1px 2px rgb(35 33 29 / 10%), inset 0 0 0 1px rgb(255 255 255 / 46%)",
-  },
   iconSmall: { width: "14px", height: "14px" },
   icon: { width: "16px", height: "16px" },
   favoriteIcon: {

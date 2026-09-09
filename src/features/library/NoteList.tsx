@@ -18,6 +18,7 @@ import {
   ContextMenuSeparator,
   IconButton,
   Input,
+  SegmentedControl,
   Surface,
   Tag,
 } from "../../components/ui";
@@ -119,44 +120,17 @@ export function NoteList({
                   : t("library.index")}
             </h2>
           ) : (
-            <div {...stylex.props(noteListStyles.modeSwitcher)}>
-              <IconButton
-                active={mode === "notes"}
-                label={t("library.notes")}
-                onClick={() => setMode("notes")}
-                style={[
-                  noteListStyles.modeButton,
-                  mode === "notes" && noteListStyles.modeButtonActive,
-                ]}
-              >
-                <BookOpen {...stylex.props(sharedLibraryStyles.iconSmall)} />
-                <span>{t("library.notes")}</span>
-              </IconButton>
-              <IconButton
-                active={mode === "outline"}
-                label={t("library.outline")}
-                onClick={() => setMode("outline")}
-                style={[
-                  noteListStyles.modeButton,
-                  mode === "outline" && noteListStyles.modeButtonActive,
-                ]}
-              >
-                <ListTree {...stylex.props(sharedLibraryStyles.iconSmall)} />
-                <span>{t("library.outline")}</span>
-              </IconButton>
-              <IconButton
-                active={mode === "links"}
-                label={t("library.links")}
-                onClick={() => setMode("links")}
-                style={[
-                  noteListStyles.modeButton,
-                  mode === "links" && noteListStyles.modeButtonActive,
-                ]}
-              >
-                <Link2 {...stylex.props(sharedLibraryStyles.iconSmall)} />
-                <span>{t("library.links")}</span>
-              </IconButton>
-            </div>
+            <SegmentedControl
+              display="icon-text"
+              label={t("library.notes")}
+              onChange={setMode}
+              options={[
+                { value: "notes", label: t("library.notes"), icon: <BookOpen size={14} /> },
+                { value: "outline", label: t("library.outline"), icon: <ListTree size={14} /> },
+                { value: "links", label: t("library.links"), icon: <Link2 size={14} /> },
+              ]}
+              value={mode}
+            />
           )}
           {mode === "attachments" ? (
             <IconButton label={t("library.importAttachment")} onClick={() => void importAttachments()}>

@@ -223,37 +223,6 @@ export const settingsStyles = stylex.create({
       "@media (max-width: 640px)": "flex-start",
     },
   },
-  segmented: {
-    borderColor: `color-mix(in srgb, ${colors.border} 90%, transparent)`,
-    borderRadius: "8px",
-    backgroundColor: `color-mix(in srgb, ${colors.panel} 86%, ${colors.elevated})`,
-    padding: "3px",
-    boxShadow: "inset 0 1px 2px rgb(60 53 43 / 4%)",
-  },
-  segmentedOption: {
-    minWidth: "48px",
-    height: "27px",
-    borderRadius: "6px",
-    padding: "0 10px",
-    color: {
-      default: colors.muted,
-      ':is([aria-pressed="true"])': colors.text,
-    },
-    backgroundColor: {
-      default: "transparent",
-      ':is([aria-pressed="true"])': colors.elevated,
-    },
-    fontSize: "11px",
-    fontWeight: {
-      default: 500,
-      ':is([aria-pressed="true"])': 650,
-    },
-    boxShadow: {
-      default: "none",
-      ':is([aria-pressed="true"])':
-        "0 1px 3px rgb(45 39 31 / 10%), inset 0 0 0 1px rgb(255 255 255 / 44%)",
-    },
-  },
   select: {
     width: {
       default: "auto",

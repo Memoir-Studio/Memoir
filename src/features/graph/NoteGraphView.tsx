@@ -1,7 +1,7 @@
 import * as stylex from "@stylexjs/stylex";
 import { ArrowUpRight, GitBranch, Maximize2, Network, RotateCcw } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { IconButton, Toggle } from "../../components/ui";
+import { IconButton, SegmentedControl, Toggle } from "../../components/ui";
 import { noteStem } from "../../domain/note-links";
 import { useAppStore } from "../../store/app-store";
 import { useI18n } from "../../i18n/react";
@@ -123,32 +123,16 @@ export default function NoteGraphView() {
           <p {...stylex.props(graphStyles.subtitle)}>{t("graph.hint")}</p>
         </div>
         <div {...stylex.props(graphStyles.headerActions)}>
-          <div {...stylex.props(graphStyles.modeSwitcher)} role="group">
-            <IconButton
-              active={!localOnly}
-              label={t("graph.all")}
-              onClick={() => setLocalOnly(false)}
-              style={[
-                graphStyles.modeButton,
-                !localOnly && graphStyles.modeButtonActive,
-              ]}
-            >
-              <Network {...stylex.props(graphStyles.smallIcon)} strokeWidth={1.8} />
-              <span>{t("graph.all")}</span>
-            </IconButton>
-            <IconButton
-              active={localOnly}
-              label={t("graph.local")}
-              onClick={() => setLocalOnly(true)}
-              style={[
-                graphStyles.modeButton,
-                localOnly && graphStyles.modeButtonActive,
-              ]}
-            >
-              <GitBranch {...stylex.props(graphStyles.smallIcon)} strokeWidth={1.8} />
-              <span>{t("graph.local")}</span>
-            </IconButton>
-          </div>
+          <SegmentedControl
+            display="icon-text"
+            label={t("graph.all")}
+            onChange={(value) => setLocalOnly(value === "local")}
+            options={[
+              { value: "all", label: t("graph.all"), icon: <Network size={14} strokeWidth={1.8} /> },
+              { value: "local", label: t("graph.local"), icon: <GitBranch size={14} strokeWidth={1.8} /> },
+            ]}
+            value={localOnly ? "local" : "all"}
+          />
           <label {...stylex.props(graphStyles.orphanLabel)}>
             {t("graph.showOrphans")}
             <Toggle checked={showOrphans} label={t("graph.showOrphans")} onChange={setShowOrphans} />
