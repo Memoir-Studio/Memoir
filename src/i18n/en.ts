@@ -274,6 +274,10 @@ export const en = {
   "preview.rendering": "Rendering preview…",
   "preview.mdxImportDisabled": "MDX import/export is disabled. Use the built-in components instead.",
   "preview.missingWikiLink": "Couldn’t find “{name}”",
+  "properties.label": "Properties",
+  "properties.title": "title",
+  "properties.tags": "tags",
+  "properties.aliases": "aliases",
 
   "dialog.newNote": "New note",
   "dialog.renameNote": "Rename note",

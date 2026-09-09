@@ -21,6 +21,12 @@ const parsedNoteCache = new Map<
   { fallbackTitle: string; value: { body: string; title: string; tags: string[]; excerpt: string } }
 >();
 
+export type NoteProperty = {
+  key: string;
+  values: string[];
+  kind: "text" | "list";
+};
+
 export function stripFrontmatter(content: string) {
   return content.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, "");
 }
@@ -55,6 +61,59 @@ export function resolveNoteRenamePath(from: string, input: string) {
 function frontmatterTitle(data: Record<string, unknown>) {
   const title = data.title;
   return typeof title === "string" ? title.trim() : "";
+}
+
+function frontmatterList(value: unknown) {
+  if (Array.isArray(value)) return value.map(String).map((item) => item.trim()).filter(Boolean);
+  if (typeof value === "string") {
+    return value
+      .split(/[,，]/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+  return value == null ? [] : [String(value).trim()].filter(Boolean);
+}
+
+function frontmatterValue(value: unknown) {
+  if (value == null) return [];
+  if (Array.isArray(value)) return frontmatterList(value);
+  if (value instanceof Date) return [value.toISOString()];
+  if (typeof value === "object") {
+    try {
+      return [JSON.stringify(value)];
+    } catch {
+      return [];
+    }
+  }
+  return [String(value).trim()].filter(Boolean);
+}
+
+export function parseNoteProperties(content: string, fallbackTitle: string): NoteProperty[] {
+  let data: Record<string, unknown> = {};
+  let title = extractTitle(content, fallbackTitle);
+  try {
+    const parsed = matter(content);
+    data = parsed.data;
+    title = frontmatterTitle(data) || extractTitle(parsed.content, fallbackTitle);
+  } catch {
+    // Keep the derived title when frontmatter is malformed.
+  }
+
+  const properties: NoteProperty[] = [{ key: "title", values: [title], kind: "text" }];
+  const known = new Set(["title"]);
+  for (const key of ["tags", "aliases"]) {
+    const values = frontmatterList(data[key]);
+    if (values.length) properties.push({ key, values, kind: "list" });
+    known.add(key);
+  }
+  for (const [key, value] of Object.entries(data)) {
+    if (known.has(key)) continue;
+    const values = frontmatterValue(value);
+    if (values.length) {
+      properties.push({ key, values, kind: values.length > 1 ? "list" : "text" });
+    }
+  }
+  return properties;
 }
 
 function headingText(raw: string) {

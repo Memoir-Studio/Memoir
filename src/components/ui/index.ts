@@ -4,6 +4,7 @@ export { ContextMenu, ContextMenuItem, ContextMenuSeparator } from "./ContextMen
 export { Dialog } from "./Dialog";
 export { IconButton } from "./IconButton";
 export { Combobox, type ComboboxOption } from "./Combobox";
+export { Collapsible, type CollapsibleProps } from "./Collapsible";
 export { Input } from "./Input";
 export { SegmentedControl } from "./SegmentedControl";
 export { Select } from "./Select";

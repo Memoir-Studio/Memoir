@@ -271,6 +271,10 @@ export const zh = {
   "preview.rendering": "正在生成预览…",
   "preview.mdxImportDisabled": "MDX import/export 已禁用，请直接使用内置组件。",
   "preview.missingWikiLink": "未找到“{name}”",
+  "properties.label": "属性",
+  "properties.title": "title",
+  "properties.tags": "tags",
+  "properties.aliases": "aliases",
 
   "dialog.newNote": "新建笔记",
   "dialog.renameNote": "重命名笔记",

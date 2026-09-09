@@ -335,6 +335,46 @@ describe("PreviewPane layout", () => {
     expect(pane).toHaveAttribute("data-preview-pane", "");
     expect(article).toHaveAttribute("data-preview-root", "");
   });
+
+  it("renders frontmatter properties above the preview", () => {
+    const view = render(
+      <PreviewPane
+        activePath="welcome.md"
+        content={"---\ntitle: Welcome\ntags: [入门, Inkstone]\naliases: [使用指南]\n---\n\n# Welcome\n"}
+        note={{ ...note, relativePath: "welcome.md", fileName: "welcome.md", title: "Welcome" }}
+        onContentChange={() => undefined}
+        root="/notes"
+      />,
+    );
+
+    const properties = view.container.querySelector("[data-collapsible]");
+    expect(properties).toBeTruthy();
+    expect(properties).toHaveTextContent("属性");
+    expect(properties).toHaveTextContent("Welcome");
+    expect(properties).toHaveTextContent("入门");
+    expect(properties).toHaveTextContent("使用指南");
+  });
+
+  it("allows the properties section to collapse", async () => {
+    const view = render(
+      <PreviewPane
+        activePath="welcome.md"
+        content={"---\ntitle: Welcome\ntags: [入门]\naliases: [使用指南]\n---\n\n# Welcome\n"}
+        note={{ ...note, relativePath: "welcome.md", fileName: "welcome.md", title: "Welcome" }}
+        onContentChange={() => undefined}
+        root="/notes"
+      />,
+    );
+
+    const toggle = view.getByRole("button", { name: "属性" });
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    await userEvent.setup().click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    const content = view.container.querySelector("[data-collapsible-content]");
+    expect(content).toHaveAttribute("aria-hidden", "true");
+    expect(content).toHaveAttribute("data-collapsible-expanded", "false");
+    expect(content).toContainElement(view.container.querySelector('[data-property-key="tags"]'));
+  });
 });
 
 describe("PreviewPane source lines", () => {

@@ -14,6 +14,7 @@ import {
   isRootFolder,
   noteStats,
   parseNote,
+  parseNoteProperties,
   parseTagTokens,
   resolveNoteRenamePath,
   sortLibraryNotes,
@@ -79,6 +80,20 @@ describe("note utilities", () => {
     expect(parsed.title).toBe("Project Plan");
     expect(parsed.tags).toEqual(["roadmap", "team"]);
     expect(parsed.excerpt).toContain("Useful summary");
+  });
+
+  it("normalizes frontmatter properties for the preview", () => {
+    expect(
+      parseNoteProperties(
+        "---\ntitle: Welcome\ntags: [入门, Inkstone]\naliases:\n  - 使用指南\nstatus: draft\n---\n\n# Body",
+        "welcome.md",
+      ),
+    ).toEqual([
+      { key: "title", values: ["Welcome"], kind: "text" },
+      { key: "tags", values: ["入门", "Inkstone"], kind: "list" },
+      { key: "aliases", values: ["使用指南"], kind: "list" },
+      { key: "status", values: ["draft"], kind: "text" },
+    ]);
   });
 
   it("reuses parsed metadata for the same document content", () => {
