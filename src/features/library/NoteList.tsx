@@ -404,9 +404,12 @@ const NoteCard = memo(function NoteCard({
         {note.excerpt || note.relativePath}
       </p>
       <div {...stylex.props(noteListStyles.metadata)}>
-        <div {...stylex.props(noteListStyles.tags)}>
+        <div
+          title={note.tags.map((tag) => `#${tag}`).join("  ")}
+          {...stylex.props(noteListStyles.tags)}
+        >
           {note.tags.slice(0, 3).map((tag) => (
-            <Tag key={tag}>#{tag}</Tag>
+            <Tag key={tag} style={noteListStyles.tag}>#{tag}</Tag>
           ))}
         </div>
         <span {...stylex.props(noteListStyles.time)}>

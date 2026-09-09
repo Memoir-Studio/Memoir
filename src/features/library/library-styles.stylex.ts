@@ -227,9 +227,10 @@ export const noteListStyles = stylex.create({
     WebkitLineClamp: 2,
   },
   metadata: {
-    display: "flex",
+    display: "grid",
     minWidth: 0,
     alignItems: "center",
+    gridTemplateColumns: "minmax(0, 1fr) auto",
     gap: "6px",
     marginTop: "6px",
   },
@@ -238,9 +239,11 @@ export const noteListStyles = stylex.create({
     minWidth: 0,
     flex: 1,
     alignItems: "center",
+    flexWrap: "nowrap",
     gap: "6px",
     overflow: "hidden",
   },
+  tag: { flexShrink: 0, whiteSpace: "nowrap" },
   time: { flexShrink: 0, color: colors.muted, fontSize: "9px" },
 });
 
