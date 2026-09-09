@@ -1,5 +1,12 @@
 import { mergeLayout, type WorkspaceLayoutState } from "../../domain/layout";
-import { DEFAULT_SETTINGS, mergeSettings, type AppSettings, type SettingsSection, type ViewMode } from "../../domain/settings";
+import {
+  clampUiScale,
+  DEFAULT_SETTINGS,
+  mergeSettings,
+  type AppSettings,
+  type SettingsSection,
+  type ViewMode,
+} from "../../domain/settings";
 import type { AppStore, LibraryPanelMode, UiSlice } from "../types";
 
 type UiSliceContext = {
@@ -18,6 +25,18 @@ export function createUiSlice({ set, get, persistPreferences }: UiSliceContext) 
     },
     setViewMode(viewMode: ViewMode) {
       set({ viewMode });
+    },
+    setUiScale(scale: number) {
+      const settings = get().settings;
+      const uiScale = clampUiScale(scale);
+      if (uiScale === settings.appearance.uiScale) return;
+      set({
+        settings: {
+          ...settings,
+          appearance: { ...settings.appearance, uiScale },
+        },
+      });
+      persistPreferences();
     },
     setMobilePanel(mobilePanel: UiSlice["mobilePanel"]) {
       set({ mobilePanel });

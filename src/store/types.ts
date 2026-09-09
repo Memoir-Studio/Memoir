@@ -95,6 +95,7 @@ export type AppActions = {
   setScopedFilter(scopedFilter: ScopedFilter): void;
   setLibraryPanelMode(mode: LibrarySlice["libraryPanelMode"]): void;
   setViewMode(mode: ViewMode): void;
+  setUiScale(scale: number): void;
   setSidebarCollapsed(collapsed: boolean): void;
   setLayout(layout: Partial<WorkspaceLayoutState>): void;
   setSettings(settings: AppSettings): void;

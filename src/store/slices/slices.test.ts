@@ -39,4 +39,19 @@ describe("store slices", () => {
     expect(persistPreferences).toHaveBeenCalledOnce();
     expect(set).toHaveBeenLastCalledWith({ error: "" });
   });
+
+  it("updates interface scale with clamping and persistence", () => {
+    const set = vi.fn();
+    const get = vi.fn(() => ({
+      settings: { appearance: { uiScale: 1 } },
+    }));
+    const persistPreferences = vi.fn();
+    const slice = createUiSlice({ set, get: get as never, persistPreferences });
+
+    slice.setUiScale(1.05);
+    expect(set).toHaveBeenCalledWith({
+      settings: { appearance: { uiScale: 1.05 } },
+    });
+    expect(persistPreferences).toHaveBeenCalledOnce();
+  });
 });

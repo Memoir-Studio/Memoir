@@ -30,6 +30,7 @@ import { migrateLegacyStorage } from "../migrations/legacy-storage";
 import { applyInterfaceZoom, watchSystemScale } from "../platform/dpi";
 import { installNativeContextMenuBlock } from "../platform/native-context-menu";
 import { isTauriRuntime } from "../platform/runtime";
+import { globalShortcutAction } from "../platform/shortcuts";
 import { applyHostWindowChrome, applyWindowFrameState, watchWindowFrameState } from "../platform/window";
 import { useAppStore } from "../store/app-store";
 import { applyDocumentTheme } from "../styles/document-theme";
@@ -87,6 +88,9 @@ function WorkspaceLayout({
   const mobilePanel = useAppStore((state) => state.mobilePanel);
   const setMobilePanel = useAppStore((state) => state.setMobilePanel);
   const libraryPanelMode = useAppStore((state) => state.libraryPanelMode);
+  const setUiScale = useAppStore((state) => state.setUiScale);
+  const setSidebarCollapsed = useAppStore((state) => state.setSidebarCollapsed);
+  const saveActiveNote = useAppStore((state) => state.saveActiveNote);
   const { openCreate, openDelete, openRename } = useWorkspaceDialogs();
   const { t } = useI18n();
   const editorRef = useRef<EditorHandle>(null);
@@ -127,6 +131,41 @@ function WorkspaceLayout({
     observer.observe(shell);
     return () => observer.disconnect();
   }, []);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const action = globalShortcutAction(event);
+      if (!action) return;
+
+      event.preventDefault();
+      switch (action) {
+        case "save":
+          void saveActiveNote();
+          break;
+        case "zoomIn":
+          setUiScale(useAppStore.getState().settings.appearance.uiScale + 0.05);
+          break;
+        case "zoomOut":
+          setUiScale(useAppStore.getState().settings.appearance.uiScale - 0.05);
+          break;
+        case "resetZoom":
+          setUiScale(1);
+          break;
+        case "newNote":
+          openCreate();
+          break;
+        case "openSettings":
+          useAppStore.getState().openSettings();
+          break;
+        case "toggleSidebar":
+          setSidebarCollapsed(!useAppStore.getState().isSidebarCollapsed);
+          break;
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [openCreate, saveActiveNote, setSidebarCollapsed, setUiScale]);
 
   return (
     <WindowFrame controlsHidden={isSidebarCollapsed}>
@@ -382,20 +421,7 @@ export default function AppShell() {
     };
   }, [initialize]);
 
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
-        event.preventDefault();
-        void useAppStore.getState().saveActiveNote();
-      }
-    };
-    window.addEventListener("keydown", onKeyDown);
-    const disposeContextMenu = installNativeContextMenuBlock();
-    return () => {
-      window.removeEventListener("keydown", onKeyDown);
-      disposeContextMenu();
-    };
-  }, []);
+  useEffect(() => installNativeContextMenuBlock(), []);
 
   return (
     <I18nProvider locale={locale}>
