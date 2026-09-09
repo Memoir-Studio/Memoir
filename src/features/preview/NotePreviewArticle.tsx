@@ -86,7 +86,7 @@ function Badge({ children }: { children: ReactNode }) {
 
 function Card({ title, children }: { title?: string; children: ReactNode }) {
   return (
-    <section {...stylex.props(styles.mdxCard)}>
+    <section data-preview-card="" {...stylex.props(styles.mdxCard)}>
       {title && <h3 {...stylex.props(styles.cardTitle)}>{title}</h3>}
       <div data-preview-trim-children="" {...stylex.props(styles.cardBody)}>{children}</div>
     </section>

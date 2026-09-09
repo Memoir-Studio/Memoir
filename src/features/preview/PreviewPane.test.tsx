@@ -375,6 +375,22 @@ describe("PreviewPane layout", () => {
     expect(content).toHaveAttribute("data-collapsible-expanded", "false");
     expect(content).toContainElement(view.container.querySelector('[data-property-key="tags"]'));
   });
+
+  it("keeps step markers inside their cards", async () => {
+    const view = render(
+      <PreviewPane
+        activePath="steps.mdx"
+        content={'<Steps><Card title="Choose a workspace">Open a folder.</Card></Steps>'}
+        note={{ ...note, relativePath: "steps.mdx", fileName: "steps.mdx", extension: "mdx" }}
+        onContentChange={() => undefined}
+        root="/notes"
+      />,
+    );
+
+    const card = await view.findByText("Choose a workspace");
+    expect(card.closest("[data-preview-card]")).toBeTruthy();
+    expect(view.container.querySelector("[data-preview-steps] > [data-preview-card]")).toBeTruthy();
+  });
 });
 
 describe("PreviewPane source lines", () => {
