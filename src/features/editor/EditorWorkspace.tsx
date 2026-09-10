@@ -433,6 +433,9 @@ export const EditorWorkspace = forwardRef<EditorHandle, {
       redo: () => editorRef.current?.redo(),
       selectAll: () => editorRef.current?.selectAll(),
       getSelectedText: () => editorRef.current?.getSelectedText() ?? "",
+      getSelection: () => editorRef.current?.getSelection() ?? null,
+      replaceRange: (from, to, text, expected) =>
+        editorRef.current?.replaceRange(from, to, text, expected) ?? false,
       cut: () => editorRef.current?.cut() ?? Promise.resolve(),
       copy: () => editorRef.current?.copy() ?? Promise.resolve(),
     }),

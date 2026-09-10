@@ -11,6 +11,7 @@ import type { WorkspaceIndexInfo } from "../domain/index-info";
 import type { NoteGraph } from "../domain/note-links";
 import type { LibraryPage, LibraryQuery, RawNoteFile, RenamedNote } from "../domain/notes";
 import type { AppSettings } from "../domain/settings";
+import type { AiChatMessage, AiChatResponse, AiRewriteTarget } from "../domain/ai";
 import type { AiSettings, SemanticSearchResult, VectorIndexStatus } from "../domain/vector-index";
 import {
   CLOUD_SYNC_PROGRESS_EVENT,
@@ -183,6 +184,14 @@ export class TauriWorkspaceGateway implements WorkspaceGateway {
 
   semanticSearch(root: string, settings: AiSettings, query: string, limit = 20) {
     return call<SemanticSearchResult[]>("semantic_search", { root, settings, query, limit });
+  }
+
+  chatWithNote(
+    settings: AiSettings,
+    messages: AiChatMessage[],
+    target: AiRewriteTarget,
+  ) {
+    return call<AiChatResponse>("chat_with_note", { settings, messages, target });
   }
 }
 

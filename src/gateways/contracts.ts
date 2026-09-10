@@ -13,6 +13,7 @@ import type {
   RenamedNote,
 } from "../domain/notes";
 import type { AppSettings } from "../domain/settings";
+import type { AiChatMessage, AiChatResponse, AiRewriteTarget } from "../domain/ai";
 import type { AiSettings, SemanticSearchResult, VectorIndexStatus } from "../domain/vector-index";
 import type {
   CloudSyncProbe,
@@ -58,6 +59,11 @@ export interface WorkspaceGateway {
   getVectorIndexStatus(root: string, settings: AiSettings): Promise<VectorIndexStatus>;
   indexVectorWorkspace(root: string, settings: AiSettings, force?: boolean): Promise<VectorIndexStatus>;
   semanticSearch(root: string, settings: AiSettings, query: string, limit?: number): Promise<SemanticSearchResult[]>;
+  chatWithNote(
+    settings: AiSettings,
+    messages: AiChatMessage[],
+    target: AiRewriteTarget,
+  ): Promise<AiChatResponse>;
 }
 
 export type AttachmentGateway = Pick<

@@ -4,7 +4,7 @@ mod sync;
 mod system;
 mod workspace;
 
-pub use ai::{get_vector_index_status, index_vector_workspace, semantic_search};
+pub use ai::{chat_with_note, get_vector_index_status, index_vector_workspace, semantic_search};
 pub use app_state::{
     delete_draft, drafts_exist, load_app_state, migrate_legacy_state, read_draft, save_preferences,
     set_favorite, set_folder_appearance, skip_app_update, write_draft,

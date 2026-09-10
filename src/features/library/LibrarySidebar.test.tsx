@@ -14,7 +14,6 @@ afterEach(() => {
       total: 0,
       recent: 0,
       favorites: 0,
-      uncategorized: 0,
       folders: [],
       tags: [],
       truncated: false,
@@ -173,6 +172,21 @@ describe("LibrarySidebar folders", () => {
     expect(view.getByRole("button", { name: "云同步" })).toHaveAttribute("aria-current", "page");
   });
 
+  it("opens AI editing from the drawer", async () => {
+    useAppStore.setState({
+      workspaceRoot: "/notes",
+      libraryPanelMode: "notes",
+    });
+    const user = userEvent.setup();
+    const view = render(
+      <LibrarySidebar isDark={false} onCreateFolder={() => undefined} onCreateTag={() => undefined} />,
+    );
+
+    await user.click(view.getByRole("button", { name: "AI 助手" }));
+    expect(useAppStore.getState().libraryPanelMode).toBe("ai");
+    expect(view.getByRole("button", { name: "AI 助手" })).toHaveAttribute("aria-current", "page");
+  });
+
   it("opens the workspace index panel from the drawer", async () => {
     useAppStore.setState({
       workspaceRoot: "/notes",
@@ -211,7 +225,6 @@ describe("LibrarySidebar folders", () => {
         total: 4,
         recent: 2,
         favorites: 1,
-        uncategorized: 1,
         folders: [{ folder: "日记", count: 3 }],
         tags: [{ tag: "diary", tagNorm: "diary", count: 2 }],
       },

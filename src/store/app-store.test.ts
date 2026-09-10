@@ -530,7 +530,7 @@ describe("app store actions", () => {
     const reconcilesAfterOpen = gateways.workspace.reconcileCount;
     const queriesAfterOpen = gateways.workspace.queryLibraryCount;
 
-    store.getState().setNavFilter("uncategorized");
+    store.getState().setNavFilter("favorites");
     await Promise.resolve();
     await Promise.resolve();
 

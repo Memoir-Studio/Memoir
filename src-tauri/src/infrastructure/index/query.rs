@@ -53,9 +53,6 @@ fn query_notes(
             sql.push_str(" AND n.modified_ms >= ?");
             binds.push((now - RECENT_WINDOW_MS).into());
         }
-        LibraryNav::Uncategorized => {
-            sql.push_str(" AND NOT EXISTS (SELECT 1 FROM note_tags t WHERE t.note_id = n.id)");
-        }
         LibraryNav::Favorites => {
             let paths = query.favorite_paths.as_deref().unwrap_or(&[]);
             if paths.is_empty() {
@@ -186,10 +183,6 @@ fn collect_stats(
         )
         .unwrap_or(0)
         .max(0) as u64;
-    let uncategorized = count_sql(
-        conn,
-        "SELECT COUNT(*) FROM notes n WHERE NOT EXISTS (SELECT 1 FROM note_tags t WHERE t.note_id = n.id)",
-    );
     let favorites = if favorite_paths.is_empty() {
         0
     } else {
@@ -272,7 +265,6 @@ fn collect_stats(
         total,
         recent,
         favorites,
-        uncategorized,
         folders,
         tags,
         truncated: false,
@@ -491,7 +483,6 @@ mod tests {
 
         let all = query_library(&index.conn, &LibraryQuery::default()).unwrap();
         assert_eq!(all.stats.total, 4);
-        assert_eq!(all.stats.uncategorized, 1);
         assert_eq!(all.notes.len(), 4);
         assert_eq!(
             all.notes
@@ -524,18 +515,6 @@ mod tests {
             vec!["work/alpha.md"]
         );
         assert!(query_uses_fts("project"));
-
-        let uncategorized = query_library(
-            &index.conn,
-            &LibraryQuery {
-                nav: LibraryNav::Uncategorized,
-                now_ms: 100,
-                ..LibraryQuery::default()
-            },
-        )
-        .unwrap();
-        assert_eq!(uncategorized.notes.len(), 1);
-        assert_eq!(uncategorized.notes[0].relative_path, "beta.mdx");
 
         let folder = query_library(
             &index.conn,

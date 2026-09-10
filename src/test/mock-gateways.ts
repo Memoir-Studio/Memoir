@@ -16,6 +16,7 @@ import type { LibraryPage, LibraryQuery, RawNoteFile, RenamedNote } from "../dom
 import { parseNote, queryNotesInMemory } from "../domain/notes/note-utils";
 import { DEFAULT_WORKSPACE_LAYOUT, mergeLayout, type WorkspaceLayoutState } from "../domain/layout";
 import { DEFAULT_SETTINGS } from "../domain/settings";
+import type { AiChatMessage, AiChatResponse, AiRewriteTarget } from "../domain/ai";
 import { emptyVectorIndexStatus, type AiSettings, type SemanticSearchResult, type VectorIndexStatus } from "../domain/vector-index";
 import {
   defaultCloudSyncProfile,
@@ -55,6 +56,15 @@ export class MockWorkspaceGateway implements WorkspaceGateway {
   vectorIndexStatus = emptyVectorIndexStatus({ totalNotes: 1 });
   vectorIndexCalls = 0;
   semanticResults: SemanticSearchResult[] = [];
+  chatResult: AiChatResponse = {
+    message: "I prepared an edit for review.",
+    edit: { tool: "replace_document", replacement: "Rewritten content" },
+  };
+  chatCalls: Array<{
+    settings: AiSettings;
+    messages: AiChatMessage[];
+    target: AiRewriteTarget;
+  }> = [];
 
   async chooseWorkspace(_title?: string) {
     return "/workspace";
@@ -142,6 +152,19 @@ export class MockWorkspaceGateway implements WorkspaceGateway {
 
   async semanticSearch(_root: string, _settings: AiSettings, _query: string): Promise<SemanticSearchResult[]> {
     return structuredClone(this.semanticResults);
+  }
+
+  async chatWithNote(
+    settings: AiSettings,
+    messages: AiChatMessage[],
+    target: AiRewriteTarget,
+  ) {
+    this.chatCalls.push({
+      settings: structuredClone(settings),
+      messages: structuredClone(messages),
+      target: structuredClone(target),
+    });
+    return structuredClone(this.chatResult);
   }
 
   async readNote(_root: string, relativePath: string) {

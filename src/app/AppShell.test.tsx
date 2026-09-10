@@ -2,6 +2,7 @@ import { act, cleanup, fireEvent, render, waitFor, within } from "@testing-libra
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
 import { DEFAULT_SIDEBAR_WIDTH, DEFAULT_WORKSPACE_LAYOUT } from "../domain/layout";
+import { DEFAULT_SETTINGS } from "../domain/settings";
 import { resetAppUpdateCheckForTests } from "../features/update/useAppUpdateCheck";
 import { setGatewaysForTests } from "../gateways";
 import { useAppStore } from "../store/app-store";
@@ -42,6 +43,56 @@ afterEach(() => {
     attachments: [],
     libraryPanelMode: "notes",
     layout: DEFAULT_WORKSPACE_LAYOUT,
+    settings: DEFAULT_SETTINGS,
+  });
+});
+
+describe("AppShell AI navigation", () => {
+  it("opens AI editing in the library column for the active note", async () => {
+    const initialize = useAppStore.getState().initialize;
+    setGatewaysForTests(createMockGateways());
+    useAppStore.setState({
+      initialize: async () => undefined,
+      initialized: true,
+      workspaceRoot: "/workspace",
+      notes: [
+        {
+          relativePath: "alpha.md",
+          fileName: "alpha.md",
+          extension: "md",
+          modifiedMs: 1,
+          size: 13,
+          title: "Alpha Guide",
+          tags: [],
+          excerpt: "",
+          favorite: false,
+        },
+      ],
+      activePath: "alpha.md",
+      loadedContentPath: "alpha.md",
+      content: "# Alpha Guide",
+      savedContent: "# Alpha Guide",
+      settings: {
+        ...DEFAULT_SETTINGS,
+        appearance: { ...DEFAULT_SETTINGS.appearance, locale: "zh" },
+        ai: { ...DEFAULT_SETTINGS.ai, enabled: true },
+      },
+    });
+
+    try {
+      const user = userEvent.setup();
+      const view = render(<AppShell />);
+      await waitFor(() => expect(view.container.querySelector("[data-editor-pane]")).toBeTruthy());
+
+      await user.click(view.getByRole("button", { name: "AI 助手" }));
+
+      expect(useAppStore.getState().libraryPanelMode).toBe("ai");
+      expect(view.getByRole("complementary", { name: "AI 助手" })).toHaveTextContent(
+        "正在处理整篇笔记",
+      );
+    } finally {
+      useAppStore.setState({ initialize });
+    }
   });
 });
 

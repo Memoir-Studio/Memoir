@@ -25,7 +25,6 @@ afterEach(() => {
       total: 0,
       recent: 0,
       favorites: 0,
-      uncategorized: 0,
       folders: [],
       tags: [],
       truncated: false,
@@ -399,6 +398,36 @@ describe("NoteList", () => {
       "https://dav.example/dav",
     );
     expect(view.getByDisplayValue("https://dav.example/dav")).toBeInTheDocument();
+  });
+
+  it("shows AI editing in the library panel", () => {
+    useAppStore.setState({
+      workspaceRoot: "/workspace",
+      libraryPanelMode: "ai",
+      settings: {
+        ...DEFAULT_SETTINGS,
+        ai: { ...DEFAULT_SETTINGS.ai, enabled: true },
+      },
+    });
+    const view = render(
+      <NoteList
+        aiRewriteTarget={{
+          path: "alpha.md",
+          from: 0,
+          to: 13,
+          source: "# Alpha Guide",
+          scope: "document",
+        }}
+        onCreate={() => undefined}
+        onDelete={() => undefined}
+        onRename={() => undefined}
+      />,
+    );
+
+    expect(view.getByRole("complementary", { name: "AI 助手" })).toHaveTextContent(
+      "正在处理整篇笔记",
+    );
+    expect(view.queryByRole("button", { name: "笔记" })).not.toBeInTheDocument();
   });
 
   it("opens a note context menu for rename, favorite and delete", async () => {

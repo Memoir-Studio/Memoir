@@ -8,13 +8,13 @@ mod tray;
 mod window_frame;
 
 use commands::{
-    check_app_update, create_folder, create_note, delete_attachment, delete_draft, delete_note,
-    drafts_exist, fetch_link_preview_html, get_cloud_sync_profile, get_index_info, get_note_graph,
-    get_vector_index_status, import_attachment, index_vector_workspace, load_app_state,
-    migrate_legacy_state, query_library, read_draft, read_note, rebuild_index, reconcile_workspace,
-    rename_note, run_cloud_sync, save_attachment, save_cloud_sync_profile, save_preferences,
-    scan_attachments, semantic_search, set_favorite, set_folder_appearance, skip_app_update,
-    test_cloud_sync, write_draft, write_export_file, write_note, AppServices,
+    chat_with_note, check_app_update, create_folder, create_note, delete_attachment, delete_draft,
+    delete_note, drafts_exist, fetch_link_preview_html, get_cloud_sync_profile, get_index_info,
+    get_note_graph, get_vector_index_status, import_attachment, index_vector_workspace,
+    load_app_state, migrate_legacy_state, query_library, read_draft, read_note, rebuild_index,
+    reconcile_workspace, rename_note, run_cloud_sync, save_attachment, save_cloud_sync_profile,
+    save_preferences, scan_attachments, semantic_search, set_favorite, set_folder_appearance,
+    skip_app_update, test_cloud_sync, write_draft, write_export_file, write_note, AppServices,
 };
 use infrastructure::{app_data::AppDataRepository, filesystem::LocalFileSystem};
 use services::{AppStateService, CloudSyncService, VectorIndexService, WorkspaceService};
@@ -97,7 +97,8 @@ pub fn run() {
             fetch_link_preview_html,
             get_vector_index_status,
             index_vector_workspace,
-            semantic_search
+            semantic_search,
+            chat_with_note
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

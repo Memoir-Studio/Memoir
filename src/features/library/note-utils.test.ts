@@ -155,7 +155,6 @@ title: Two Sum
   it("filters by query navigation folder and tag", () => {
     expect(filterNotes(notes, "project", "all", null, 100)).toEqual([notes[0]]);
     expect(filterNotes(notes, "", "favorites", null, 100)).toEqual([notes[0]]);
-    expect(filterNotes(notes, "", "uncategorized", null, 100)).toEqual([notes[1]]);
     expect(
       filterNotes(notes, "", "all", { type: "folder", value: "work" }, 100),
     ).toEqual([notes[0]]);
@@ -202,7 +201,6 @@ title: Two Sum
     });
     expect(page.notes.map((note) => note.relativePath)).toEqual(["work/alpha.md"]);
     expect(page.stats.total).toBe(2);
-    expect(page.stats.uncategorized).toBe(1);
   });
 
   it("parses and deduplicates tag tokens", () => {

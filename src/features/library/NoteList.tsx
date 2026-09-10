@@ -32,9 +32,11 @@ import type { AppLocale } from "../../i18n/locale";
 import { useI18n } from "../../i18n/react";
 import { getGateways } from "../../gateways";
 import { mapGatewayError } from "../../domain/errors";
+import type { AiEditorEdit, AiRewriteTarget } from "../../domain/ai";
 import type { SemanticSearchResult } from "../../domain/vector-index";
 import { AttachmentLibrary } from "../attachments/AttachmentLibrary";
 import { CloudSyncPanel } from "../sync/CloudSyncPanel";
+import { AiRewritePanel } from "../editor/AiRewritePanel";
 import { NoteGraphPanel } from "../graph/NoteGraphPanel";
 import { IndexInspector } from "./IndexInspector";
 import { NoteLinksPanel } from "./NoteLinksPanel";
@@ -55,12 +57,22 @@ export function NoteList({
   onRename,
   onDelete,
   onInsertAttachment,
+  aiRewriteTarget = null,
+  onApplyAiRewrite = () => false,
+  onCloseAiRewrite = () => undefined,
+  onRefreshAiRewriteTarget = () => null,
+  onSaveAiRewrite = async () => false,
   style,
 }: {
   onCreate: () => void;
   onRename: (path: string) => void;
   onDelete: (path: string) => void;
   onInsertAttachment?: (markdown: string) => void;
+  aiRewriteTarget?: AiRewriteTarget | null;
+  onApplyAiRewrite?: (edit: AiEditorEdit) => boolean;
+  onCloseAiRewrite?: () => void;
+  onRefreshAiRewriteTarget?: () => AiRewriteTarget | null;
+  onSaveAiRewrite?: () => Promise<boolean>;
   style?: stylex.StyleXStyles;
 }) {
   const notes = useAppStore((state) => state.notes);
@@ -156,7 +168,7 @@ export function NoteList({
 
   return (
     <section data-note-list-panel="" {...stylex.props(noteListStyles.panel, style)}>
-      {mode !== "sync" && (
+      {mode !== "sync" && mode !== "ai" && (
         <header
           {...stylex.props(noteListStyles.header)}
           data-tauri-drag-region={isTauriRuntime() ? "" : undefined}
@@ -199,6 +211,15 @@ export function NoteList({
 
       {mode === "attachments" ? (
         <AttachmentLibrary onInsert={onInsertAttachment} />
+      ) : mode === "ai" ? (
+        <AiRewritePanel
+          onApply={onApplyAiRewrite}
+          onClose={onCloseAiRewrite}
+          onRefreshTarget={onRefreshAiRewriteTarget}
+          onSave={onSaveAiRewrite}
+          settings={settings.ai}
+          target={aiRewriteTarget}
+        />
       ) : mode === "index" ? (
         <IndexInspector />
       ) : mode === "graph" ? (

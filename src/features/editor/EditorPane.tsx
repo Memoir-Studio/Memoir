@@ -434,6 +434,8 @@ export interface EditorHandle {
   redo: () => void;
   selectAll: () => void;
   getSelectedText: () => string;
+  getSelection: () => { from: number; to: number; text: string } | null;
+  replaceRange: (from: number, to: number, text: string, expected: string) => boolean;
   cut: () => Promise<void>;
   copy: () => Promise<void>;
 }
@@ -598,6 +600,28 @@ export const EditorPane = forwardRef<EditorHandle, EditorPaneProps>(function Edi
         if (!view) return "";
         const selection = view.state.selection.main;
         return view.state.sliceDoc(selection.from, selection.to);
+      },
+      getSelection: () => {
+        const view = hostRef.current?.getView();
+        if (!view) return null;
+        const selection = view.state.selection.main;
+        return {
+          from: selection.from,
+          to: selection.to,
+          text: view.state.sliceDoc(selection.from, selection.to),
+        };
+      },
+      replaceRange: (from, to, text, expected) => {
+        const view = hostRef.current?.getView();
+        if (!view || from < 0 || to < from || to > view.state.doc.length) return false;
+        if (view.state.sliceDoc(from, to) !== expected) return false;
+        view.dispatch({
+          changes: { from, to, insert: text },
+          selection: EditorSelection.range(from, from + text.length),
+          userEvent: "input.ai",
+        });
+        view.focus();
+        return true;
       },
       cut: async () => {
         const view = hostRef.current?.getView();

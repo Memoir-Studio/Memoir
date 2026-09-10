@@ -33,7 +33,6 @@ pub enum LibraryNav {
     All,
     Recent,
     Favorites,
-    Uncategorized,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -74,7 +73,6 @@ pub struct LibraryStats {
     pub total: u64,
     pub recent: u64,
     pub favorites: u64,
-    pub uncategorized: u64,
     pub folders: Vec<FolderStat>,
     pub tags: Vec<TagStat>,
     pub truncated: bool,
@@ -157,6 +155,37 @@ pub struct SemanticSearchResult {
     pub content: String,
     pub score: f32,
     pub chunk_index: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AiChatMessage {
+    pub role: String,
+    pub content: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AiRewriteTarget {
+    pub path: String,
+    pub from: u64,
+    pub to: u64,
+    pub source: String,
+    pub scope: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AiEditProposal {
+    pub tool: String,
+    pub replacement: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AiChatResponse {
+    pub message: String,
+    pub edit: Option<AiEditProposal>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

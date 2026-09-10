@@ -7,7 +7,6 @@ import {
   FileText,
   Folder,
   FolderOpen,
-  Inbox,
   Moon,
   Network,
   Paperclip,
@@ -15,6 +14,7 @@ import {
   PanelLeftOpen,
   Settings,
   SmilePlus,
+  Sparkles,
   Star,
   Sun,
   Tag as TagIcon,
@@ -268,12 +268,14 @@ export function LibrarySidebar({
   onCreateFolder,
   onCreateNote = () => undefined,
   onCreateTag,
+  onOpenAi,
   style,
 }: {
   isDark: boolean;
   onCreateFolder: (parent?: string) => void;
   onCreateNote?: (folder: string) => void;
   onCreateTag: () => void;
+  onOpenAi?: () => void;
   style?: stylex.StyleXStyles;
 }) {
   const libraryStats = useAppStore((state) => state.libraryStats);
@@ -403,14 +405,6 @@ export function LibrarySidebar({
             onClick={() => setNavFilter("favorites")}
           />
           <NavButton
-            active={notesNavActive && navFilter === "uncategorized"}
-            collapsed={collapsed}
-            count={libraryStats.uncategorized}
-            icon={<Inbox strokeWidth={1.8} {...stylex.props(sidebarStyles.navSvg)} />}
-            label={t("nav.uncategorized")}
-            onClick={() => setNavFilter("uncategorized")}
-          />
-          <NavButton
             active={libraryPanelMode === "graph"}
             collapsed={collapsed}
             icon={<Network strokeWidth={1.8} {...stylex.props(sidebarStyles.navSvg)} />}
@@ -431,6 +425,13 @@ export function LibrarySidebar({
             icon={<Database strokeWidth={1.8} {...stylex.props(sidebarStyles.navSvg)} />}
             label={t("nav.index")}
             onClick={() => setLibraryPanelMode("index")}
+          />
+          <NavButton
+            active={libraryPanelMode === "ai"}
+            collapsed={collapsed}
+            icon={<Sparkles strokeWidth={1.8} {...stylex.props(sidebarStyles.navSvg)} />}
+            label={t("nav.aiRewrite")}
+            onClick={onOpenAi ?? (() => setLibraryPanelMode("ai"))}
           />
           <NavButton
             active={libraryPanelMode === "sync"}

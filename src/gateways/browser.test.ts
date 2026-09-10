@@ -167,4 +167,60 @@ describe("BrowserWorkspaceGateway", () => {
     );
     fetchMock.mockRestore();
   });
+
+  it("holds a note conversation through an OpenAI-compatible chat endpoint", async () => {
+    const gateway = new BrowserWorkspaceGateway();
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      Response.json({
+        choices: [{
+          message: {
+            content:
+              '```json\n{"message":"Updated it.","edit":{"tool":"replace_selection","replacement":"  - revised\\n"}}\n```',
+          },
+        }],
+      }),
+    );
+
+    await expect(
+      gateway.chatWithNote(
+        {
+          enabled: true,
+          provider: "openai",
+          baseUrl: "https://api.example.com/v1/",
+          apiKey: "secret",
+          embeddingModel: "embedding",
+          rerankingModel: "",
+          chatModel: "chat-model",
+        },
+        [{ role: "user", content: "Polish it" }],
+        {
+          path: "notes/example.md",
+          from: 2,
+          to: 15,
+          source: "  - original\n",
+          scope: "selection",
+        },
+      ),
+    ).resolves.toEqual({
+      message: "Updated it.",
+      edit: { tool: "replace_selection", replacement: "  - revised\n" },
+    });
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("https://api.example.com/v1/chat/completions");
+    expect(init).toMatchObject({
+      method: "POST",
+      headers: {
+        Authorization: "Bearer secret",
+        "Content-Type": "application/json",
+      },
+    });
+    expect(JSON.parse(String(init?.body))).toMatchObject({
+      model: "chat-model",
+      messages: expect.arrayContaining([
+        expect.objectContaining({ role: "user", content: "Polish it" }),
+      ]),
+    });
+    fetchMock.mockRestore();
+  });
 });

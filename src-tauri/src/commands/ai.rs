@@ -1,5 +1,8 @@
 use super::AppServices;
-use crate::domain::{AiSettings, AppError, SemanticSearchResult, VectorIndexStatus};
+use crate::domain::{
+    AiChatMessage, AiChatResponse, AiRewriteTarget, AiSettings, AppError, SemanticSearchResult,
+    VectorIndexStatus,
+};
 use tauri::State;
 
 #[tauri::command]
@@ -54,5 +57,24 @@ pub async fn semantic_search(
     .map_err(|error| {
         AppError::new(crate::domain::ErrorCode::Io, "Semantic search interrupted.")
             .with_details(error.to_string())
+    })?
+}
+
+#[tauri::command]
+pub async fn chat_with_note(
+    settings: AiSettings,
+    messages: Vec<AiChatMessage>,
+    target: AiRewriteTarget,
+) -> Result<AiChatResponse, AppError> {
+    tauri::async_runtime::spawn_blocking(move || {
+        crate::infrastructure::ai::ChatCompletionClient::new(&settings)?.chat(&messages, &target)
+    })
+    .await
+    .map_err(|error| {
+        AppError::new(
+            crate::domain::ErrorCode::Io,
+            "AI conversation was interrupted.",
+        )
+        .with_details(error.to_string())
     })?
 }

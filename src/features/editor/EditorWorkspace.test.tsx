@@ -1,6 +1,7 @@
 import { cleanup, render, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { DEFAULT_SETTINGS } from "../../domain/settings";
 import { useAppStore } from "../../store/app-store";
 import { exportNotePdf } from "../export/export-note-pdf";
 import { EditorWorkspace } from "./EditorWorkspace";
@@ -19,6 +20,11 @@ afterEach(() => {
     content: "",
     savedContent: "",
     isLoading: false,
+    settings: DEFAULT_SETTINGS,
+    settingsOpen: false,
+    settingsSection: "appearance",
+    error: "",
+    viewMode: "split",
   });
 });
 
@@ -206,4 +212,5 @@ describe("EditorWorkspace PDF export", () => {
     expect(onDelete).toHaveBeenCalledWith();
     expect(onRename).toHaveBeenCalledWith();
   });
+
 });
