@@ -16,7 +16,7 @@ import type { LibraryPage, LibraryQuery, RawNoteFile, RenamedNote } from "../dom
 import { parseNote, queryNotesInMemory } from "../domain/notes/note-utils";
 import { DEFAULT_WORKSPACE_LAYOUT, mergeLayout, type WorkspaceLayoutState } from "../domain/layout";
 import { DEFAULT_SETTINGS } from "../domain/settings";
-import type { AiChatMessage, AiChatResponse, AiRewriteTarget } from "../domain/ai";
+import type { AiChatMessage, AiChatProgress, AiChatResponse, AiRewriteTarget } from "../domain/ai";
 import { emptyVectorIndexStatus, type AiSettings, type SemanticSearchResult, type VectorIndexStatus } from "../domain/vector-index";
 import {
   defaultCloudSyncProfile,
@@ -155,10 +155,13 @@ export class MockWorkspaceGateway implements WorkspaceGateway {
   }
 
   async chatWithNote(
+    _root: string,
     settings: AiSettings,
     messages: AiChatMessage[],
     target: AiRewriteTarget,
+    onProgress?: (progress: AiChatProgress) => void,
   ) {
+    onProgress?.({ stage: "callingModel", model: settings.chatModel });
     this.chatCalls.push({
       settings: structuredClone(settings),
       messages: structuredClone(messages),

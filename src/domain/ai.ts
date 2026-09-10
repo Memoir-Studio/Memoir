@@ -26,6 +26,23 @@ export type AiChatResponse = {
   edit: AiEditProposal | null;
 };
 
+export const AI_CHAT_PROGRESS_EVENT = "ai-chat-progress";
+
+export type AiChatProgress = {
+  stage:
+    | "preparing"
+    | "callingModel"
+    | "callingTool"
+    | "toolCompleted"
+    | "generating"
+    | "completed"
+    | "failed";
+  model?: string;
+  tool?: string;
+  query?: string;
+  resultCount?: number;
+};
+
 export type AiEditorEdit = AiRewriteTarget & {
   replacement: string;
 };

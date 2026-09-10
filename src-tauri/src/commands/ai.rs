@@ -1,9 +1,9 @@
 use super::AppServices;
 use crate::domain::{
-    AiChatMessage, AiChatResponse, AiRewriteTarget, AiSettings, AppError, SemanticSearchResult,
-    VectorIndexStatus,
+    AiChatMessage, AiChatProgress, AiChatResponse, AiRewriteTarget, AiSettings, AppError,
+    SemanticSearchResult, VectorIndexStatus,
 };
-use tauri::State;
+use tauri::{AppHandle, Emitter, State};
 
 #[tauri::command]
 pub async fn get_vector_index_status(
@@ -62,12 +62,23 @@ pub async fn semantic_search(
 
 #[tauri::command]
 pub async fn chat_with_note(
+    app: AppHandle,
+    services: State<'_, AppServices>,
+    root: String,
     settings: AiSettings,
     messages: Vec<AiChatMessage>,
     target: AiRewriteTarget,
 ) -> Result<AiChatResponse, AppError> {
+    let service = services.vector_index.clone();
     tauri::async_runtime::spawn_blocking(move || {
-        crate::infrastructure::ai::ChatCompletionClient::new(&settings)?.chat(&messages, &target)
+        crate::infrastructure::ai::ChatCompletionClient::new(&settings)?.chat(
+            &messages,
+            &target,
+            |progress: AiChatProgress| {
+                let _ = app.emit(crate::domain::AI_CHAT_PROGRESS_EVENT, progress);
+            },
+            |query, limit| service.search(&root, &settings, query, limit),
+        )
     })
     .await
     .map_err(|error| {

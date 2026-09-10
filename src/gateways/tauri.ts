@@ -11,7 +11,13 @@ import type { WorkspaceIndexInfo } from "../domain/index-info";
 import type { NoteGraph } from "../domain/note-links";
 import type { LibraryPage, LibraryQuery, RawNoteFile, RenamedNote } from "../domain/notes";
 import type { AppSettings } from "../domain/settings";
-import type { AiChatMessage, AiChatResponse, AiRewriteTarget } from "../domain/ai";
+import {
+  AI_CHAT_PROGRESS_EVENT,
+  type AiChatMessage,
+  type AiChatProgress,
+  type AiChatResponse,
+  type AiRewriteTarget,
+} from "../domain/ai";
 import type { AiSettings, SemanticSearchResult, VectorIndexStatus } from "../domain/vector-index";
 import {
   CLOUD_SYNC_PROGRESS_EVENT,
@@ -187,11 +193,26 @@ export class TauriWorkspaceGateway implements WorkspaceGateway {
   }
 
   chatWithNote(
+    root: string,
     settings: AiSettings,
     messages: AiChatMessage[],
     target: AiRewriteTarget,
+    onProgress?: (progress: AiChatProgress) => void,
   ) {
-    return call<AiChatResponse>("chat_with_note", { settings, messages, target });
+    return (async () => {
+      let unlisten: (() => void) | undefined;
+      if (onProgress) {
+        const { listen } = await import("@tauri-apps/api/event");
+        unlisten = await listen<AiChatProgress>(AI_CHAT_PROGRESS_EVENT, (event) => {
+          onProgress(event.payload);
+        });
+      }
+      try {
+        return await call<AiChatResponse>("chat_with_note", { root, settings, messages, target });
+      } finally {
+        unlisten?.();
+      }
+    })();
   }
 }
 

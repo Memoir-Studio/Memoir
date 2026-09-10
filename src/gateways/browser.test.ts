@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { DEFAULT_SETTINGS } from "../domain/settings";
 import { APP_VERSION } from "../platform/app-version";
 import { BrowserPersistenceGateway, BrowserWorkspaceGateway } from "./browser";
 
@@ -183,6 +184,7 @@ describe("BrowserWorkspaceGateway", () => {
 
     await expect(
       gateway.chatWithNote(
+        "demo://memoir",
         {
           enabled: true,
           provider: "openai",
@@ -221,6 +223,53 @@ describe("BrowserWorkspaceGateway", () => {
         expect.objectContaining({ role: "user", content: "Polish it" }),
       ]),
     });
+    fetchMock.mockRestore();
+  });
+
+  it("runs the note search tool before returning a grounded answer", async () => {
+    const gateway = new BrowserWorkspaceGateway();
+    const progress: string[] = [];
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(Response.json({
+        choices: [{
+          message: {
+            role: "assistant",
+            content: null,
+            tool_calls: [{
+              id: "call-search",
+              type: "function",
+              function: { name: "search_notes", arguments: '{"query":"Two Sum","limit":1}' },
+            }],
+          },
+        }],
+      }))
+      .mockResolvedValueOnce(Response.json({
+        choices: [{ message: { content: '{"message":"Found it in [LeetCode/two-sum.md].","edit":null}' } }],
+      }));
+
+    await expect(gateway.chatWithNote(
+      "demo://memoir",
+      { ...DEFAULT_SETTINGS.ai, enabled: true, baseUrl: "https://api.example.com/v1", chatModel: "chat-model" },
+      [{ role: "user", content: "Where is the Two Sum note?" }],
+      { path: "welcome.mdx", from: 0, to: 1, source: "# Welcome", scope: "document" },
+      (event) => progress.push(event.stage),
+    )).resolves.toEqual({ message: "Found it in [LeetCode/two-sum.md].", edit: null });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const firstBody = JSON.parse(String(fetchMock.mock.calls[0][1]?.body));
+    const secondBody = JSON.parse(String(fetchMock.mock.calls[1][1]?.body));
+    expect(firstBody.tools[0].function.name).toBe("search_notes");
+    expect(secondBody.messages).toEqual(expect.arrayContaining([
+      expect.objectContaining({ role: "tool", tool_call_id: "call-search" }),
+    ]));
+    expect(progress).toEqual([
+      "preparing",
+      "callingModel",
+      "callingTool",
+      "toolCompleted",
+      "generating",
+      "completed",
+    ]);
     fetchMock.mockRestore();
   });
 });

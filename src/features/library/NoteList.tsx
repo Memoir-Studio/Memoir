@@ -78,6 +78,7 @@ export function NoteList({
 }) {
   const notes = useAppStore((state) => state.notes);
   const activePath = useAppStore((state) => state.activePath);
+  const workspaceRoot = useAppStore((state) => state.workspaceRoot);
   const mode = useAppStore((state) => state.libraryPanelMode);
   const content = useAppStore((state) => (state.libraryPanelMode === "outline" ? state.content : ""));
   const query = useAppStore((state) => state.query);
@@ -220,6 +221,7 @@ export function NoteList({
           onClose={onCloseAiRewrite}
           onRefreshTarget={onRefreshAiRewriteTarget}
           onSave={onSaveAiRewrite}
+          workspaceRoot={workspaceRoot}
           settings={settings.ai}
           target={aiRewriteTarget}
         />

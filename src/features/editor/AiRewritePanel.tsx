@@ -20,6 +20,7 @@ import {
 import { Button, IconButton, PanelHeader } from "../../components/ui";
 import type {
   AiChatMessage,
+  AiChatProgress,
   AiEditorEdit,
   AiRewriteTarget,
   AiSettings,
@@ -33,6 +34,7 @@ import { compactDiffRows, createLineDiff, diffStats } from "./ai-diff";
 import { handleWindowDragMouseDown } from "../window/window-drag";
 
 export function AiRewritePanel({
+  workspaceRoot,
   settings,
   target,
   onApply,
@@ -40,6 +42,7 @@ export function AiRewritePanel({
   onRefreshTarget,
   onSave,
 }: {
+  workspaceRoot: string | null;
   settings: AiSettings;
   target: AiRewriteTarget | null;
   onApply: (edit: AiEditorEdit) => boolean;
@@ -55,8 +58,11 @@ export function AiRewritePanel({
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(false);
+  const [progress, setProgress] = useState<AiChatProgress | null>(null);
+  const [elapsedMs, setElapsedMs] = useState(0);
   const [saving, setSaving] = useState(false);
   const requestIdRef = useRef(0);
+  const startedAtRef = useRef<number | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -68,6 +74,8 @@ export function AiRewritePanel({
     setError("");
     setNotice("");
     setLoading(false);
+    setProgress(null);
+    setElapsedMs(0);
     setSaving(false);
     return () => {
       requestIdRef.current += 1;
@@ -90,6 +98,14 @@ export function AiRewritePanel({
     if (typeof scroll.scrollTo === "function") scroll.scrollTo({ top: scroll.scrollHeight });
     else scroll.scrollTop = scroll.scrollHeight;
   }, [loading, messages, pendingEdit]);
+
+  useEffect(() => {
+    if (!loading || startedAtRef.current === null) return;
+    const update = () => setElapsedMs(Date.now() - (startedAtRef.current ?? Date.now()));
+    update();
+    const timer = window.setInterval(update, 1000);
+    return () => window.clearInterval(timer);
+  }, [loading]);
 
   const diffRows = useMemo(
     () => (pendingEdit ? createLineDiff(pendingEdit.source, pendingEdit.replacement) : []),
@@ -122,11 +138,19 @@ export function AiRewritePanel({
     setError("");
     setNotice("");
     setLoading(true);
+    startedAtRef.current = Date.now();
+    setElapsedMs(0);
+    setProgress({ stage: "preparing" });
     try {
+      if (!workspaceRoot) return;
       const response = await getGateways().workspace.chatWithNote(
+        workspaceRoot,
         settings,
         requestMessages,
         requestTarget,
+        (nextProgress) => {
+          if (requestId === requestIdRef.current) setProgress(nextProgress);
+        },
       );
       if (requestId !== requestIdRef.current) return;
       setMessages([
@@ -141,7 +165,10 @@ export function AiRewritePanel({
         setError(t("aiRewrite.requestFailed", { message: mapGatewayError(requestError).message }));
       }
     } finally {
-      if (requestId === requestIdRef.current) setLoading(false);
+      if (requestId === requestIdRef.current) {
+        setLoading(false);
+        startedAtRef.current = null;
+      }
     }
   };
 
@@ -168,6 +195,9 @@ export function AiRewritePanel({
     setError("");
     setNotice("");
     setLoading(false);
+    setProgress(null);
+    setElapsedMs(0);
+    startedAtRef.current = null;
     const nextTarget = onRefreshTarget();
     if (nextTarget) setContextTarget(nextTarget);
   };
@@ -290,10 +320,7 @@ export function AiRewritePanel({
           {loading && (
             <article {...stylex.props(styles.message, styles.assistantMessage)}>
               <span {...stylex.props(styles.messageAuthor)}>{t("aiRewrite.assistant")}</span>
-              <p role="status" {...stylex.props(styles.loadingMessage)}>
-                <LoaderCircle {...stylex.props(styles.loadingIcon)} />
-                {t("aiRewrite.thinkingReply")}
-              </p>
+              <AiProgressStatus elapsedMs={elapsedMs} progress={progress} />
             </article>
           )}
         </div>
@@ -422,6 +449,42 @@ export function AiRewritePanel({
         </div>
       </footer>
     </aside>
+  );
+}
+
+function AiProgressStatus({
+  elapsedMs,
+  progress,
+}: {
+  elapsedMs: number;
+  progress: AiChatProgress | null;
+}) {
+  const { t } = useI18n();
+  const model = progress?.model || "AI";
+  let label = t("aiRewrite.thinkingReply");
+  let detail = "";
+  if (progress?.stage === "preparing") {
+    label = t("aiRewrite.contextReady");
+  } else if (progress?.stage === "callingModel") {
+    label = t("aiRewrite.callingModel", { model });
+  } else if (progress?.stage === "callingTool") {
+    label = t("aiRewrite.callingTool", { tool: progress.tool || "search_notes" });
+    detail = progress.query ? `“${progress.query}”` : "";
+  } else if (progress?.stage === "toolCompleted") {
+    label = t("aiRewrite.toolCompleted", { tool: progress.tool || "search_notes" });
+    detail = t("aiRewrite.toolResultCount", { count: progress.resultCount ?? 0 });
+  } else if (progress?.stage === "generating") {
+    label = t("aiRewrite.working");
+  }
+  return (
+    <div role="status" {...stylex.props(styles.progressStatus)}>
+      <div {...stylex.props(styles.loadingMessage)}>
+        <LoaderCircle {...stylex.props(styles.loadingIcon)} />
+        <span>{label}</span>
+        <span {...stylex.props(styles.elapsed)}>{t("aiRewrite.elapsed", { seconds: Math.floor(elapsedMs / 1000) })}</span>
+      </div>
+      {detail ? <span title={detail} {...stylex.props(styles.progressDetail)}>{detail}</span> : null}
+    </div>
   );
 }
 
@@ -589,11 +652,40 @@ const styles = stylex.create({
   },
   loadingMessage: {
     display: "flex",
+    minWidth: 0,
     alignItems: "center",
     gap: "7px",
     margin: 0,
     color: colors.muted,
     fontSize: "12px",
+  },
+  progressStatus: {
+    display: "grid",
+    minWidth: 0,
+    gap: "5px",
+    padding: "8px 10px",
+    borderWidth: "1px",
+    borderStyle: "solid",
+    borderColor: `color-mix(in srgb, ${accents.primary} 20%, ${colors.border})`,
+    borderRadius: "6px",
+    backgroundColor: `color-mix(in srgb, ${accents.primary} 5%, ${colors.canvas})`,
+  },
+  elapsed: {
+    flex: "none",
+    marginLeft: "auto",
+    color: `color-mix(in srgb, ${colors.muted} 78%, transparent)`,
+    fontSize: "10px",
+    fontVariantNumeric: "tabular-nums",
+  },
+  progressDetail: {
+    overflow: "hidden",
+    paddingLeft: "20px",
+    color: `color-mix(in srgb, ${colors.text} 68%, ${colors.muted})`,
+    fontFamily: typography.monoFont,
+    fontSize: "10px",
+    lineHeight: 1.45,
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
   },
   notice: {
     display: "flex",

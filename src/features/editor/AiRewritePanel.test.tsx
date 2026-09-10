@@ -35,6 +35,7 @@ describe("AiRewritePanel", () => {
         onClose={() => undefined}
         onRefreshTarget={() => target}
         onSave={async () => true}
+        workspaceRoot="/workspace"
         settings={{ ...DEFAULT_SETTINGS.ai, enabled: true }}
         target={target}
       />,
@@ -78,6 +79,7 @@ describe("AiRewritePanel", () => {
         onClose={() => undefined}
         onRefreshTarget={() => target}
         onSave={onSave}
+        workspaceRoot="/workspace"
         settings={{ ...DEFAULT_SETTINGS.ai, enabled: true }}
         target={target}
       />,
@@ -107,6 +109,7 @@ describe("AiRewritePanel", () => {
         onClose={() => undefined}
         onRefreshTarget={() => target}
         onSave={async () => true}
+        workspaceRoot="/workspace"
         settings={{ ...DEFAULT_SETTINGS.ai, enabled: true }}
         target={target}
       />,
@@ -132,6 +135,7 @@ describe("AiRewritePanel", () => {
         onClose={() => undefined}
         onRefreshTarget={() => target}
         onSave={async () => true}
+        workspaceRoot="/workspace"
         settings={{ ...DEFAULT_SETTINGS.ai, enabled: true }}
         target={target}
       />,
@@ -147,10 +151,13 @@ describe("AiRewritePanel", () => {
   it("shows the loading state while a reply is pending", async () => {
     const gateways = createMockGateways();
     let resolveChat: (value: typeof gateways.workspace.chatResult) => void = () => undefined;
+    let reportProgress: ((progress: { stage: "toolCompleted"; tool: string; resultCount: number }) => void) | undefined;
     gateways.workspace.chatWithNote = vi.fn(
-      () =>
+      (_root, _settings, _messages, _target, onProgress) =>
         new Promise<typeof gateways.workspace.chatResult>((resolve) => {
           resolveChat = resolve;
+          reportProgress = onProgress as typeof reportProgress;
+          onProgress?.({ stage: "callingTool", tool: "search_notes", query: "招商银行" });
         }),
     );
     setGatewaysForTests(gateways);
@@ -161,6 +168,7 @@ describe("AiRewritePanel", () => {
         onClose={() => undefined}
         onRefreshTarget={() => target}
         onSave={async () => true}
+        workspaceRoot="/workspace"
         settings={{ ...DEFAULT_SETTINGS.ai, enabled: true }}
         target={target}
       />,
@@ -168,7 +176,11 @@ describe("AiRewritePanel", () => {
 
     await user.type(view.getByRole("textbox", { name: "输入你的要求" }), "改写");
     await user.click(view.getByRole("button", { name: "发送" }));
-    expect(view.getByRole("status")).toHaveTextContent("正在处理请求");
+    expect(view.getByRole("status")).toHaveTextContent("正在调用工具 search_notes");
+    expect(view.getByRole("status")).toHaveTextContent("招商银行");
+
+    act(() => reportProgress?.({ stage: "toolCompleted", tool: "search_notes", resultCount: 3 }));
+    expect(view.getByRole("status")).toHaveTextContent("命中 3 条笔记");
 
     await act(async () => resolveChat({ message: "完成", edit: null }));
     expect(await view.findByText("完成")).toBeInTheDocument();

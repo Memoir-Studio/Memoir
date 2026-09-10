@@ -305,6 +305,40 @@ describe("Tauri gateways", () => {
     expect(unlisten).toHaveBeenCalled();
   });
 
+  it("forwards AI chat progress events during a request", async () => {
+    const { TauriWorkspaceGateway } = await import("./tauri");
+    const unlisten = vi.fn();
+    listen.mockImplementation(async (_event: string, handler: (event: { payload: unknown }) => void) => {
+      handler({ payload: { stage: "callingTool", tool: "search_notes", query: "bank" } });
+      return unlisten;
+    });
+    invoke.mockResolvedValueOnce({ message: "Found it.", edit: null });
+    const onProgress = vi.fn();
+    const gateway = new TauriWorkspaceGateway();
+    await gateway.chatWithNote(
+      "/notes",
+      {
+        enabled: true,
+        provider: "openai",
+        baseUrl: "https://api.example.com/v1",
+        apiKey: "",
+        embeddingModel: "embedding",
+        rerankingModel: "",
+        chatModel: "chat-model",
+      },
+      [{ role: "user", content: "Search my notes" }],
+      { path: "note.md", from: 0, to: 5, source: "Note", scope: "document" },
+      onProgress,
+    );
+    expect(listen).toHaveBeenCalledWith("ai-chat-progress", expect.any(Function));
+    expect(onProgress).toHaveBeenCalledWith({
+      stage: "callingTool",
+      tool: "search_notes",
+      query: "bank",
+    });
+    expect(unlisten).toHaveBeenCalledOnce();
+  });
+
   it("asks draftsExist with camelCase arguments", async () => {
     const { TauriPersistenceGateway } = await import("./tauri");
     invoke.mockResolvedValue(["one.md"]);

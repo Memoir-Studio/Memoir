@@ -19,6 +19,10 @@ The vector index has four separate responsibilities:
 - `note_chunks` stores the chunk text and normalized `f32` vector as a little-
   endian BLOB. Search computes cosine similarity as a dot product and returns
   the strongest chunk per note.
+- `search_notes` is an OpenAI-compatible function tool exposed to the AI
+  assistant. When the model requests it, Memoir searches only the current
+  workspace's ready vectors, returns at most eight bounded passages, and sends
+  those passages back as a tool message for grounded answer generation.
 
 ## Consistency Rules
 
@@ -45,6 +49,11 @@ The current storage format is exact cosine search over normalized vectors. This
 keeps the index portable and does not require a native SQLite extension. The
 schema keeps the storage and query contract isolated so an ANN backend can be
 introduced later without changing note files, gateway commands, or UI results.
+
+The assistant performs at most one retrieval round per message. It receives the
+note path, title, similarity score, chunk number, and a maximum 2,400-character
+passage. Retrieved note text is marked as untrusted context in the system
+instruction and the assistant is asked to cite source paths in its response.
 
 ## Failure and Privacy
 
