@@ -59,13 +59,7 @@ export const noteListStyles = stylex.create({
     backgroundColor: colors.panel,
   },
   header: {
-    display: "flex",
-    height: "56px",
-    flexShrink: 0,
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: "8px",
-    paddingInline: "16px",
+    borderBottomWidth: 0,
   },
   title: {
     color: colors.text,

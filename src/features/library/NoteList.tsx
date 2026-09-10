@@ -20,13 +20,13 @@ import {
   ContextMenuSeparator,
   IconButton,
   Input,
+  PanelHeader,
   SegmentedControl,
   Surface,
   Tag,
 } from "../../components/ui";
-import { isTauriRuntime } from "../../platform/runtime";
 import { useAppStore } from "../../store/app-store";
-import { handleWindowDragMouseDown } from "../window/window-drag";
+import { isTauriRuntime } from "../../platform/runtime";
 import { dateLocale, formatRelativeTime } from "../../i18n";
 import type { AppLocale } from "../../i18n/locale";
 import { useI18n } from "../../i18n/react";
@@ -42,6 +42,7 @@ import { IndexInspector } from "./IndexInspector";
 import { NoteLinksPanel } from "./NoteLinksPanel";
 import { NoteContextMenu, type NoteMenuTarget } from "./NoteContextMenu";
 import { NoteOutline } from "./NoteOutline";
+import { handleWindowDragMouseDown } from "../window/window-drag";
 import type { NoteSortDirection, NoteSortField } from "../../domain/settings";
 import { extractHeadings, noteDisplayName, sortLibraryNotes, stripFrontmatter } from "./note-utils";
 import type { NoteMeta } from "../../domain/notes";
@@ -169,10 +170,23 @@ export function NoteList({
   return (
     <section data-note-list-panel="" {...stylex.props(noteListStyles.panel, style)}>
       {mode !== "sync" && mode !== "ai" && (
-        <header
-          {...stylex.props(noteListStyles.header)}
-          data-tauri-drag-region={isTauriRuntime() ? "" : undefined}
+        <PanelHeader
+          dragRegion={isTauriRuntime()}
           onMouseDown={handleWindowDragMouseDown}
+          style={noteListStyles.header}
+          actions={
+            mode === "attachments" ? (
+              <IconButton label={t("library.importAttachment")} onClick={() => void importAttachments()}>
+                <Upload {...stylex.props(sharedLibraryStyles.icon)} />
+              </IconButton>
+            ) : mode === "index" || mode === "graph" ? (
+              <span aria-hidden {...stylex.props(noteListStyles.headerSpacer)} />
+            ) : (
+              <IconButton label={t("library.newNote")} onClick={() => onCreate()}>
+                <Plus {...stylex.props(sharedLibraryStyles.icon)} />
+              </IconButton>
+            )
+          }
         >
           {mode === "index" || mode === "attachments" || mode === "graph" ? (
             <h2 {...stylex.props(noteListStyles.title)}>
@@ -195,18 +209,7 @@ export function NoteList({
               value={mode}
             />
           )}
-          {mode === "attachments" ? (
-            <IconButton label={t("library.importAttachment")} onClick={() => void importAttachments()}>
-              <Upload {...stylex.props(sharedLibraryStyles.icon)} />
-            </IconButton>
-          ) : mode === "index" || mode === "graph" ? (
-            <span aria-hidden {...stylex.props(noteListStyles.headerSpacer)} />
-          ) : (
-            <IconButton label={t("library.newNote")} onClick={() => onCreate()}>
-              <Plus {...stylex.props(sharedLibraryStyles.icon)} />
-            </IconButton>
-          )}
-        </header>
+        </PanelHeader>
       )}
 
       {mode === "attachments" ? (

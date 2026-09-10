@@ -6,6 +6,7 @@ export { IconButton } from "./IconButton";
 export { Combobox, type ComboboxOption } from "./Combobox";
 export { Collapsible, type CollapsibleProps } from "./Collapsible";
 export { Input } from "./Input";
+export { PanelHeader } from "./PanelHeader";
 export { SegmentedControl } from "./SegmentedControl";
 export { Select } from "./Select";
 export { StatusNotice } from "./StatusNotice";

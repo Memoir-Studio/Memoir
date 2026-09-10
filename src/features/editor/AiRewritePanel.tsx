@@ -9,7 +9,6 @@ import {
   Save,
   Sparkles,
   Trash2,
-  X,
 } from "lucide-react";
 import {
   useEffect,
@@ -18,7 +17,7 @@ import {
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
-import { Button, IconButton } from "../../components/ui";
+import { Button, IconButton, PanelHeader } from "../../components/ui";
 import type {
   AiChatMessage,
   AiEditorEdit,
@@ -28,8 +27,10 @@ import type {
 import { mapGatewayError } from "../../domain/errors";
 import { getGateways } from "../../gateways";
 import { useI18n } from "../../i18n/react";
+import { isTauriRuntime } from "../../platform/runtime";
 import { accents, colors, motion, typography } from "../../styles/tokens.stylex";
 import { compactDiffRows, createLineDiff, diffStats } from "./ai-diff";
+import { handleWindowDragMouseDown } from "../window/window-drag";
 
 export function AiRewritePanel({
   settings,
@@ -205,8 +206,7 @@ export function AiRewritePanel({
         data-ai-rewrite-panel=""
         {...stylex.props(styles.panel)}
       >
-        <PanelHeader
-          onClose={onClose}
+        <AiPanelHeader
           onNewConversation={startNewConversation}
           onRefresh={refreshContext}
           subtitle={t("aiRewrite.documentDescription")}
@@ -231,8 +231,7 @@ export function AiRewritePanel({
       data-ai-rewrite-panel=""
       {...stylex.props(styles.panel)}
     >
-      <PanelHeader
-        onClose={onClose}
+      <AiPanelHeader
         onNewConversation={startNewConversation}
         onRefresh={refreshContext}
         subtitle={contextLabel}
@@ -426,20 +425,37 @@ export function AiRewritePanel({
   );
 }
 
-function PanelHeader({
+function AiPanelHeader({
   subtitle,
-  onClose,
   onNewConversation,
   onRefresh,
 }: {
   subtitle: string;
-  onClose: () => void;
   onNewConversation: () => void;
   onRefresh: () => void;
 }) {
   const { t } = useI18n();
   return (
-    <header {...stylex.props(styles.header)}>
+    <PanelHeader
+      actionsStyle={styles.headerActions}
+      dragRegion={isTauriRuntime()}
+      onMouseDown={handleWindowDragMouseDown}
+      style={styles.header}
+      actions={
+        <>
+          <IconButton label={t("aiRewrite.refreshContext")} onClick={onRefresh} style={styles.headerButton}>
+            <RefreshCw {...stylex.props(styles.headerIcon)} />
+          </IconButton>
+          <IconButton
+            label={t("aiRewrite.newConversation")}
+            onClick={onNewConversation}
+            style={styles.headerButton}
+          >
+            <Plus {...stylex.props(styles.headerIcon)} />
+          </IconButton>
+        </>
+      }
+    >
       <div {...stylex.props(styles.headerText)}>
         <div {...stylex.props(styles.titleRow)}>
           <Sparkles {...stylex.props(styles.titleIcon)} />
@@ -447,22 +463,7 @@ function PanelHeader({
         </div>
         <p {...stylex.props(styles.scope)}>{subtitle}</p>
       </div>
-      <div {...stylex.props(styles.headerActions)}>
-        <IconButton label={t("aiRewrite.refreshContext")} onClick={onRefresh} style={styles.headerButton}>
-          <RefreshCw {...stylex.props(styles.headerIcon)} />
-        </IconButton>
-        <IconButton
-          label={t("aiRewrite.newConversation")}
-          onClick={onNewConversation}
-          style={styles.headerButton}
-        >
-          <Plus {...stylex.props(styles.headerIcon)} />
-        </IconButton>
-        <IconButton label={t("common.close")} onClick={onClose} style={styles.headerButton}>
-          <X {...stylex.props(styles.headerIcon)} />
-        </IconButton>
-      </div>
-    </header>
+    </PanelHeader>
   );
 }
 
@@ -484,15 +485,6 @@ const styles = stylex.create({
     animationTimingFunction: motion.ease,
   },
   header: {
-    display: "flex",
-    minWidth: 0,
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    gap: "10px",
-    padding: "13px 9px 12px 16px",
-    borderBottomWidth: "1px",
-    borderBottomStyle: "solid",
-    borderBottomColor: colors.border,
     backgroundColor: `color-mix(in srgb, ${colors.elevated} 94%, ${colors.panel})`,
   },
   headerText: { minWidth: 0 },
