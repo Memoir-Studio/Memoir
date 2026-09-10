@@ -222,6 +222,12 @@ impl WorkspaceService {
         self.index_written_note(root, &relative, None)
     }
 
+    pub fn create_folder(&self, root: &str, folder: &str) -> AppResult<String> {
+        let relative = self.filesystem.create_folder(root, folder)?;
+        self.reconcile_disk(root)?;
+        Ok(relative)
+    }
+
     pub fn rename(
         &self,
         root: &str,

@@ -80,6 +80,66 @@ describe("NoteList", () => {
     expect(view.getByRole("searchbox", { name: "筛选笔记" })).toHaveValue("beta");
   });
 
+  it("appends deduplicated semantic matches after keyword results", async () => {
+    const gateways = createMockGateways();
+    gateways.workspace.semanticResults = [
+      {
+        relativePath: "beta.mdx",
+        title: "Duplicate keyword result",
+        excerpt: "",
+        content: "Already matched by keyword search",
+        score: 0.98,
+        chunkIndex: 0,
+      },
+      {
+        relativePath: "related.md",
+        title: "Related note",
+        excerpt: "",
+        content: "A semantic match that does not contain the keyword.",
+        score: 0.83,
+        chunkIndex: 1,
+      },
+    ];
+    setGatewaysForTests(gateways);
+    useAppStore.setState({
+      workspaceRoot: "/workspace",
+      notes: [
+        {
+          relativePath: "beta.mdx",
+          fileName: "beta.mdx",
+          extension: "mdx",
+          modifiedMs: 2,
+          size: 20,
+          title: "Beta Notes",
+          tags: ["ideas"],
+          excerpt: "Keyword match",
+          favorite: false,
+        },
+      ],
+      query: "beta",
+      settings: {
+        ...DEFAULT_SETTINGS,
+        ai: { ...DEFAULT_SETTINGS.ai, enabled: true },
+      },
+    });
+    const view = render(
+      <NoteList
+        onCreate={() => undefined}
+        onDelete={() => undefined}
+        onRename={() => undefined}
+      />,
+    );
+
+    expect(view.queryByRole("button", { name: "关键词" })).not.toBeInTheDocument();
+    expect(view.queryByRole("button", { name: "语义" })).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(view.getByText("Related note")).toBeInTheDocument();
+    });
+    expect(view.getByText("语义相关")).toBeInTheDocument();
+    expect(view.getByText("2 篇")).toBeInTheDocument();
+    expect(view.queryByText("Duplicate keyword result")).not.toBeInTheDocument();
+  });
+
   it("does not extract headings while the notes panel is showing", () => {
     const spy = vi.spyOn(noteUtils, "extractHeadings");
     useAppStore.setState({

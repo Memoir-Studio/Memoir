@@ -14,11 +14,12 @@ afterEach(() => {
     loadedContentPath: null,
     content: "",
     savedContent: "",
+    scopedFilter: null,
   });
 });
 
 function Harness() {
-  const { openCreate, openDelete, openRename } = useWorkspaceDialogs();
+  const { openCreate, openCreateFolder, openDelete, openRename } = useWorkspaceDialogs();
   return (
     <>
       <button onClick={() => openCreate()} type="button">
@@ -26,6 +27,9 @@ function Harness() {
       </button>
       <button onClick={() => openCreate("mdx", "", "日记")} type="button">
         打开带标签新建
+      </button>
+      <button onClick={() => openCreateFolder("工作")} type="button">
+        打开新建文件夹
       </button>
       <button onClick={() => openRename("alpha.md")} type="button">
         打开重命名
@@ -38,6 +42,28 @@ function Harness() {
 }
 
 describe("WorkspaceDialogs", () => {
+  it("creates a child folder with the dedicated folder dialog", async () => {
+    const createFolder = vi.fn().mockResolvedValue(undefined);
+    useAppStore.setState({ createFolder });
+    const user = userEvent.setup();
+    const view = render(
+      <WorkspaceDialogsProvider>
+        <Harness />
+      </WorkspaceDialogsProvider>,
+    );
+
+    await user.click(view.getByRole("button", { name: "打开新建文件夹" }));
+    expect(view.getByRole("dialog", { name: "新建文件夹" })).toBeInTheDocument();
+    expect(view.queryByRole("dialog", { name: "新建笔记" })).not.toBeInTheDocument();
+    expect(view.getByText("工作")).toBeInTheDocument();
+    await user.type(view.getByLabelText("文件夹名称"), "项目{Enter}");
+
+    expect(createFolder).toHaveBeenCalledWith("工作/项目");
+    await waitFor(() => {
+      expect(view.queryByRole("dialog", { name: "新建文件夹" })).not.toBeInTheDocument();
+    });
+  });
+
   it("creates a note when Enter is pressed in the title field", async () => {
     const createNote = vi.fn().mockResolvedValue(undefined);
     useAppStore.setState({ createNote });
@@ -59,6 +85,40 @@ describe("WorkspaceDialogs", () => {
     });
     await waitFor(() => {
       expect(view.queryByRole("dialog", { name: "新建笔记" })).not.toBeInTheDocument();
+    });
+  });
+
+  it("prefills the currently selected folder when creating a note", async () => {
+    const createNote = vi.fn().mockResolvedValue(undefined);
+    useAppStore.setState({
+      createNote,
+      scopedFilter: { type: "folder", value: "工作/项目" },
+      libraryStats: {
+        total: 0,
+        recent: 0,
+        favorites: 0,
+        uncategorized: 0,
+        folders: [{ folder: "工作/项目", count: 0 }],
+        tags: [],
+        truncated: false,
+      },
+    });
+    const user = userEvent.setup();
+    const view = render(
+      <WorkspaceDialogsProvider>
+        <Harness />
+      </WorkspaceDialogsProvider>,
+    );
+
+    await user.click(view.getByRole("button", { name: "打开新建" }));
+    expect(view.getByRole("combobox", { name: "目录（可选）" })).toHaveValue("工作/项目");
+    await user.type(view.getByLabelText("标题"), "方案{Enter}");
+
+    expect(createNote).toHaveBeenCalledWith({
+      title: "方案",
+      extension: "mdx",
+      folder: "工作/项目",
+      tags: undefined,
     });
   });
 
@@ -113,6 +173,30 @@ describe("WorkspaceDialogs", () => {
       folder: "日记",
       tags: undefined,
     });
+  });
+
+  it("lists empty folders from library stats in the note dialog", async () => {
+    useAppStore.setState({
+      libraryStats: {
+        total: 0,
+        recent: 0,
+        favorites: 0,
+        uncategorized: 0,
+        folders: [{ folder: "空目录", count: 0 }],
+        tags: [],
+        truncated: false,
+      },
+    });
+    const user = userEvent.setup();
+    const view = render(
+      <WorkspaceDialogsProvider>
+        <Harness />
+      </WorkspaceDialogsProvider>,
+    );
+
+    await user.click(view.getByRole("button", { name: "打开新建" }));
+    await user.click(view.getByRole("combobox", { name: "目录（可选）" }));
+    expect(view.getByRole("option", { name: "空目录" })).toBeInTheDocument();
   });
 
   it("creates a note in a newly typed folder", async () => {

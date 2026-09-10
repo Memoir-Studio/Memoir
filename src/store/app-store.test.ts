@@ -72,6 +72,22 @@ describe("app store actions", () => {
     );
   });
 
+  it("creates an empty folder and refreshes folder stats", async () => {
+    const gateways = createMockGateways();
+    const store = createAppStore(gateways);
+    await store.getState().openWorkspace("/workspace");
+
+    await store.getState().createFolder("work/projects");
+
+    expect(gateways.workspace.folders).toEqual(new Set(["work", "work/projects"]));
+    expect(store.getState().libraryStats.folders).toEqual(
+      expect.arrayContaining([
+        { folder: "work", count: 0 },
+        { folder: "work/projects", count: 0 },
+      ]),
+    );
+  });
+
   it("rebuilds the workspace index then refreshes notes", async () => {
     const gateways = createMockGateways();
     const store = createAppStore(gateways);

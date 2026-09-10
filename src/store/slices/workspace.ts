@@ -9,6 +9,7 @@ type WorkspaceSliceContext = {
     folder?: string;
     tags?: string[];
   }) => Promise<void>;
+  createFolder: (folder: string) => Promise<void>;
   rebuildIndex: () => Promise<void>;
   renameNote: (relativePath: string, newRelativePath: string) => Promise<void>;
   renameActiveNote: (newRelativePath: string) => Promise<void>;
@@ -23,6 +24,7 @@ export function createWorkspaceSlice({
   initialize,
   refreshWorkspace,
   createNote,
+  createFolder,
   rebuildIndex,
   renameNote,
   renameActiveNote,
@@ -36,6 +38,7 @@ export function createWorkspaceSlice({
     initialize,
     refreshWorkspace,
     createNote,
+    createFolder,
     rebuildIndex,
     renameNote,
     renameActiveNote,

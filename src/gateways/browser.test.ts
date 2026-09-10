@@ -17,6 +17,24 @@ describe("BrowserPersistenceGateway", () => {
 });
 
 describe("BrowserWorkspaceGateway", () => {
+  it("creates and keeps an empty folder in library stats", async () => {
+    const gateway = new BrowserWorkspaceGateway();
+    await expect(gateway.createFolder("demo://memoir", "工作/项目")).resolves.toBe("工作/项目");
+
+    const page = await gateway.queryLibrary("demo://memoir", {
+      q: "",
+      nav: "all",
+      folder: null,
+      tag: null,
+    });
+    expect(page.stats.folders).toEqual(
+      expect.arrayContaining([
+        { folder: "工作", count: 0 },
+        { folder: "工作/项目", count: 0 },
+      ]),
+    );
+  });
+
   it("returns title tags and excerpt from the in-memory scan", async () => {
     const gateway = new BrowserWorkspaceGateway();
     const page = await gateway.queryLibrary("demo://memoir", {

@@ -8,16 +8,16 @@ mod tray;
 mod window_frame;
 
 use commands::{
-    check_app_update, create_note, delete_attachment, delete_draft, delete_note, drafts_exist,
-    fetch_link_preview_html, get_cloud_sync_profile, get_index_info, get_note_graph,
-    import_attachment, load_app_state, migrate_legacy_state, query_library, read_draft, read_note,
-    rebuild_index, reconcile_workspace, rename_note, run_cloud_sync, save_attachment,
-    save_cloud_sync_profile, save_preferences, scan_attachments, set_favorite,
-    set_folder_appearance, skip_app_update, test_cloud_sync, write_draft, write_export_file,
-    write_note, AppServices,
+    check_app_update, create_folder, create_note, delete_attachment, delete_draft, delete_note,
+    drafts_exist, fetch_link_preview_html, get_cloud_sync_profile, get_index_info, get_note_graph,
+    get_vector_index_status, import_attachment, index_vector_workspace, load_app_state,
+    migrate_legacy_state, query_library, read_draft, read_note, rebuild_index, reconcile_workspace,
+    rename_note, run_cloud_sync, save_attachment, save_cloud_sync_profile, save_preferences,
+    scan_attachments, semantic_search, set_favorite, set_folder_appearance, skip_app_update,
+    test_cloud_sync, write_draft, write_export_file, write_note, AppServices,
 };
 use infrastructure::{app_data::AppDataRepository, filesystem::LocalFileSystem};
-use services::{AppStateService, CloudSyncService, WorkspaceService};
+use services::{AppStateService, CloudSyncService, VectorIndexService, WorkspaceService};
 use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -51,6 +51,7 @@ pub fn run() {
             app.manage(close_policy);
             app.manage(AppServices {
                 workspace: workspace.clone(),
+                vector_index: VectorIndexService::new(filesystem.clone(), workspace.clone()),
                 cloud_sync: CloudSyncService::new(
                     filesystem,
                     app_state.clone(),
@@ -70,6 +71,7 @@ pub fn run() {
             read_note,
             write_note,
             create_note,
+            create_folder,
             rename_note,
             delete_note,
             scan_attachments,
@@ -92,7 +94,10 @@ pub fn run() {
             save_cloud_sync_profile,
             test_cloud_sync,
             run_cloud_sync,
-            fetch_link_preview_html
+            fetch_link_preview_html,
+            get_vector_index_status,
+            index_vector_workspace,
+            semantic_search
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

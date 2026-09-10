@@ -212,8 +212,24 @@ fn collect_stats(
 
     let mut folders = Vec::new();
     {
-        let mut statement =
-            conn.prepare("SELECT folder, COUNT(*) FROM notes GROUP BY folder ORDER BY folder ASC")?;
+        let mut statement = conn.prepare(
+            "
+            WITH note_folders AS (
+                SELECT folder, COUNT(*) AS count
+                  FROM notes
+                 GROUP BY folder
+            )
+            SELECT folder, count FROM note_folders
+            UNION ALL
+            SELECT d.relative_dir, 0
+              FROM dir_cache d
+             WHERE d.relative_dir <> ''
+               AND NOT EXISTS (
+                    SELECT 1 FROM note_folders n WHERE n.folder = d.relative_dir
+               )
+             ORDER BY 1 ASC
+            ",
+        )?;
         let rows = statement.query_map([], |row| {
             Ok(FolderStat {
                 folder: row.get(0)?,

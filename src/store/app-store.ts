@@ -135,6 +135,9 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
   let cloudSyncProgressWatch: Promise<void> | null = null;
   let metadataTimer: number | null = null;
   let metadataPath: string | null = null;
+  let vectorIndexTimer: number | null = null;
+  let vectorIndexInFlight = false;
+  let vectorIndexPending = false;
   const noteContentCache = new Map<string, CachedNoteContent>();
 
   const contentCacheKey = (root: string, relativePath: string) => `${root}\0${relativePath}`;
@@ -307,6 +310,38 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
         state.favoritePaths,
       );
 
+    const runVectorIndex = async () => {
+      const state = get();
+      if (!state.workspaceRoot || !state.settings.ai.enabled) return;
+      if (vectorIndexInFlight) {
+        vectorIndexPending = true;
+        return;
+      }
+      vectorIndexInFlight = true;
+      try {
+        await gateways.workspace.indexVectorWorkspace(state.workspaceRoot, state.settings.ai, false);
+      } catch (error) {
+        // Background indexing must not interrupt editing; the index panel exposes the failure.
+        set({ error: storeT(get().settings, "errors.vectorIndex", { message: toMessage(error) }) });
+      } finally {
+        vectorIndexInFlight = false;
+        if (vectorIndexPending) {
+          vectorIndexPending = false;
+          scheduleVectorIndex(400);
+        }
+      }
+    };
+
+    const scheduleVectorIndex = (delayMs = 1200) => {
+      const state = get();
+      if (!state.workspaceRoot || !state.settings.ai.enabled) return;
+      if (vectorIndexTimer !== null) window.clearTimeout(vectorIndexTimer);
+      vectorIndexTimer = window.setTimeout(() => {
+        vectorIndexTimer = null;
+        void runVectorIndex();
+      }, delayMs);
+    };
+
     const applyLibraryPage = async (
       root: string,
       page: LibraryPage,
@@ -405,6 +440,7 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
           };
         });
         scheduleCloudSync();
+        scheduleVectorIndex();
       } catch (error) {
         set((state) => ({
           isSaving: state.activePath === savePath ? false : state.isSaving,
@@ -526,10 +562,28 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
         const created = await gateways.workspace.createNote({ root, ...input });
         const page = await gateways.workspace.queryLibrary(root, currentQuery());
         await applyLibraryPage(root, page, created.relativePath);
+        scheduleVectorIndex();
       } catch (error) {
         set({
           isLoading: false,
           error: storeT(get().settings, "errors.createNote", { message: toMessage(error) }),
+        });
+      }
+    };
+
+    const createFolderAction = async (folder: string) => {
+      const root = get().workspaceRoot;
+      const normalized = normalizeFolderKey(folder);
+      if (!root || !normalized) return;
+      set({ isLoading: true, error: "" });
+      try {
+        await gateways.workspace.createFolder(root, normalized);
+        const page = await gateways.workspace.queryLibrary(root, currentQuery());
+        await applyLibraryPage(root, page);
+      } catch (error) {
+        set({
+          isLoading: false,
+          error: storeT(get().settings, "errors.createFolder", { message: toMessage(error) }),
         });
       }
     };
@@ -541,6 +595,7 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
       try {
         const page = await gateways.workspace.rebuildIndex(root, currentQuery());
         await applyLibraryPage(root, page);
+        scheduleVectorIndex(100);
         set({ status: storeT(get().settings, "status.indexRebuilt") });
       } catch (error) {
         set({
@@ -580,6 +635,7 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
         await applyLibraryPage(workspaceRoot, page, wasActive ? renamed.note.relativePath : undefined, {
           selectIfNeeded: wasActive,
         });
+        scheduleVectorIndex();
       } catch (error) {
         set({
           isLoading: false,
@@ -609,6 +665,7 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
         } else set({ favoritePaths: nextFavorites });
         const page = await gateways.workspace.queryLibrary(workspaceRoot, currentQuery());
         await applyLibraryPage(workspaceRoot, page, null, { selectIfNeeded: relativePath === activePath });
+        scheduleVectorIndex();
       } catch (error) {
         set({
           isLoading: false,
@@ -630,6 +687,7 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
         const { page, attachments } = await loadWorkspaceSnapshot(gateways, root, currentQuery());
         set({ attachments });
         await applyLibraryPage(root, page, preferredPath);
+        scheduleVectorIndex();
       } catch (error) {
         set({
           isLoading: false,
@@ -940,6 +998,7 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
         initialize: initializeAction,
         refreshWorkspace: refreshWorkspaceAction,
         createNote: createNoteAction,
+        createFolder: createFolderAction,
         rebuildIndex: rebuildIndexAction,
         renameNote: renameNoteAction,
         renameActiveNote: renameActiveNoteAction,
@@ -964,7 +1023,20 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
           libraryQuery.runNow();
         },
       }),
-      ...createUiSlice({ set, get, persistPreferences }),
+      ...createUiSlice({
+        set,
+        get,
+        persistPreferences,
+        onSettingsChanged: (previous, next) => {
+          const connectionChanged =
+            previous.ai.enabled !== next.ai.enabled ||
+            previous.ai.provider !== next.ai.provider ||
+            previous.ai.baseUrl !== next.ai.baseUrl ||
+            previous.ai.apiKey !== next.ai.apiKey ||
+            previous.ai.embeddingModel !== next.ai.embeddingModel;
+          if (next.ai.enabled && connectionChanged) scheduleVectorIndex(100);
+        },
+      }),
       ...createSyncSlice({
         saveProfile: saveCloudSyncProfileAction,
         testConnection: testCloudSyncAction,

@@ -481,10 +481,12 @@ export const EditorPane = forwardRef<EditorHandle, EditorPaneProps>(function Edi
   const dropDepthRef = useRef(0);
   const ignorePointerUntil = useRef(0);
   const onScrollRef = useRef(onScroll);
+  const onScrollIntentRef = useRef(onScrollIntent);
   const detachScrollRef = useRef<(() => void) | null>(null);
   const callbacksRef = useRef({ onPasteImages, onContextMenu, onOpenNote });
   callbacksRef.current = { onPasteImages, onContextMenu, onOpenNote };
   onScrollRef.current = onScroll;
+  onScrollIntentRef.current = onScrollIntent;
   const extensions = useMemo(
     () =>
       createEditorExtensions(
@@ -648,8 +650,17 @@ export const EditorPane = forwardRef<EditorHandle, EditorPaneProps>(function Edi
         onCreateEditor={(view) => {
           detachScrollRef.current?.();
           const handleScroll = () => onScrollRef.current?.();
+          const handleScrollIntent = () => onScrollIntentRef.current?.();
           view.scrollDOM.addEventListener("scroll", handleScroll, { passive: true });
-          detachScrollRef.current = () => view.scrollDOM.removeEventListener("scroll", handleScroll);
+          view.scrollDOM.addEventListener("wheel", handleScrollIntent, { passive: true });
+          view.scrollDOM.addEventListener("pointerdown", handleScrollIntent, { passive: true });
+          view.scrollDOM.addEventListener("touchstart", handleScrollIntent, { passive: true });
+          detachScrollRef.current = () => {
+            view.scrollDOM.removeEventListener("scroll", handleScroll);
+            view.scrollDOM.removeEventListener("wheel", handleScrollIntent);
+            view.scrollDOM.removeEventListener("pointerdown", handleScrollIntent);
+            view.scrollDOM.removeEventListener("touchstart", handleScrollIntent);
+          };
           handleScroll();
         }}
         ref={hostRef}

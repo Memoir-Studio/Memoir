@@ -11,18 +11,20 @@ import {
   mimeFromExtension,
   sanitizeAttachmentFileName,
 } from "../domain/attachments";
-import type { FolderAppearance } from "../domain/folders";
-import { resolveWorkspaceFilePath } from "../domain/paths";
 import {
+  collectFolderPaths,
   folderAppearancesForWorkspace,
   normalizeFolderAppearance,
   normalizeFolderKey,
+  type FolderAppearance,
 } from "../domain/folders";
+import { resolveWorkspaceFilePath } from "../domain/paths";
 import { indexInfoFromNotes, type WorkspaceIndexInfo } from "../domain/index-info";
 import { buildNoteGraph, type NoteGraph } from "../domain/note-links";
 import type { LibraryPage, LibraryQuery, RawNoteFile, RenamedNote } from "../domain/notes";
 import { parseNote, queryNotesInMemory } from "../domain/notes/note-utils";
 import { DEFAULT_SETTINGS } from "../domain/settings";
+import { emptyVectorIndexStatus, type AiSettings, type SemanticSearchResult, type VectorIndexStatus } from "../domain/vector-index";
 import { APP_VERSION } from "../platform/app-version";
 import {
   defaultCloudSyncProfile,
@@ -131,6 +133,11 @@ function createDefaultState(): AppState {
 
 export class BrowserWorkspaceGateway implements WorkspaceGateway {
   private files = new Map<string, string>(DEMO_NOTES);
+  private folders = new Set<string>(
+    collectFolderPaths(
+      DEMO_NOTES.map(([path]) => path.split("/").slice(0, -1).join("/")),
+    ),
+  );
   private modified = new Map<string, number>(DEMO_NOTES.map(([path]) => [path, Date.now()]));
   private attachments = new Map<string, AttachmentFile>();
   private media = new Map<string, string>();
@@ -158,7 +165,20 @@ export class BrowserWorkspaceGateway implements WorkspaceGateway {
 
   async queryLibrary(root: string, query: LibraryQuery): Promise<LibraryPage> {
     this.assertRoot(root);
-    return queryNotesInMemory(this.listNotes(), query);
+    const page = queryNotesInMemory(this.listNotes(), query);
+    const counts = new Map(page.stats.folders.map((item) => [item.folder, item.count]));
+    for (const folder of this.folders) {
+      if (!counts.has(folder)) counts.set(folder, 0);
+    }
+    return {
+      ...page,
+      stats: {
+        ...page.stats,
+        folders: [...counts.entries()]
+          .map(([folder, count]) => ({ folder, count }))
+          .sort((left, right) => left.folder.localeCompare(right.folder)),
+      },
+    };
   }
 
   async reconcileWorkspace(root: string, query?: LibraryQuery): Promise<LibraryPage> {
@@ -217,6 +237,7 @@ export class BrowserWorkspaceGateway implements WorkspaceGateway {
       .replace(/[^\p{Letter}\p{Number}]+/gu, "-")
       .replace(/^-|-$/g, "") || "untitled";
     const prefix = folder?.replace(/^\/|\/$/g, "");
+    for (const path of collectFolderPaths([prefix ?? ""])) this.folders.add(path);
     let index = 0;
     let relativePath = `${prefix ? `${prefix}/` : ""}${slug}.${extension}`;
     while (this.files.has(relativePath)) {
@@ -229,6 +250,19 @@ export class BrowserWorkspaceGateway implements WorkspaceGateway {
     );
     this.modified.set(relativePath, Date.now());
     return this.noteAt(relativePath);
+  }
+
+  async createFolder(root: string, folder: string) {
+    this.assertRoot(root);
+    const normalized = normalizeFolderKey(folder);
+    if (!normalized || normalized.split("/").some((part) => !part || part.startsWith("."))) {
+      throw new GatewayError({ code: "invalid_path", message: "Folder path is invalid." });
+    }
+    if (this.folders.has(normalized)) {
+      throw new GatewayError({ code: "conflict", message: "Folder already exists." });
+    }
+    for (const path of collectFolderPaths([normalized])) this.folders.add(path);
+    return normalized;
   }
 
   async renameNote(root: string, oldRelativePath: string, newRelativePath: string): Promise<RenamedNote> {
@@ -371,6 +405,18 @@ export class BrowserWorkspaceGateway implements WorkspaceGateway {
     anchor.click();
     anchor.remove();
     URL.revokeObjectURL(url);
+  }
+
+  async getVectorIndexStatus(_root: string, _settings: AiSettings): Promise<VectorIndexStatus> {
+    return emptyVectorIndexStatus();
+  }
+
+  async indexVectorWorkspace(_root: string, _settings: AiSettings): Promise<VectorIndexStatus> {
+    return emptyVectorIndexStatus();
+  }
+
+  async semanticSearch(_root: string, _settings: AiSettings, _query: string): Promise<SemanticSearchResult[]> {
+    return [];
   }
 
   private noteAt(relativePath: string): RawNoteFile {

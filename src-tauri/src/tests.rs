@@ -179,6 +179,33 @@ fn creates_unique_slug_reads_atomically_renames_and_trashes() {
 }
 
 #[test]
+fn creates_empty_folders_and_keeps_them_in_library_stats() {
+    let workspace = tempdir().unwrap();
+    let root = workspace.path().to_str().unwrap();
+    let service = WorkspaceService::new(LocalFileSystem::new());
+    service
+        .reconcile(root, &crate::domain::LibraryQuery::default())
+        .unwrap();
+
+    assert_eq!(service.create_folder(root, "work/projects").unwrap(), "work/projects");
+    assert!(workspace.path().join("work/projects").is_dir());
+
+    let page = service
+        .query_library(root, &crate::domain::LibraryQuery::default())
+        .unwrap();
+    assert!(page
+        .stats
+        .folders
+        .iter()
+        .any(|folder| folder.folder == "work" && folder.count == 0));
+    assert!(page
+        .stats
+        .folders
+        .iter()
+        .any(|folder| folder.folder == "work/projects" && folder.count == 0));
+}
+
+#[test]
 fn app_state_defaults_version_compatibility_and_favorites_are_isolated() {
     let app_data = tempdir().unwrap();
     let workspace_a = tempdir().unwrap();
@@ -1074,7 +1101,7 @@ fn v1_index_file_is_rebuilt_as_v2_and_notes_return() {
     assert_eq!(page.notes.len(), 1);
     assert_eq!(page.notes[0].title, "Keep");
     let info = service.index_info(root).unwrap();
-    assert_eq!(info.schema_version, 3);
+    assert_eq!(info.schema_version, 4);
 }
 
 #[test]

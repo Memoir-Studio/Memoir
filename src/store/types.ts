@@ -77,6 +77,7 @@ export type AppActions = {
     folder?: string;
     tags?: string[];
   }): Promise<void>;
+  createFolder(folder: string): Promise<void>;
   renameNote(relativePath: string, newRelativePath: string): Promise<void>;
   renameActiveNote(newRelativePath: string): Promise<void>;
   deleteNote(relativePath: string): Promise<void>;

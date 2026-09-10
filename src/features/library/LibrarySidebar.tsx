@@ -266,11 +266,13 @@ function FolderNavItem({
 export function LibrarySidebar({
   isDark,
   onCreateFolder,
+  onCreateNote = () => undefined,
   onCreateTag,
   style,
 }: {
   isDark: boolean;
-  onCreateFolder: () => void;
+  onCreateFolder: (parent?: string) => void;
+  onCreateNote?: (folder: string) => void;
   onCreateTag: () => void;
   style?: stylex.StyleXStyles;
 }) {
@@ -445,7 +447,7 @@ export function LibrarySidebar({
               <span>{t("nav.folders")}</span>
               <button
                 aria-label={t("nav.newFolder")}
-                onClick={onCreateFolder}
+                onClick={() => onCreateFolder("")}
                 type="button"
                 {...stylex.props(sidebarStyles.sectionAction)}
               >
@@ -562,6 +564,16 @@ export function LibrarySidebar({
 
       <FolderContextMenu
         onClose={() => setMenuTarget(null)}
+        onCreate={(folder) => {
+          setCollapsedFolders((current) => {
+            if (!folder || !current.has(folder)) return current;
+            const next = new Set(current);
+            next.delete(folder);
+            return next;
+          });
+          onCreateFolder(folder);
+        }}
+        onCreateNote={onCreateNote}
         onCustomize={(folder) => setAppearanceFolder(folder)}
         onOpen={(folder) => setScopedFilter({ type: "folder", value: folder })}
         target={menuTarget}

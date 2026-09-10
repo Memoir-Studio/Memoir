@@ -49,6 +49,11 @@ describe("Tauri gateways", () => {
       folder: "work",
       tags: ["team"],
     });
+    await gateway.createFolder("/notes", "work/projects");
+    expect(invoke).toHaveBeenCalledWith("create_folder", {
+      root: "/notes",
+      folder: "work/projects",
+    });
   });
 
   it("loads and rebuilds the workspace index with camelCase DTOs", async () => {

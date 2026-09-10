@@ -76,6 +76,21 @@ pub fn create_note(
 }
 
 #[tauri::command]
+pub async fn create_folder(
+    services: State<'_, AppServices>,
+    root: String,
+    folder: String,
+) -> Result<String, AppError> {
+    let workspace = services.workspace.clone();
+    tauri::async_runtime::spawn_blocking(move || workspace.create_folder(&root, &folder))
+        .await
+        .map_err(|error| {
+            AppError::new(crate::domain::ErrorCode::Io, "Folder creation interrupted.")
+                .with_details(error.to_string())
+        })?
+}
+
+#[tauri::command]
 pub fn rename_note(
     services: State<'_, AppServices>,
     root: String,

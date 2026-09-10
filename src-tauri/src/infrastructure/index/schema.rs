@@ -2,7 +2,7 @@ use crate::domain::note_parse::{INDEX_READ_CAP, PARSE_ALGO_VERSION};
 use rusqlite::{params, Connection};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-pub const CURRENT_USER_VERSION: i32 = 3;
+pub const CURRENT_USER_VERSION: i32 = 4;
 
 pub const ALLOWED_TABLES: &[&str] = &[
     "meta",
@@ -16,6 +16,9 @@ pub const ALLOWED_TABLES: &[&str] = &[
     "notes_fts_docsize",
     "notes_fts_config",
     "notes_fts_content",
+    "ai_vector_meta",
+    "ai_vector_state",
+    "note_chunks",
 ];
 
 pub const ALLOWED_INDEXES: &[&str] = &[
@@ -24,6 +27,8 @@ pub const ALLOWED_INDEXES: &[&str] = &[
     "note_tags_norm",
     "note_links_source",
     "note_links_target",
+    "note_chunks_note",
+    "note_chunks_model",
 ];
 
 pub fn user_version(conn: &Connection) -> rusqlite::Result<i32> {
@@ -121,9 +126,50 @@ pub fn apply_note_links_schema(conn: &Connection) -> rusqlite::Result<()> {
     Ok(())
 }
 
+pub fn apply_vector_schema(conn: &Connection) -> rusqlite::Result<()> {
+    conn.execute_batch(
+        "
+        CREATE TABLE IF NOT EXISTS ai_vector_meta (
+            key   TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS ai_vector_state (
+            note_id       INTEGER NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+            model         TEXT    NOT NULL,
+            modified_ms   INTEGER NOT NULL,
+            size          INTEGER NOT NULL,
+            status        TEXT    NOT NULL,
+            error         TEXT,
+            chunk_count   INTEGER NOT NULL DEFAULT 0,
+            updated_at_ms INTEGER NOT NULL,
+            PRIMARY KEY (note_id, model)
+        );
+        CREATE TABLE IF NOT EXISTS note_chunks (
+            id                INTEGER PRIMARY KEY,
+            note_id           INTEGER NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+            model             TEXT    NOT NULL,
+            chunk_index       INTEGER NOT NULL,
+            start_offset      INTEGER NOT NULL,
+            end_offset        INTEGER NOT NULL,
+            source_modified_ms INTEGER NOT NULL,
+            content_hash      TEXT    NOT NULL,
+            content           TEXT    NOT NULL,
+            dimensions        INTEGER NOT NULL,
+            embedding         BLOB    NOT NULL,
+            created_at_ms     INTEGER NOT NULL,
+            UNIQUE(note_id, model, chunk_index)
+        );
+        CREATE INDEX IF NOT EXISTS note_chunks_note ON note_chunks(note_id);
+        CREATE INDEX IF NOT EXISTS note_chunks_model ON note_chunks(model);
+        ",
+    )?;
+    Ok(())
+}
+
 pub fn apply_schema(conn: &Connection) -> rusqlite::Result<()> {
     apply_schema_v2(conn)?;
     apply_note_links_schema(conn)?;
+    apply_vector_schema(conn)?;
     conn.pragma_update(None, "user_version", CURRENT_USER_VERSION)?;
     Ok(())
 }
@@ -133,6 +179,12 @@ pub fn upgrade_schema(conn: &Connection, version: i32) -> Result<(), ()> {
         apply_schema(conn).map_err(|_| ())
     } else if version == 2 {
         apply_note_links_schema(conn).map_err(|_| ())?;
+        apply_vector_schema(conn).map_err(|_| ())?;
+        conn.pragma_update(None, "user_version", CURRENT_USER_VERSION)
+            .map_err(|_| ())?;
+        Ok(())
+    } else if version == 3 {
+        apply_vector_schema(conn).map_err(|_| ())?;
         conn.pragma_update(None, "user_version", CURRENT_USER_VERSION)
             .map_err(|_| ())?;
         Ok(())
@@ -143,7 +195,7 @@ pub fn upgrade_schema(conn: &Connection, version: i32) -> Result<(), ()> {
     }
 }
 
-/// Rejects any sqlite_master object that is not on the v2 whitelist.
+/// Rejects any sqlite_master object that is not on the index whitelist.
 /// `sqlite_%` names (including `sqlite_autoindex_*`) are excluded from the scan.
 pub fn schema_is_safe(conn: &Connection) -> bool {
     let mut statement =
@@ -177,6 +229,9 @@ pub fn schema_is_safe(conn: &Connection) -> bool {
         "note_links",
         "dir_cache",
         "notes_fts",
+        "ai_vector_meta",
+        "ai_vector_state",
+        "note_chunks",
     ] {
         let exists: Result<i64, _> = conn.query_row(
             "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?1",

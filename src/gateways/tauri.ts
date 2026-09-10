@@ -11,6 +11,7 @@ import type { WorkspaceIndexInfo } from "../domain/index-info";
 import type { NoteGraph } from "../domain/note-links";
 import type { LibraryPage, LibraryQuery, RawNoteFile, RenamedNote } from "../domain/notes";
 import type { AppSettings } from "../domain/settings";
+import type { AiSettings, SemanticSearchResult, VectorIndexStatus } from "../domain/vector-index";
 import {
   CLOUD_SYNC_PROGRESS_EVENT,
   mergeCloudSyncProgress,
@@ -77,6 +78,10 @@ export class TauriWorkspaceGateway implements WorkspaceGateway {
 
   createNote({ root, title, extension, folder, tags }: CreateNoteInput) {
     return call<RawNoteFile>("create_note", { root, title, extension, folder, tags });
+  }
+
+  createFolder(root: string, folder: string) {
+    return call<string>("create_folder", { root, folder });
   }
 
   renameNote(root: string, oldRelativePath: string, newRelativePath: string) {
@@ -166,6 +171,18 @@ export class TauriWorkspaceGateway implements WorkspaceGateway {
 
   writeExportFile(path: string, bytesBase64: string) {
     return call<void>("write_export_file", { path, bytesBase64 });
+  }
+
+  getVectorIndexStatus(root: string, settings: AiSettings) {
+    return call<VectorIndexStatus>("get_vector_index_status", { root, settings });
+  }
+
+  indexVectorWorkspace(root: string, settings: AiSettings, force = false) {
+    return call<VectorIndexStatus>("index_vector_workspace", { root, settings, force });
+  }
+
+  semanticSearch(root: string, settings: AiSettings, query: string, limit = 20) {
+    return call<SemanticSearchResult[]>("semantic_search", { root, settings, query, limit });
   }
 }
 
