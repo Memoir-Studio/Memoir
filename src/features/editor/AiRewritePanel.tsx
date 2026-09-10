@@ -173,7 +173,14 @@ export function AiRewritePanel({
   };
 
   const handleDraftKeyDown = (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key !== "Enter" || (!event.metaKey && !event.ctrlKey)) return;
+    if (
+      event.key !== "Enter" ||
+      event.shiftKey ||
+      event.nativeEvent.isComposing ||
+      event.nativeEvent.keyCode === 229
+    ) {
+      return;
+    }
     event.preventDefault();
     void send();
   };

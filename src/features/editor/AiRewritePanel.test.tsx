@@ -1,4 +1,4 @@
-import { act, cleanup, render, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_SETTINGS } from "../../domain/settings";
@@ -20,6 +20,60 @@ afterEach(() => {
 });
 
 describe("AiRewritePanel", () => {
+  it("sends with Enter and keeps Shift+Enter for a new line", async () => {
+    const gateways = createMockGateways();
+    gateways.workspace.chatResult = { message: "完成", edit: null };
+    setGatewaysForTests(gateways);
+    const user = userEvent.setup();
+    const view = render(
+      <AiRewritePanel
+        onApply={() => true}
+        onClose={() => undefined}
+        onRefreshTarget={() => target}
+        onSave={async () => true}
+        workspaceRoot="/workspace"
+        settings={{ ...DEFAULT_SETTINGS.ai, enabled: true }}
+        target={target}
+      />,
+    );
+    const textbox = view.getByRole("textbox", { name: "输入你的要求" });
+
+    await user.type(textbox, "第一行{shift>}{enter}{/shift}第二行");
+    expect(textbox).toHaveValue("第一行\n第二行");
+    expect(gateways.workspace.chatCalls).toHaveLength(0);
+
+    await user.type(textbox, "{enter}");
+
+    await waitFor(() => expect(gateways.workspace.chatCalls).toHaveLength(1));
+    expect(gateways.workspace.chatCalls[0]?.messages).toEqual([
+      { role: "user", content: "第一行\n第二行" },
+    ]);
+  });
+
+  it("does not send when Enter confirms an IME composition", async () => {
+    const gateways = createMockGateways();
+    setGatewaysForTests(gateways);
+    const user = userEvent.setup();
+    const view = render(
+      <AiRewritePanel
+        onApply={() => true}
+        onClose={() => undefined}
+        onRefreshTarget={() => target}
+        onSave={async () => true}
+        workspaceRoot="/workspace"
+        settings={{ ...DEFAULT_SETTINGS.ai, enabled: true }}
+        target={target}
+      />,
+    );
+    const textbox = view.getByRole("textbox", { name: "输入你的要求" });
+
+    await user.type(textbox, "中文输入");
+    fireEvent.keyDown(textbox, { key: "Enter", isComposing: true, keyCode: 229 });
+
+    expect(gateways.workspace.chatCalls).toHaveLength(0);
+    expect(textbox).toHaveValue("中文输入");
+  });
+
   it("keeps a conversation and shows a reviewable diff", async () => {
     const gateways = createMockGateways();
     gateways.workspace.chatResult = {
