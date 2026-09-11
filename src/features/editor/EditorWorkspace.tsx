@@ -55,6 +55,7 @@ import { useAppStore } from "../../store/app-store";
 import { useI18n } from "../../i18n/react";
 import { stripFrontmatter } from "../library/note-utils";
 import { handleWindowDragMouseDown } from "../window/window-drag";
+import { WindowControls } from "../window/WindowChrome";
 import { markdownForAttachments } from "../../domain/attachments";
 import { mapGatewayError } from "../../domain/errors";
 import { revealWorkspaceItem } from "../workspace/workspace-utils";
@@ -118,6 +119,7 @@ export const EditorWorkspace = forwardRef<EditorHandle, {
     items: ScrollAnchor[];
   } | null>(null);
   const workspaceRoot = useAppStore((state) => state.workspaceRoot);
+  const isSidebarCollapsed = useAppStore((state) => state.isSidebarCollapsed);
   const notes = useAppStore((state) => state.notes);
   const activePath = useAppStore((state) => state.activePath);
   const loadedContentPath = useAppStore((state) => state.loadedContentPath);
@@ -576,6 +578,7 @@ export const EditorWorkspace = forwardRef<EditorHandle, {
           <IconButton style={editorStyles.mobileHidden} label={t("editor.delete")} onClick={() => onDelete()}>
             <Trash2 {...stylex.props(editorStyles.icon)} />
           </IconButton>
+          {isSidebarCollapsed && <WindowControls inline position="right" />}
         </div>
       </header>
       <div

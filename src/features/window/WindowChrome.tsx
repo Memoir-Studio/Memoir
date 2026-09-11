@@ -21,7 +21,15 @@ const resizeHandles: WindowResizeDirection[] = [
   "SouthEast",
 ];
 
-export function WindowChrome({ controlsHidden = false }: { controlsHidden?: boolean }) {
+type WindowControlsPosition = "left" | "right";
+
+export function WindowControls({
+  inline = false,
+  position = "left",
+}: {
+  inline?: boolean;
+  position?: WindowControlsPosition;
+}) {
   const { t } = useI18n();
   if (!isTauriRuntime()) return null;
 
@@ -30,22 +38,39 @@ export function WindowChrome({ controlsHidden = false }: { controlsHidden?: bool
     minimize: t("window.minimize"),
     maximize: t("window.maximize"),
   } as const;
+  const controls = position === "right"
+    ? (["minimize", "maximize", "close"] as const)
+    : (["close", "minimize", "maximize"] as const);
+
+  return (
+    <div
+      data-window-controls-position={position}
+      {...stylex.props(
+        styles.controls,
+        position === "right" && styles.controlsRight,
+        inline && styles.controlsInline,
+      )}
+    >
+      {controls.map((type) => (
+        <button
+          aria-label={controlLabels[type]}
+          data-window-drag="ignore"
+          key={type}
+          onClick={() => void performWindowAction(type)}
+          type="button"
+          {...stylex.props(styles.control, styles[type])}
+        />
+      ))}
+    </div>
+  );
+}
+
+export function WindowChrome({ controlsHidden = false }: { controlsHidden?: boolean }) {
+  if (!isTauriRuntime()) return null;
 
   return (
     <>
-      {!controlsHidden && (
-        <div {...stylex.props(styles.controls)}>
-          {(["close", "minimize", "maximize"] as const).map((type) => (
-            <button
-              aria-label={controlLabels[type]}
-              key={type}
-              onClick={() => void performWindowAction(type)}
-              type="button"
-              {...stylex.props(styles.control, styles[type])}
-            />
-          ))}
-        </div>
-      )}
+      {!controlsHidden && <WindowControls />}
       <div
         aria-hidden="true"
         {...stylex.props(styles.resizeLayer)}
@@ -128,6 +153,19 @@ const styles = stylex.create({
       [media.mobile]: "none",
     },
     gap: 8,
+  },
+  controlsRight: {
+    right: `calc(${layout.windowInset} + 12px)`,
+    left: "auto",
+  },
+  controlsInline: {
+    position: "static",
+    flexShrink: 0,
+    marginLeft: 8,
+    paddingLeft: 14,
+    borderLeftWidth: 1,
+    borderLeftStyle: "solid",
+    borderLeftColor: "color-mix(in srgb, var(--memoir-text) 10%, transparent)",
   },
   control: {
     width: 13,

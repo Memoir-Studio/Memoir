@@ -160,6 +160,32 @@ describe("AppShell window chrome", () => {
       useAppStore.setState({ initialize });
     }
   });
+
+  it("places window controls in the right side of the editor header when the sidebar is collapsed", async () => {
+    Object.defineProperty(window, "__TAURI_INTERNALS__", {
+      value: {},
+      configurable: true,
+    });
+    setGatewaysForTests(createMockGateways());
+    const initialize = useAppStore.getState().initialize;
+    useAppStore.setState({
+      initialize: async () => undefined,
+      initialized: true,
+      isSidebarCollapsed: true,
+      workspaceRoot: "/workspace",
+    });
+
+    try {
+      const view = render(<AppShell />);
+      const close = await view.findByRole("button", { name: /关闭窗口|close window/i });
+      expect(close.parentElement).toHaveAttribute("data-window-controls-position", "right");
+      expect(view.container.querySelector("[data-editor-workspace]")).toContainElement(
+        close.parentElement,
+      );
+    } finally {
+      useAppStore.setState({ initialize });
+    }
+  });
 });
 
 describe("AppShell layout resize", () => {

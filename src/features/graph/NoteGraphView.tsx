@@ -10,9 +10,11 @@ import { NoteGraphScene } from "./graph-scene";
 import { graphCardMarker, graphStyles } from "./graph-styles.stylex";
 import { themeFromAppearance } from "./graph-theme";
 import { useNoteGraph } from "./useNoteGraph";
+import { WindowControls } from "../window/WindowChrome";
 
 export default function NoteGraphView() {
   const activePath = useAppStore((state) => state.activePath);
+  const isSidebarCollapsed = useAppStore((state) => state.isSidebarCollapsed);
   const selectNote = useAppStore((state) => state.selectNote);
   const setLibraryPanelMode = useAppStore((state) => state.setLibraryPanelMode);
   const appearance = useAppStore((state) => state.settings.appearance);
@@ -143,6 +145,7 @@ export default function NoteGraphView() {
           <IconButton label={t("graph.reset")} onClick={() => sceneRef.current?.reset()}>
             <RotateCcw {...stylex.props(graphStyles.icon)} />
           </IconButton>
+          {isSidebarCollapsed && <WindowControls inline position="right" />}
         </div>
       </header>
       <div {...stylex.props(graphStyles.stage)} ref={stageRef}>

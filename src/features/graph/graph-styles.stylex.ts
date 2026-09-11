@@ -19,7 +19,7 @@ export const graphStyles = stylex.create({
   },
   header: {
     display: "flex",
-    minHeight: "48px",
+    minHeight: "56px",
     flexShrink: 0,
     alignItems: "center",
     justifyContent: "space-between",
@@ -29,6 +29,8 @@ export const graphStyles = stylex.create({
     borderBottomColor: colors.border,
     paddingBlock: "6px",
     paddingInline: "16px",
+    backgroundColor: `color-mix(in srgb, ${colors.elevated} 68%, ${colors.canvas})`,
+    backdropFilter: "blur(14px)",
   },
   minWidth: { minWidth: 0 },
   heading: {
