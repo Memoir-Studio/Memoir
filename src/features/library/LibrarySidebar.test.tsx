@@ -124,12 +124,16 @@ describe("LibrarySidebar folders", () => {
     });
     const onCreateFolder = vi.fn();
     const onCreateNote = vi.fn();
+    const onRenameFolder = vi.fn();
+    const onDeleteFolder = vi.fn();
     const user = userEvent.setup();
     const view = render(
       <LibrarySidebar
         isDark={false}
         onCreateFolder={onCreateFolder}
         onCreateNote={onCreateNote}
+        onRenameFolder={onRenameFolder}
+        onDeleteFolder={onDeleteFolder}
         onCreateTag={() => undefined}
       />,
     );
@@ -143,6 +147,12 @@ describe("LibrarySidebar folders", () => {
     fireEvent.contextMenu(view.getByRole("button", { name: "思考" }));
     await user.click(view.getByRole("menuitem", { name: "新建文件夹" }));
     expect(onCreateFolder).toHaveBeenCalledWith("思考");
+    fireEvent.contextMenu(view.getByRole("button", { name: "思考" }));
+    await user.click(view.getByRole("menuitem", { name: "重命名" }));
+    expect(onRenameFolder).toHaveBeenCalledWith("思考");
+    fireEvent.contextMenu(view.getByRole("button", { name: "思考" }));
+    await user.click(view.getByRole("menuitem", { name: "删除" }));
+    expect(onDeleteFolder).toHaveBeenCalledWith("思考");
   });
 
   it("uses the folders section plus button to create a root folder", async () => {
@@ -257,6 +267,10 @@ describe("LibrarySidebar folders", () => {
       <LibrarySidebar isDark={false} onCreateFolder={() => undefined} onCreateTag={() => undefined} />,
     );
 
+    fireEvent.contextMenu(view.getByRole("button", { name: "根目录" }));
+    expect(view.queryByRole("menuitem", { name: "重命名" })).not.toBeInTheDocument();
+    expect(view.queryByRole("menuitem", { name: "删除" })).not.toBeInTheDocument();
+    await user.keyboard("{Escape}");
     expect(view.getByRole("button", { name: "根目录" })).toBeInTheDocument();
     expect(view.queryByRole("button", { name: "折叠“根目录”" })).not.toBeInTheDocument();
     const rootRow = view.getByRole("button", { name: "根目录" }).closest("[data-sidebar-folder-item]");

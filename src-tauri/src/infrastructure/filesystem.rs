@@ -171,6 +171,47 @@ impl LocalFileSystem {
         to_relative_path(&root, &canonical)
     }
 
+    fn resolve_folder(&self, root: &str, folder: &str) -> AppResult<(PathBuf, PathBuf)> {
+        let root = normalize_root(root)?;
+        let relative = validate_relative_path(folder)?;
+        for component in relative.components() {
+            if let Component::Normal(name) = component {
+                let name = name.to_string_lossy();
+                if name.starts_with('.') || IGNORED_DIRS.contains(&name.as_ref()) {
+                    return Err(AppError::invalid_path("Folder name is reserved."));
+                }
+            }
+        }
+        let path = root.join(relative);
+        let canonical = path.canonicalize().map_err(|error| AppError::io("Resolve folder", &path, error))?;
+        crate::domain::path::ensure_inside(&root, &canonical)?;
+        if canonical == root || !canonical.is_dir() || canonical != path {
+            return Err(AppError::invalid_path("Folder path is invalid."));
+        }
+        Ok((root, path))
+    }
+
+    pub fn rename_folder(&self, root: &str, folder: &str, new_folder: &str) -> AppResult<String> {
+        let (root, source) = self.resolve_folder(root, folder)?;
+        let relative = validate_relative_path(new_folder)?;
+        let target = root.join(relative);
+        if target.parent() != source.parent() {
+            return Err(AppError::invalid_path("Renaming must keep the same parent folder."));
+        }
+        let name = target.file_name().unwrap().to_string_lossy();
+        if name.starts_with('.') || IGNORED_DIRS.contains(&name.as_ref()) {
+            return Err(AppError::invalid_path("Folder name is reserved."));
+        }
+        if target.exists() { return Err(AppError::conflict("Folder already exists.")); }
+        fs::rename(&source, &target).map_err(|error| AppError::io("Rename folder", &source, error))?;
+        to_relative_path(&root, &target)
+    }
+
+    pub fn delete_folder(&self, root: &str, folder: &str) -> AppResult<String> {
+        let (root, source) = self.resolve_folder(root, folder)?;
+        move_to_workspace_trash(&root, &source, "deleted-folder")
+    }
+
     pub fn rename_note(
         &self,
         root: &str,

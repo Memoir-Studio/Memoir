@@ -17,6 +17,52 @@ describe("app store actions", () => {
     vi.useRealTimers();
   });
 
+  it("renames a folder subtree while preserving drafts, favorites, appearance and selection", async () => {
+    const gateways = createMockGateways();
+    gateways.workspace.files.set("work/child/note.md", "# Saved");
+    gateways.workspace.folders.add("work/empty");
+    const store = createAppStore(gateways);
+    await store.getState().openWorkspace("/workspace");
+    await store.getState().selectNote("work/child/note.md");
+    store.getState().setContent("# Unsaved");
+    await store.getState().toggleFavorite("work/child/note.md");
+    await store.getState().setFolderAppearance("work/child", { emoji: "📚" });
+    store.getState().setScopedFilter({ type: "folder", value: "work/child" });
+    await store.getState().renameFolder("work", "renamed");
+    expect(store.getState().error).toBe("");
+    expect(store.getState().activePath).toBe("renamed/child/note.md");
+    expect(store.getState().content).toBe("# Unsaved");
+    expect(store.getState().savedContent).toBe("# Saved");
+    expect(store.getState().scopedFilter).toEqual({ type: "folder", value: "renamed/child" });
+    expect(store.getState().favoritePaths).toContain("renamed/child/note.md");
+    expect(store.getState().folderAppearances).toEqual({ "renamed/child": { emoji: "📚" } });
+    expect(gateways.persistence.drafts.get("/workspace:renamed/child/note.md")).toBe("# Unsaved");
+    expect(gateways.persistence.drafts.has("/workspace:work/child/note.md")).toBe(false);
+    expect(gateways.workspace.folders.has("renamed/empty")).toBe(true);
+  });
+
+  it("deletes a folder subtree without touching similarly named siblings", async () => {
+    const gateways = createMockGateways();
+    gateways.workspace.files.set("work/child/note.md", "# Saved");
+    gateways.workspace.files.set("work-other/note.md", "# Keep");
+    gateways.workspace.folders.add("work/empty");
+    const store = createAppStore(gateways);
+    await store.getState().openWorkspace("/workspace");
+    await store.getState().selectNote("work/child/note.md");
+    await store.getState().toggleFavorite();
+    await store.getState().setFolderAppearance("work/child", { emoji: "📚" });
+    store.getState().setScopedFilter({ type: "folder", value: "work/child" });
+    await store.getState().deleteFolder("work");
+    expect(store.getState().error).toBe("");
+    expect(gateways.workspace.files.has("work/child/note.md")).toBe(false);
+    expect(gateways.workspace.files.has("work-other/note.md")).toBe(true);
+    expect(gateways.workspace.folders.has("work/empty")).toBe(false);
+    expect(store.getState().scopedFilter).toBeNull();
+    expect(store.getState().activePath).not.toBe("work/child/note.md");
+    expect(store.getState().favoritePaths).not.toContain("work/child/note.md");
+    expect(store.getState().folderAppearances).toEqual({});
+  });
+
   it("loads workspace, restores draft, edits and saves through gateways", async () => {
     const gateways = createMockGateways();
     gateways.persistence.drafts.set("/workspace:one.md", "# Draft");

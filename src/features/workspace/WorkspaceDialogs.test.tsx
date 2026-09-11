@@ -1,4 +1,4 @@
-import { cleanup, render, waitFor } from "@testing-library/react";
+import { cleanup, render, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useAppStore } from "../../store/app-store";
@@ -19,9 +19,11 @@ afterEach(() => {
 });
 
 function Harness() {
-  const { openCreate, openCreateFolder, openDelete, openRename } = useWorkspaceDialogs();
+  const { openCreate, openCreateFolder, openRenameFolder, openDeleteFolder, openDelete, openRename } = useWorkspaceDialogs();
   return (
     <>
+      <button onClick={() => openRenameFolder("工作/项目")}>重命名目录</button>
+      <button onClick={() => openDeleteFolder("工作/项目")}>删除目录</button>
       <button onClick={() => openCreate()} type="button">
         打开新建
       </button>
@@ -42,6 +44,28 @@ function Harness() {
 }
 
 describe("WorkspaceDialogs", () => {
+  it("renames only the folder basename and confirms deletion", async () => {
+    const renameFolder = vi.fn().mockResolvedValue(undefined);
+    const deleteFolder = vi.fn().mockResolvedValue(undefined);
+    useAppStore.setState({ renameFolder, deleteFolder, error: "", isLoading: false });
+    const user = userEvent.setup();
+    const view = render(<WorkspaceDialogsProvider><Harness /></WorkspaceDialogsProvider>);
+    await user.click(view.getByRole("button", { name: "重命名目录" }));
+    const input = view.getByLabelText("文件夹名称");
+    expect(input).toHaveValue("项目");
+    await user.clear(input);
+    expect(view.getByRole("button", { name: "重命名" })).toBeDisabled();
+    await user.type(input, "资料{Enter}");
+    expect(renameFolder).toHaveBeenCalledWith("工作/项目", "工作/资料");
+    await user.click(view.getByRole("button", { name: "删除目录" }));
+    expect(deleteFolder).not.toHaveBeenCalled();
+    await user.click(within(view.getByRole("dialog", { name: "删除文件夹" })).getByRole("button", { name: "取消" }));
+    expect(deleteFolder).not.toHaveBeenCalled();
+    await user.click(view.getByRole("button", { name: "删除目录" }));
+    await user.click(view.getByRole("button", { name: "移入回收站" }));
+    expect(deleteFolder).toHaveBeenCalledWith("工作/项目");
+  });
+
   it("creates a child folder with the dedicated folder dialog", async () => {
     const createFolder = vi.fn().mockResolvedValue(undefined);
     useAppStore.setState({ createFolder });

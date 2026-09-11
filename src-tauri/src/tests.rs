@@ -179,6 +179,60 @@ fn creates_unique_slug_reads_atomically_renames_and_trashes() {
 }
 
 #[test]
+fn nested_folder_mutations_remove_stale_directory_cache_entries() {
+    let workspace = tempdir().unwrap();
+    let root = workspace.path().to_str().unwrap();
+    // Keep the root unchanged during deletion so its directory cache is reused.
+    std::fs::create_dir(workspace.path().join(".memoir-trash")).unwrap();
+    let service = WorkspaceService::new(LocalFileSystem::new());
+    service.create_folder(root, "study/algorithms/empty").unwrap();
+    service.create_folder(root, "study/agent").unwrap();
+
+    service.rename_folder(root, "study/algorithms", "study/renamed").unwrap();
+    let page = service.query_library(root, &crate::domain::LibraryQuery::default()).unwrap();
+    assert!(!page.stats.folders.iter().any(|item| item.folder.starts_with("study/algorithms")));
+    assert!(page.stats.folders.iter().any(|item| item.folder == "study/renamed/empty"));
+
+    service.delete_folder(root, "study/renamed").unwrap();
+    assert!(!workspace.path().join("study/renamed").exists());
+    for page in [
+        service.query_library(root, &crate::domain::LibraryQuery::default()).unwrap(),
+        service.reconcile(root, &crate::domain::LibraryQuery::default()).unwrap(),
+    ] {
+        assert!(!page.stats.folders.iter().any(|item| item.folder.starts_with("study/renamed")));
+        assert!(page.stats.folders.iter().any(|item| item.folder == "study/agent"));
+        assert!(page.stats.folders.iter().any(|item| item.folder == "study"));
+    }
+}
+
+#[test]
+fn folder_rename_and_delete_preserve_subtrees_and_update_index() {
+    let workspace = tempdir().unwrap();
+    let root = workspace.path().to_str().unwrap();
+    let service = WorkspaceService::new(LocalFileSystem::new());
+    service.create_folder(root, "work/empty").unwrap();
+    service.create(root, "Note", "md", Some("work/child"), None).unwrap();
+    std::fs::write(workspace.path().join("work/extra.txt"), "keep").unwrap();
+    service.create_folder(root, "taken").unwrap();
+    assert!(service.rename_folder(root, "work", "taken").is_err());
+    assert!(service.rename_folder(root, "work", "../escape").is_err());
+    assert!(service.delete_folder(root, "").is_err());
+    assert!(service.delete_folder(root, ".memoir").is_err());
+    service.rename_folder(root, "work", "renamed").unwrap();
+    assert!(workspace.path().join("renamed/empty").is_dir());
+    assert!(workspace.path().join("renamed/extra.txt").is_file());
+    let page = service.query_library(root, &crate::domain::LibraryQuery::default()).unwrap();
+    assert!(page.stats.folders.iter().any(|item| item.folder == "renamed/child"));
+    assert!(!page.stats.folders.iter().any(|item| item.folder == "work/child"));
+    let trashed = service.delete_folder(root, "renamed").unwrap();
+    assert!(workspace.path().join(&trashed).join("extra.txt").is_file());
+    assert!(workspace.path().join(&trashed).join("empty").is_dir());
+    let page = service.query_library(root, &crate::domain::LibraryQuery::default()).unwrap();
+    assert_eq!(page.stats.total, 0);
+    assert!(!page.stats.folders.iter().any(|item| item.folder.starts_with("renamed")));
+}
+
+#[test]
 fn creates_empty_folders_and_keeps_them_in_library_stats() {
     let workspace = tempdir().unwrap();
     let root = workspace.path().to_str().unwrap();

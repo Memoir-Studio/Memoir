@@ -8,7 +8,7 @@ mod tray;
 mod window_frame;
 
 use commands::{
-    chat_with_note, check_app_update, create_folder, create_note, delete_attachment, delete_draft,
+    rename_folder, delete_folder, chat_with_note, check_app_update, create_folder, create_note, delete_attachment, delete_draft,
     delete_note, drafts_exist, fetch_link_preview_html, get_cloud_sync_profile, get_index_info,
     get_note_graph, get_vector_index_status, import_attachment, index_vector_workspace,
     load_app_state, migrate_legacy_state, query_library, read_draft, read_note, rebuild_index,
@@ -72,6 +72,8 @@ pub fn run() {
             write_note,
             create_note,
             create_folder,
+            rename_folder,
+            delete_folder,
             rename_note,
             delete_note,
             scan_attachments,

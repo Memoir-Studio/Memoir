@@ -42,6 +42,8 @@ export interface WorkspaceGateway {
   writeNote(root: string, relativePath: string, content: string): Promise<RawNoteFile>;
   createNote(input: CreateNoteInput): Promise<RawNoteFile>;
   createFolder(root: string, folder: string): Promise<string>;
+  renameFolder(root: string, folder: string, newFolder: string): Promise<string>;
+  deleteFolder(root: string, folder: string): Promise<string>;
   renameNote(root: string, oldRelativePath: string, newRelativePath: string): Promise<RenamedNote>;
   deleteNote(root: string, relativePath: string): Promise<string>;
   scanAttachments(root: string): Promise<AttachmentFile[]>;

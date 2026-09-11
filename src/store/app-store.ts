@@ -127,6 +127,7 @@ function mergeAttachments(current: AttachmentFile[], incoming: AttachmentFile[])
 
 export function createAppStore(gateways: AppGateways = getGateways()) {
   let preferencesTimer: number | null = null;
+  let folderMutationPending = false;
   let draftTimer: number | null = null;
   let draftIdentity: string | null = null;
   let cloudSyncTimer: number | null = null;
@@ -410,7 +411,7 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
     const saveActiveNoteAction = async () => {
       syncLiveEditorContent();
       const { workspaceRoot, activePath, content, loadedContentPath, isSaving } = get();
-      if (!workspaceRoot || !activePath || loadedContentPath !== activePath || isSaving) return;
+      if (!workspaceRoot || !activePath || loadedContentPath !== activePath || isSaving || folderMutationPending) return;
       const saveRoot = workspaceRoot;
       const savePath = activePath;
       const saveContent = content;
@@ -585,6 +586,57 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
           isLoading: false,
           error: storeT(get().settings, "errors.createFolder", { message: toMessage(error) }),
         });
+      }
+    };
+
+    const mutateFolder = async (folder: string, newFolder?: string) => {
+      syncLiveEditorContent();
+      const { workspaceRoot: root } = get();
+      if (!root || !folder || newFolder === folder || get().isLoading || get().isSaving) return;
+      folderMutationPending = true;
+      set({ isLoading: true, error: "" });
+      try {
+        // The graph contains all indexed paths, including notes outside the current page/filter.
+        const graph = await gateways.workspace.getNoteGraph(root);
+        const inside = (path: string) => path === folder || path.startsWith(`${folder}/`);
+        const remap = (path: string) => newFolder + path.slice(folder.length);
+        const paths = graph.nodes.map((node) => node.relativePath).filter(inside);
+        if (newFolder !== undefined) await gateways.workspace.renameFolder(root, folder, newFolder);
+        else await gateways.workspace.deleteFolder(root, folder);
+        syncLiveEditorContent();
+        const { activePath, content, savedContent, scopedFilter, favoritePaths, folderAppearances } = get();
+        if (activePath && inside(activePath) && draftTimer !== null) { window.clearTimeout(draftTimer); draftTimer = null; }
+        if (activePath && inside(activePath) && !paths.includes(activePath)) paths.push(activePath);
+        for (const path of paths) {
+          const draft = path === activePath && content !== savedContent
+            ? content : await gateways.persistence.readDraft(root, path);
+          if (newFolder !== undefined && draft !== null) await gateways.persistence.writeDraft(root, remap(path), draft);
+          await gateways.persistence.deleteDraft(root, path);
+        }
+        for (const path of favoritePaths.filter(inside)) {
+          if (newFolder !== undefined) await gateways.persistence.setFavorite(root, remap(path), true);
+          await gateways.persistence.setFavorite(root, path, false);
+        }
+        for (const [path, appearance] of Object.entries(folderAppearances)) {
+          if (!inside(path)) continue;
+          if (newFolder !== undefined) await gateways.persistence.setFolderAppearance(root, remap(path), appearance);
+          await gateways.persistence.setFolderAppearance(root, path, null);
+        }
+        const activeAffected = Boolean(activePath && inside(activePath));
+        set({
+          ...(scopedFilter?.type === "folder" && inside(scopedFilter.value)
+            ? { scopedFilter: newFolder === undefined ? null : { type: "folder" as const, value: remap(scopedFilter.value) } } : {}),
+          ...(activeAffected ? newFolder === undefined
+            ? { activePath: null, loadedContentPath: null, content: "", savedContent: "" }
+            : { activePath: remap(activePath!), loadedContentPath: remap(activePath!) } : {}),
+        });
+        const page = await gateways.workspace.queryLibrary(root, currentQuery());
+        await applyLibraryPage(root, page, undefined, { selectIfNeeded: activeAffected });
+        scheduleVectorIndex();
+      } catch (error) {
+        set({ isLoading: false, error: storeT(get().settings, newFolder === undefined ? "errors.deleteFolder" : "errors.renameFolder", { message: toMessage(error) }) });
+      } finally {
+        folderMutationPending = false;
       }
     };
 
@@ -999,6 +1051,8 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
         refreshWorkspace: refreshWorkspaceAction,
         createNote: createNoteAction,
         createFolder: createFolderAction,
+        renameFolder: (folder, newFolder) => mutateFolder(folder, newFolder),
+        deleteFolder: (folder) => mutateFolder(folder),
         rebuildIndex: rebuildIndexAction,
         renameNote: renameNoteAction,
         renameActiveNote: renameActiveNoteAction,

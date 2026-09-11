@@ -308,11 +308,16 @@ describe("Tauri gateways", () => {
   it("forwards AI chat progress events during a request", async () => {
     const { TauriWorkspaceGateway } = await import("./tauri");
     const unlisten = vi.fn();
-    listen.mockImplementation(async (_event: string, handler: (event: { payload: unknown }) => void) => {
-      handler({ payload: { stage: "callingTool", tool: "search_notes", query: "bank" } });
+    let report: (event: { payload: unknown }) => void = () => undefined;
+    listen.mockImplementation(async (_event: string, handler: typeof report) => {
+      report = handler;
       return unlisten;
     });
-    invoke.mockResolvedValueOnce({ message: "Found it.", edit: null });
+    invoke.mockImplementationOnce(async (_command: string, args: { requestId: string }) => {
+      report({ payload: { requestId: "another-request", stage: "receiving", contentDelta: "wrong reply" } });
+      report({ payload: { requestId: args.requestId, stage: "callingTool", tool: "search_notes", query: "bank" } });
+      return { message: "Found it.", edit: null };
+    });
     const onProgress = vi.fn();
     const gateway = new TauriWorkspaceGateway();
     await gateway.chatWithNote(
@@ -331,7 +336,9 @@ describe("Tauri gateways", () => {
       onProgress,
     );
     expect(listen).toHaveBeenCalledWith("ai-chat-progress", expect.any(Function));
+    expect(onProgress).toHaveBeenCalledOnce();
     expect(onProgress).toHaveBeenCalledWith({
+      requestId: expect.any(String),
       stage: "callingTool",
       tool: "search_notes",
       query: "bank",

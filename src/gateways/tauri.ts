@@ -91,6 +91,14 @@ export class TauriWorkspaceGateway implements WorkspaceGateway {
     return call<string>("create_folder", { root, folder });
   }
 
+  renameFolder(root: string, folder: string, newFolder: string) {
+    return call<string>("rename_folder", { root, folder, newFolder });
+  }
+
+  deleteFolder(root: string, folder: string) {
+    return call<string>("delete_folder", { root, folder });
+  }
+
   renameNote(root: string, oldRelativePath: string, newRelativePath: string) {
     return call<RenamedNote>("rename_note", { root, oldRelativePath, newRelativePath });
   }
@@ -200,15 +208,16 @@ export class TauriWorkspaceGateway implements WorkspaceGateway {
     onProgress?: (progress: AiChatProgress) => void,
   ) {
     return (async () => {
+      const requestId = crypto.randomUUID();
       let unlisten: (() => void) | undefined;
       if (onProgress) {
         const { listen } = await import("@tauri-apps/api/event");
         unlisten = await listen<AiChatProgress>(AI_CHAT_PROGRESS_EVENT, (event) => {
-          onProgress(event.payload);
+          if (event.payload.requestId === requestId) onProgress(event.payload);
         });
       }
       try {
-        return await call<AiChatResponse>("chat_with_note", { root, settings, messages, target });
+        return await call<AiChatResponse>("chat_with_note", { root, settings, messages, target, requestId });
       } finally {
         unlisten?.();
       }

@@ -193,6 +193,12 @@ pub const AI_CHAT_PROGRESS_EVENT: &str = "ai-chat-progress";
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct AiChatProgress {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content_delta: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning_delta: Option<String>,
     pub stage: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,

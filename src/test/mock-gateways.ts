@@ -198,6 +198,38 @@ export class MockWorkspaceGateway implements WorkspaceGateway {
     return normalized;
   }
 
+  async renameFolder(root: string, folder: string, newFolder: string) {
+    void root;
+    const inside = (path: string) => path === folder || path.startsWith(`${folder}/`);
+    if (!folder || folder.split(/[\\/]/).some((part) => !part || part.startsWith(".")) || folder.split("/").slice(0, -1).join("/") !== newFolder.split("/").slice(0, -1).join("/") || !newFolder || newFolder.split(/[\\/]/).some((part) => !part || part.startsWith(".")) || newFolder.startsWith(`${folder}/`)) {
+      throw new GatewayError({ code: "invalid_path", message: "Folder path is invalid." });
+    }
+    if (!this.folders.has(folder) && ![...this.files.keys()].some(inside)) throw new GatewayError({ code: "not_found", message: "Folder does not exist." });
+    if (this.folders.has(newFolder) || [...this.files.keys()].some((path) => path === newFolder || path.startsWith(`${newFolder}/`))) throw new GatewayError({ code: "conflict", message: "Folder already exists." });
+    for (const [path, content] of [...this.files]) {
+      if (!inside(path)) continue;
+      this.files.set(newFolder + path.slice(folder.length), content);
+      this.files.delete(path);
+    }
+    for (const path of [...this.folders]) {
+      if (!inside(path)) continue;
+      this.folders.delete(path);
+      this.folders.add(newFolder + path.slice(folder.length));
+    }
+    for (const path of collectFolderPaths([newFolder])) this.folders.add(path);
+    return newFolder;
+  }
+
+  async deleteFolder(root: string, folder: string) {
+    void root;
+    if (!folder || folder.split(/[\\/]/).some((part) => !part || part.startsWith("."))) throw new GatewayError({ code: "invalid_path", message: "Folder path is invalid." });
+    const inside = (path: string) => path === folder || path.startsWith(`${folder}/`);
+    if (!this.folders.has(folder) && ![...this.files.keys()].some(inside)) throw new GatewayError({ code: "not_found", message: "Folder does not exist." });
+    for (const path of [...this.files.keys()]) if (inside(path)) this.files.delete(path);
+    for (const path of [...this.folders]) if (inside(path)) this.folders.delete(path);
+    return `.memoir-trash/${folder}`;
+  }
+
   async renameNote(_root: string, oldRelativePath: string, newRelativePath: string): Promise<RenamedNote> {
     const content = this.files.get(oldRelativePath) || "";
     this.files.delete(oldRelativePath);

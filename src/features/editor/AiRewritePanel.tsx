@@ -33,6 +33,14 @@ import { accents, colors, motion, typography } from "../../styles/tokens.stylex"
 import { compactDiffRows, createLineDiff, diffStats } from "./ai-diff";
 import { handleWindowDragMouseDown } from "../window/window-drag";
 
+import { AiMessageMarkdown } from "./AiMessageMarkdown";
+import { streamedMessage } from "./ai-stream-preview";
+
+type Activity = { progress: AiChatProgress; elapsedMs: number };
+type ConversationMessage = AiChatMessage & { activity?: Activity[]; reasoning?: string; elapsedMs?: number };
+type LiveReply = { raw: string; reasoning: string; activity: Activity[] };
+const emptyReply = (): LiveReply => ({ raw: "", reasoning: "", activity: [] });
+
 export function AiRewritePanel({
   workspaceRoot,
   settings,
@@ -52,13 +60,16 @@ export function AiRewritePanel({
 }) {
   const { t } = useI18n();
   const [contextTarget, setContextTarget] = useState(target);
-  const [messages, setMessages] = useState<AiChatMessage[]>([]);
+  const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [pendingEdit, setPendingEdit] = useState<AiEditorEdit | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState<AiChatProgress | null>(null);
+  const [live, setLive] = useState<LiveReply>(emptyReply);
+  const liveMessage = useMemo(() => streamedMessage(live.raw), [live.raw]);
+  const followScrollRef = useRef(true);
   const [elapsedMs, setElapsedMs] = useState(0);
   const [saving, setSaving] = useState(false);
   const requestIdRef = useRef(0);
@@ -75,6 +86,7 @@ export function AiRewritePanel({
     setNotice("");
     setLoading(false);
     setProgress(null);
+    setLive(emptyReply());
     setElapsedMs(0);
     setSaving(false);
     return () => {
@@ -94,10 +106,10 @@ export function AiRewritePanel({
 
   useEffect(() => {
     const scroll = scrollRef.current;
-    if (!scroll) return;
+    if (!scroll || !followScrollRef.current) return;
     if (typeof scroll.scrollTo === "function") scroll.scrollTo({ top: scroll.scrollHeight });
     else scroll.scrollTop = scroll.scrollHeight;
-  }, [loading, messages, pendingEdit]);
+  }, [loading, messages, pendingEdit, live]);
 
   useEffect(() => {
     if (!loading || startedAtRef.current === null) return;
@@ -124,7 +136,11 @@ export function AiRewritePanel({
     const prompt = draft.trim();
     if (!prompt || loading || !contextTarget) return;
     const userMessage: AiChatMessage = { role: "user", content: prompt };
-    const requestMessages = [...messages, userMessage];
+    const conversation = [...messages, userMessage];
+    const requestMessages = conversation.map(({ role, content }) => ({ role, content }));
+    let reply = emptyReply();
+    setLive(reply);
+    followScrollRef.current = true;
     const requestTarget = pendingEdit
       ? {
           ...contextTarget,
@@ -133,7 +149,7 @@ export function AiRewritePanel({
         }
       : contextTarget;
     const requestId = ++requestIdRef.current;
-    setMessages(requestMessages);
+    setMessages(conversation);
     setDraft("");
     setError("");
     setNotice("");
@@ -149,20 +165,36 @@ export function AiRewritePanel({
         requestMessages,
         requestTarget,
         (nextProgress) => {
-          if (requestId === requestIdRef.current) setProgress(nextProgress);
+          if (requestId !== requestIdRef.current) return;
+          setProgress(nextProgress);
+          // Tool rounds have separate envelopes; preview only the current answer.
+          const raw = nextProgress.stage === "callingTool" || nextProgress.stage === "generating"
+            ? "" : reply.raw + (nextProgress.contentDelta ?? "");
+          const previous = reply.activity[reply.activity.length - 1]?.progress;
+          const changed = previous?.stage !== nextProgress.stage || previous?.tool !== nextProgress.tool || previous?.query !== nextProgress.query;
+          const activity = changed
+            ? [...reply.activity, { progress: { ...nextProgress, contentDelta: undefined, reasoningDelta: undefined }, elapsedMs: Date.now() - (startedAtRef.current ?? Date.now()) }]
+            : reply.activity;
+          reply = { raw, reasoning: reply.reasoning + (nextProgress.reasoningDelta ?? ""), activity };
+          setLive(reply);
         },
       );
       if (requestId !== requestIdRef.current) return;
       setMessages([
-        ...requestMessages,
-        { role: "assistant", content: response.message || t("aiRewrite.assistant") },
+        ...conversation,
+        { role: "assistant", content: response.message || t("aiRewrite.assistant"), reasoning: reply.reasoning, activity: reply.activity, elapsedMs: Date.now() - (startedAtRef.current ?? Date.now()) },
       ]);
       if (response.edit && response.edit.replacement !== contextTarget.source) {
         setPendingEdit({ ...contextTarget, replacement: response.edit.replacement });
       }
     } catch (requestError) {
       if (requestId === requestIdRef.current) {
-        setError(t("aiRewrite.requestFailed", { message: mapGatewayError(requestError).message }));
+        const error = mapGatewayError(requestError);
+        setProgress({ stage: "failed" });
+        setLive({ ...reply, raw: "", activity: [...reply.activity, { progress: { stage: "failed" }, elapsedMs: Date.now() - (startedAtRef.current ?? Date.now()) }] });
+        setError(t("aiRewrite.requestFailed", {
+          message: error.code === "serialization" ? t("aiRewrite.invalidResponse") : error.message,
+        }));
       }
     } finally {
       if (requestId === requestIdRef.current) {
@@ -203,6 +235,7 @@ export function AiRewritePanel({
     setNotice("");
     setLoading(false);
     setProgress(null);
+    setLive(emptyReply());
     setElapsedMs(0);
     startedAtRef.current = null;
     const nextTarget = onRefreshTarget();
@@ -274,7 +307,10 @@ export function AiRewritePanel({
         subtitle={contextLabel}
       />
 
-      <div ref={scrollRef} {...stylex.props(styles.conversation)}>
+      <div ref={scrollRef} onScroll={() => {
+        const scroll = scrollRef.current;
+        if (scroll) followScrollRef.current = scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight < 64;
+      }} {...stylex.props(styles.conversation)}>
         <div {...stylex.props(styles.contextBar)}>
           <span {...stylex.props(styles.contextScope)}>
             {contextTarget.scope === "selection"
@@ -321,13 +357,20 @@ export function AiRewritePanel({
               <span {...stylex.props(styles.messageAuthor)}>
                 {message.role === "user" ? t("aiRewrite.you") : t("aiRewrite.assistant")}
               </span>
-              <p {...stylex.props(styles.messageContent)}>{message.content}</p>
+              {message.role === "assistant" ? (
+                <>
+                  <AiReplyDetails reasoning={message.reasoning} activity={message.activity} elapsedMs={message.elapsedMs} />
+                  <AiMessageMarkdown content={message.content} />
+                </>
+              ) : <p {...stylex.props(styles.messageContent)}>{message.content}</p>}
             </article>
           ))}
-          {loading && (
+          {(loading || (error && live.activity.length > 0)) && (
             <article {...stylex.props(styles.message, styles.assistantMessage)}>
               <span {...stylex.props(styles.messageAuthor)}>{t("aiRewrite.assistant")}</span>
-              <AiProgressStatus elapsedMs={elapsedMs} progress={progress} />
+              {loading && <AiProgressStatus elapsedMs={elapsedMs} progress={progress} />}
+              <AiReplyDetails reasoning={live.reasoning} activity={live.activity} />
+              {loading && liveMessage && <AiMessageMarkdown content={liveMessage} />}
             </article>
           )}
         </div>
@@ -459,6 +502,54 @@ export function AiRewritePanel({
   );
 }
 
+function progressDescription(progress: AiChatProgress | null, t: ReturnType<typeof useI18n>["t"]) {
+  let label = t("aiRewrite.thinkingReply");
+  let detail = "";
+  if (progress?.stage === "preparing") {
+    label = t("aiRewrite.contextReady");
+  } else if (progress?.stage === "callingModel") {
+    label = t("aiRewrite.callingModel");
+  } else if (progress?.stage === "callingTool") {
+    label = t("aiRewrite.callingTool", { tool: progress.tool || "search_notes" });
+    detail = progress.query ? `“${progress.query}”` : "";
+  } else if (progress?.stage === "toolCompleted") {
+    label = t("aiRewrite.toolCompleted", { tool: progress.tool || "search_notes" });
+    detail = t("aiRewrite.toolResultCount", { count: progress.resultCount ?? 0 });
+  } else if (progress?.stage === "reasoning") {
+    label = t("aiRewrite.reasoningStatus");
+  } else if (progress?.stage === "receiving") {
+    label = t("aiRewrite.receiving");
+  } else if (progress?.stage === "preparingTool") {
+    label = t("aiRewrite.preparingTool");
+  } else if (progress?.stage === "validating") {
+    label = t("aiRewrite.validating");
+  } else if (progress?.stage === "completed") {
+    label = t("aiRewrite.completed");
+  } else if (progress?.stage === "failed") {
+    label = t("aiRewrite.failed");
+  } else if (progress?.stage === "generating") {
+    label = t("aiRewrite.working");
+  }
+  return { label, detail };
+}
+
+function AiReplyDetails({ reasoning, activity, elapsedMs }: { reasoning?: string; activity?: Activity[]; elapsedMs?: number }) {
+  const { t } = useI18n();
+  return <>
+    {!!activity?.length && <details {...stylex.props(styles.activity)}>
+      <summary {...stylex.props(styles.detailsSummary)}>{t("aiRewrite.activity")}{elapsedMs !== undefined ? ` · ${t("aiRewrite.elapsed", { seconds: Math.floor(elapsedMs / 1000) })}` : ""}</summary>
+      <ol {...stylex.props(styles.activityList)}>{activity.map((item, index) => {
+        const { label, detail } = progressDescription(item.progress, t);
+        return <li key={index} {...stylex.props(styles.activityItem)}><span>{label}{detail ? ` · ${detail}` : ""}</span><span {...stylex.props(styles.elapsed)}>{Math.floor(item.elapsedMs / 1000)}s</span></li>;
+      })}</ol>
+    </details>}
+    {reasoning && <details {...stylex.props(styles.activity)}>
+      <summary {...stylex.props(styles.detailsSummary)}>{t("aiRewrite.reasoningDetails")}</summary>
+      <div {...stylex.props(styles.reasoningBody)}><AiMessageMarkdown content={reasoning} /></div>
+    </details>}
+  </>;
+}
+
 function AiProgressStatus({
   elapsedMs,
   progress,
@@ -467,22 +558,7 @@ function AiProgressStatus({
   progress: AiChatProgress | null;
 }) {
   const { t } = useI18n();
-  const model = progress?.model || "AI";
-  let label = t("aiRewrite.thinkingReply");
-  let detail = "";
-  if (progress?.stage === "preparing") {
-    label = t("aiRewrite.contextReady");
-  } else if (progress?.stage === "callingModel") {
-    label = t("aiRewrite.callingModel", { model });
-  } else if (progress?.stage === "callingTool") {
-    label = t("aiRewrite.callingTool", { tool: progress.tool || "search_notes" });
-    detail = progress.query ? `“${progress.query}”` : "";
-  } else if (progress?.stage === "toolCompleted") {
-    label = t("aiRewrite.toolCompleted", { tool: progress.tool || "search_notes" });
-    detail = t("aiRewrite.toolResultCount", { count: progress.resultCount ?? 0 });
-  } else if (progress?.stage === "generating") {
-    label = t("aiRewrite.working");
-  }
+  const { label, detail } = progressDescription(progress, t);
   return (
     <div role="status" {...stylex.props(styles.progressStatus)}>
       <div {...stylex.props(styles.loadingMessage)}>
@@ -657,6 +733,11 @@ const styles = stylex.create({
     userSelect: "text",
     whiteSpace: "pre-wrap",
   },
+  activity: { minWidth: 0, color: colors.muted, fontSize: "11px", borderLeftWidth: "2px", borderLeftStyle: "solid", borderLeftColor: colors.border, paddingLeft: "9px" },
+  detailsSummary: { cursor: "pointer", paddingBlock: "5px", userSelect: "none" },
+  activityList: { display: "grid", gap: "6px", padding: "6px 0", margin: 0, listStyle: "none" },
+  activityItem: { display: "flex", alignItems: "baseline", gap: "8px", overflowWrap: "anywhere" },
+  reasoningBody: { maxHeight: "280px", overflowY: "auto", paddingBlock: "6px" },
   loadingMessage: {
     display: "flex",
     minWidth: 0,

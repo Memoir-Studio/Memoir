@@ -228,6 +228,18 @@ impl WorkspaceService {
         Ok(relative)
     }
 
+    pub fn rename_folder(&self, root: &str, folder: &str, new_folder: &str) -> AppResult<String> {
+        let relative = self.filesystem.rename_folder(root, folder, new_folder)?;
+        self.reconcile_disk(root)?;
+        Ok(relative)
+    }
+
+    pub fn delete_folder(&self, root: &str, folder: &str) -> AppResult<String> {
+        let trashed = self.filesystem.delete_folder(root, folder)?;
+        self.reconcile_disk(root)?;
+        Ok(trashed)
+    }
+
     pub fn rename(
         &self,
         root: &str,

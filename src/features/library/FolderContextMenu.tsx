@@ -1,5 +1,5 @@
-import { FilePlus, FolderOpen, FolderPlus, SmilePlus } from "lucide-react";
-import { ContextMenu, ContextMenuItem } from "../../components/ui";
+import { FilePlus, FolderOpen, FolderPlus, SmilePlus, PencilLine, Trash2 } from "lucide-react";
+import { ContextMenu, ContextMenuItem, ContextMenuSeparator } from "../../components/ui";
 import { useI18n } from "../../i18n/react";
 
 export type FolderMenuTarget = {
@@ -16,6 +16,8 @@ export function FolderContextMenu({
   onCreate,
   onCreateNote,
   onCustomize,
+  onRename,
+  onDelete,
 }: {
   target: FolderMenuTarget | null;
   onClose: () => void;
@@ -23,6 +25,8 @@ export function FolderContextMenu({
   onCreate: (folder: string) => void;
   onCreateNote: (folder: string) => void;
   onCustomize: (folder: string) => void;
+  onRename?: (folder: string) => void;
+  onDelete?: (folder: string) => void;
 }) {
   const { t } = useI18n();
   if (!target) return null;
@@ -55,6 +59,13 @@ export function FolderContextMenu({
         label={t("menu.customizeFolder")}
         onSelect={() => onCustomize(target.folder)}
       />
+      {target.folder && (
+        <>
+          <ContextMenuSeparator />
+          <ContextMenuItem icon={<PencilLine />} label={t("menu.rename")} onSelect={() => onRename?.(target.folder)} />
+          <ContextMenuItem danger icon={<Trash2 />} label={t("menu.delete")} onSelect={() => onDelete?.(target.folder)} />
+        </>
+      )}
     </ContextMenu>
   );
 }

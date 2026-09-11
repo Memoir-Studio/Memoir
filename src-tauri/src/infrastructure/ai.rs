@@ -5,6 +5,8 @@ use crate::domain::{
 use reqwest::blocking::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
+use std::collections::BTreeMap;
+use std::io::{BufRead, BufReader};
 use std::time::Duration;
 
 const EMBEDDING_BATCH_SIZE: usize = 64;
@@ -28,10 +30,14 @@ struct ChatCompletionResponse {
 #[derive(Debug, Deserialize)]
 struct ChatCompletionChoice {
     message: ChatCompletionMessage,
+    #[serde(default)]
+    finish_reason: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
 struct ChatCompletionMessage {
+    #[serde(default, alias = "reasoning")]
+    reasoning_content: Option<String>,
     #[serde(default)]
     content: Value,
     #[serde(default)]
@@ -220,7 +226,7 @@ impl ChatCompletionClient {
                 None,
                 None,
             ));
-            let response = match self.complete(&request_messages, allow_tools) {
+            let response = match self.complete(&request_messages, allow_tools, &on_progress) {
                 Ok(response) => response,
                 Err(error) => {
                     on_progress(progress(
@@ -244,11 +250,15 @@ impl ChatCompletionClient {
             }
 
             let assistant_tool_calls = response.tool_calls.clone();
-            request_messages.push(json!({
+            let mut tool_message = json!({
                 "role": "assistant",
                 "content": response.content,
                 "tool_calls": assistant_tool_calls,
-            }));
+            });
+            if let Some(reasoning) = response.reasoning_content {
+                tool_message["reasoning_content"] = json!(reasoning);
+            }
+            request_messages.push(tool_message);
             for tool_call in response.tool_calls {
                 let query = tool_query(&tool_call);
                 on_progress(progress(
@@ -279,7 +289,7 @@ impl ChatCompletionClient {
             allow_tools = false;
         };
         on_progress(progress(
-            "completed",
+            "validating",
             Some(self.model.clone()),
             None,
             None,
@@ -291,40 +301,21 @@ impl ChatCompletionClient {
                 "AI returned an empty editing response.",
             )
         })?;
-        let raw = strip_wrapping_json_fence(&content);
-        if raw.trim().is_empty() {
-            return Err(AppError::new(
-                ErrorCode::Serialization,
-                "AI returned an empty conversation response.",
-            ));
-        }
-        let parsed = serde_json::from_str::<AiChatResponse>(raw.trim());
-        match parsed {
-            Ok(mut response) => {
-                response.message = response.message.trim().to_string();
-                if response
-                    .edit
-                    .as_ref()
-                    .is_some_and(|edit| edit.tool != expected_tool || edit.replacement.is_empty())
-                {
-                    response.edit = None;
-                }
-                if response.message.is_empty() && response.edit.is_none() {
-                    response.message = raw.trim().to_string();
-                }
-                Ok(response)
-            }
-            Err(_) => Ok(AiChatResponse {
-                message: raw.trim().to_string(),
-                edit: None,
-            }),
-        }
+        let parsed = parse_chat_response(&content, expected_tool)?;
+        on_progress(progress("completed", None, None, None, None));
+        Ok(parsed)
     }
 
-    fn complete(&self, messages: &[Value], allow_tools: bool) -> AppResult<ChatCompletionMessage> {
+    fn complete(
+        &self,
+        messages: &[Value],
+        allow_tools: bool,
+        on_progress: &impl Fn(AiChatProgress),
+    ) -> AppResult<ChatCompletionMessage> {
         let mut payload = Map::new();
         payload.insert("model".into(), json!(self.model));
         payload.insert("messages".into(), json!(messages));
+        payload.insert("stream".into(), json!(true));
         if allow_tools {
             payload.insert("tools".into(), search_notes_tool_definition());
             payload.insert("tool_choice".into(), json!("auto"));
@@ -339,11 +330,19 @@ impl ChatCompletionClient {
         }
         let response = request.send().map_err(map_chat_request_error)?;
         let status = response.status();
-        let body = response.text().map_err(map_chat_request_error)?;
         if !status.is_success() {
             return Err(AppError::new(ErrorCode::Io, "AI editing request failed.")
-                .with_details(format!("HTTP {}: {}", status.as_u16(), truncate(&body))));
+                .with_details(format!("HTTP {}", status.as_u16())));
         }
+        let streaming = response
+            .headers()
+            .get(reqwest::header::CONTENT_TYPE)
+            .and_then(|value| value.to_str().ok())
+            .is_some_and(|value| value.to_ascii_lowercase().contains("text/event-stream"));
+        if streaming {
+            return read_chat_stream(BufReader::new(response), on_progress);
+        }
+        let body = response.text().map_err(map_chat_request_error)?;
         let parsed: ChatCompletionResponse = serde_json::from_str(&body).map_err(|error| {
             AppError::new(
                 ErrorCode::Serialization,
@@ -351,18 +350,193 @@ impl ChatCompletionClient {
             )
             .with_details(error.to_string())
         })?;
-        parsed
+        let choice = parsed
             .choices
             .into_iter()
             .next()
-            .map(|choice| choice.message)
-            .ok_or_else(|| {
-                AppError::new(
-                    ErrorCode::Serialization,
-                    "AI returned an empty editing response.",
-                )
-            })
+            .ok_or_else(invalid_chat_stream)?;
+        if choice
+            .finish_reason
+            .as_deref()
+            .is_some_and(|reason| !matches!(reason, "stop" | "tool_calls"))
+        {
+            return Err(invalid_chat_stream());
+        }
+        if let Some(reasoning) = &choice.message.reasoning_content {
+            let mut event = progress("reasoning", None, None, None, None);
+            event.reasoning_delta = Some(reasoning.clone());
+            on_progress(event);
+        }
+        Ok(choice.message)
     }
+}
+
+fn invalid_chat_stream() -> AppError {
+    AppError::new(
+        ErrorCode::Serialization,
+        "AI returned an incomplete or invalid stream. Please try again.",
+    )
+}
+
+// SSE permits LF, CRLF and CR line endings, including across network reads.
+fn read_sse_line(reader: &mut impl BufRead, skip_lf: &mut bool) -> AppResult<Option<String>> {
+    let mut line = Vec::new();
+    loop {
+        let buffer = reader.fill_buf().map_err(|_| invalid_chat_stream())?;
+        if buffer.is_empty() {
+            return if line.is_empty() {
+                Ok(None)
+            } else {
+                String::from_utf8(line)
+                    .map(Some)
+                    .map_err(|_| invalid_chat_stream())
+            };
+        }
+        if *skip_lf {
+            *skip_lf = false;
+            if buffer[0] == b'\n' {
+                reader.consume(1);
+                continue;
+            }
+        }
+        let end = buffer.iter().position(|byte| matches!(byte, b'\n' | b'\r'));
+        if let Some(end) = end {
+            line.extend_from_slice(&buffer[..end]);
+            *skip_lf = buffer[end] == b'\r';
+            reader.consume(end + 1);
+            return String::from_utf8(line)
+                .map(Some)
+                .map_err(|_| invalid_chat_stream());
+        }
+        let length = buffer.len();
+        line.extend_from_slice(buffer);
+        reader.consume(length);
+    }
+}
+
+fn read_chat_stream(
+    mut reader: impl BufRead,
+    report: &impl Fn(AiChatProgress),
+) -> AppResult<ChatCompletionMessage> {
+    let mut content = String::new();
+    let mut reasoning = String::new();
+    let mut calls: BTreeMap<u64, ChatToolCall> = BTreeMap::new();
+    let mut data = Vec::new();
+    let mut finished = false;
+    let mut done = false;
+    let mut skip_lf = false;
+    while let Some(line) = read_sse_line(&mut reader, &mut skip_lf)? {
+        if !line.is_empty() {
+            if let Some(value) = line.strip_prefix("data:") {
+                data.push(value.strip_prefix(' ').unwrap_or(value).to_string());
+            } else if line == "data" {
+                data.push(String::new());
+            }
+            continue;
+        }
+        if data.is_empty() {
+            continue;
+        }
+        let payload = data.join("\n");
+        data.clear();
+        if payload.trim() == "[DONE]" {
+            done = true;
+            break;
+        }
+        let chunk: Value = serde_json::from_str(&payload).map_err(|_| invalid_chat_stream())?;
+        if chunk.get("error").is_some() {
+            return Err(invalid_chat_stream());
+        }
+        let choice = chunk
+            .get("choices")
+            .and_then(Value::as_array)
+            .and_then(|choices| {
+                choices
+                    .iter()
+                    .find(|choice| choice.get("index").and_then(Value::as_u64).unwrap_or(0) == 0)
+            });
+        let Some(choice) = choice else {
+            continue;
+        };
+        if let Some(reason) = choice.get("finish_reason").and_then(Value::as_str) {
+            if !matches!(reason, "stop" | "tool_calls") {
+                return Err(invalid_chat_stream());
+            }
+            finished = true;
+        }
+        let Some(delta) = choice.get("delta") else {
+            continue;
+        };
+        if let Some(thought) = delta
+            .get("reasoning_content")
+            .or_else(|| delta.get("reasoning"))
+            .and_then(Value::as_str)
+            .filter(|text| !text.is_empty())
+        {
+            reasoning.push_str(thought);
+            let mut event = progress("reasoning", None, None, None, None);
+            event.reasoning_delta = Some(thought.into());
+            report(event);
+        }
+        if let Some(text) = delta
+            .get("content")
+            .and_then(Value::as_str)
+            .filter(|text| !text.is_empty())
+        {
+            content.push_str(text);
+            let mut event = progress("receiving", None, None, None, None);
+            event.content_delta = Some(text.into());
+            report(event);
+        }
+        if let Some(parts) = delta.get("tool_calls").and_then(Value::as_array) {
+            for part in parts {
+                let index = part
+                    .get("index")
+                    .and_then(Value::as_u64)
+                    .filter(|index| *index <= 64)
+                    .ok_or_else(invalid_chat_stream)?;
+                let call = calls.entry(index).or_insert_with(|| ChatToolCall {
+                    id: String::new(),
+                    kind: "function".into(),
+                    function: ChatFunctionCall {
+                        name: String::new(),
+                        arguments: String::new(),
+                    },
+                });
+                if let Some(id) = part.get("id").and_then(Value::as_str) {
+                    call.id.push_str(id);
+                }
+                if let Some(kind) = part.get("type").and_then(Value::as_str) {
+                    call.kind = kind.into();
+                }
+                if let Some(name) = part.pointer("/function/name").and_then(Value::as_str) {
+                    call.function.name.push_str(name);
+                }
+                if let Some(args) = part.pointer("/function/arguments").and_then(Value::as_str) {
+                    call.function.arguments.push_str(args);
+                }
+                report(progress(
+                    "preparingTool",
+                    None,
+                    Some(call.function.name.clone()),
+                    None,
+                    None,
+                ));
+            }
+        }
+    }
+    if !done && !finished {
+        return Err(invalid_chat_stream());
+    }
+    Ok(ChatCompletionMessage {
+        content: Value::String(content),
+        reasoning_content: if reasoning.is_empty() {
+            None
+        } else {
+            Some(reasoning)
+        },
+        tool_calls: calls.into_values().collect(),
+    })
 }
 
 fn search_notes_tool_definition() -> Value {
@@ -444,6 +618,9 @@ fn progress(
     result_count: Option<u32>,
 ) -> AiChatProgress {
     AiChatProgress {
+        request_id: None,
+        content_delta: None,
+        reasoning_delta: None,
         stage: stage.into(),
         model,
         tool,
@@ -465,13 +642,58 @@ fn chat_message_text(content: &Value) -> Option<String> {
     (!text.is_empty()).then_some(text)
 }
 
+fn parse_chat_response(content: &str, expected_tool: &str) -> AppResult<AiChatResponse> {
+    let raw = strip_wrapping_json_fence(content);
+    let raw = raw.trim();
+    let invalid_response = || {
+        AppError::new(
+            ErrorCode::Serialization,
+            "AI returned an invalid editing response. Please try again.",
+        )
+    };
+    let value = match serde_json::from_str::<Value>(raw) {
+        Ok(value) => value,
+        Err(_) => {
+            let structured = raw.starts_with('{')
+                || raw.starts_with('[')
+                || raw.starts_with("```json")
+                || raw.starts_with("```\n")
+                || raw.contains("\"message\"")
+                || raw.contains("\"edit\"");
+            if raw.is_empty() || structured {
+                return Err(invalid_response());
+            }
+            return Ok(AiChatResponse {
+                message: raw.to_string(),
+                edit: None,
+            });
+        }
+    };
+    let mut response: AiChatResponse =
+        serde_json::from_value(value).map_err(|_| invalid_response())?;
+    response.message = response.message.trim().to_string();
+    if let Some(edit) = &response.edit {
+        if edit.tool != expected_tool || edit.replacement.is_empty() {
+            return Err(invalid_response());
+        }
+        if response.message.is_empty() {
+            response.message = "I prepared an edit for review.".into();
+        }
+    } else if response.message.is_empty() {
+        return Err(invalid_response());
+    }
+    Ok(response)
+}
+
 fn strip_wrapping_json_fence(content: &str) -> String {
     let trimmed = content.trim();
-    if let Some(inner) = trimmed
-        .strip_prefix("```json\n")
-        .and_then(|value| value.strip_suffix("```"))
-    {
-        return inner.to_string();
+    if let Some((header, rest)) = trimmed.split_once('\n') {
+        let header = header.trim();
+        if header == "```" || header.eq_ignore_ascii_case("```json") {
+            if let Some(inner) = rest.strip_suffix("```") {
+                return inner.to_string();
+            }
+        }
     }
     content.to_string()
 }
@@ -505,8 +727,8 @@ fn map_chat_request_error(error: reqwest::Error) -> AppError {
 #[cfg(test)]
 mod tests {
     use super::{
-        chat_message_text, run_search_tool, search_notes_tool_definition,
-        strip_wrapping_json_fence, ChatFunctionCall, ChatToolCall,
+        chat_message_text, parse_chat_response, read_chat_stream, run_search_tool,
+        search_notes_tool_definition, strip_wrapping_json_fence, ChatFunctionCall, ChatToolCall,
     };
     use crate::domain::SemanticSearchResult;
     use serde_json::json;
@@ -533,6 +755,92 @@ mod tests {
             "```rust\nfn main() {}\n```"
         );
         assert_eq!(strip_wrapping_json_fence("  - nested\n"), "  - nested\n");
+    }
+
+    #[test]
+    fn rejects_invalid_editing_envelopes_instead_of_exposing_json() {
+        for content in [
+            r#"{"message":"Done","edit":{"tool":"replace_document","replacement":"unfinished"#,
+            r#"{"message":"Done","edit":{"tool":"replace_document","replacement":"invalid \` escape"}}"#,
+            r#"{"message":"Done","edit":{"tool":"replace_selection","replacement":"wrong scope"}}"#,
+            r#"{"message":"","edit":null}"#,
+            r#"{"edit":null}"#,
+        ] {
+            assert!(parse_chat_response(content, "replace_document").is_err());
+        }
+    }
+
+    #[test]
+    fn reads_edit_envelopes_with_common_fences_and_preserves_source() {
+        let body = r#"{"message":"Done","edit":{"tool":"replace_document","replacement":"  - revised\n"}}"#;
+        for content in [
+            body.to_string(),
+            format!("```JSON\r\n{body}\r\n```"),
+            format!("```\n{body}\n```"),
+        ] {
+            let response = parse_chat_response(&content, "replace_document").unwrap();
+            assert_eq!(response.message, "Done");
+            assert_eq!(response.edit.unwrap().replacement, "  - revised\n");
+        }
+        assert_eq!(
+            parse_chat_response("A normal answer", "replace_document")
+                .unwrap()
+                .message,
+            "A normal answer"
+        );
+    }
+
+    #[test]
+    fn streams_reasoning_content_and_fragmented_tool_arguments() {
+        let chunks = [
+            json!({"choices":[{"delta":{"reasoning_content":"检查笔记。"}}]}),
+            json!({"choices":[{"delta":{"content":"你好"}}]}),
+            json!({"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call-1","type":"function","function":{"name":"search_notes","arguments":"{\"que"}}]}}]}),
+            json!({"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"ry\":\"中文\"}"}}]},"finish_reason":"tool_calls"}]}),
+        ];
+        for separator in ["\n", "\r\n", "\r"] {
+            let wire = chunks
+                .iter()
+                .map(|chunk| format!("data: {chunk}\n\n"))
+                .collect::<String>()
+                + "data: [DONE]\n\n";
+            let wire = wire.replace('\n', separator);
+            let events = std::cell::RefCell::new(Vec::new());
+            let reader = std::io::BufReader::with_capacity(1, wire.as_bytes());
+            let message =
+                read_chat_stream(reader, &|event| events.borrow_mut().push(event)).unwrap();
+            assert_eq!(message.content, "你好");
+            assert_eq!(message.reasoning_content.as_deref(), Some("检查笔记。"));
+            assert_eq!(
+                message.tool_calls[0].function.arguments,
+                r#"{"query":"中文"}"#
+            );
+            assert!(events
+                .borrow()
+                .iter()
+                .any(|event| event.content_delta.as_deref() == Some("你好")));
+        }
+    }
+
+    #[test]
+    fn rejects_truncated_error_and_length_limited_streams() {
+        for wire in [
+            "data: {\"choices\":[{\"delta\":{\"content\":\"unfinished\"}}]}\n\n",
+            "data: {\"choices\":[{\"delta\":{},\"finish_reason\":\"length\"}]}\n\ndata: [DONE]\n\n",
+            "data: {\"error\":{\"message\":\"failed\"}}\n\n",
+            "data: invalid\n\n",
+        ] {
+            assert!(read_chat_stream(wire.as_bytes(), &|_| {}).is_err());
+        }
+    }
+
+    #[test]
+    fn reads_multiline_sse_and_finish_without_done() {
+        let wire = "data: {\"choices\":\ndata: [{\"delta\":{\"content\":\"answer\"},\"finish_reason\":\"stop\"}]}\n\n";
+        assert_eq!(
+            read_chat_stream(wire.as_bytes(), &|_| {}).unwrap().content,
+            "answer"
+        );
     }
 
     #[test]

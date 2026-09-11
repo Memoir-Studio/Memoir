@@ -268,6 +268,8 @@ export function LibrarySidebar({
   onCreateFolder,
   onCreateNote = () => undefined,
   onCreateTag,
+  onRenameFolder,
+  onDeleteFolder,
   onOpenAi,
   style,
 }: {
@@ -275,6 +277,8 @@ export function LibrarySidebar({
   onCreateFolder: (parent?: string) => void;
   onCreateNote?: (folder: string) => void;
   onCreateTag: () => void;
+  onRenameFolder?: (folder: string) => void;
+  onDeleteFolder?: (folder: string) => void;
   onOpenAi?: () => void;
   style?: stylex.StyleXStyles;
 }) {
@@ -574,6 +578,8 @@ export function LibrarySidebar({
           });
           onCreateFolder(folder);
         }}
+        onRename={onRenameFolder}
+        onDelete={onDeleteFolder}
         onCreateNote={onCreateNote}
         onCustomize={(folder) => setAppearanceFolder(folder)}
         onOpen={(folder) => setScopedFilter({ type: "folder", value: folder })}

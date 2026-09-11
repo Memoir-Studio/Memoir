@@ -1,3 +1,4 @@
+import { readChatCompletion } from "./ai-stream";
 import type { AppState, LegacyStatePayload } from "../domain/app-state";
 import { isPreviewableHttpUrl, LINK_PREVIEW_HTML_LIMIT } from "../domain/link-preview";
 import type { AppUpdateCheck } from "../domain/app-update";
@@ -109,27 +110,34 @@ See [[Welcome to Memoir]] for the vault layout.
 
 function parseAiChatResponse(value: string, scope: AiRewriteTarget["scope"]): AiChatResponse {
   const trimmed = value.trim();
-  const unwrapped =
-    trimmed.startsWith("```json\n") && trimmed.endsWith("```")
-      ? trimmed.slice(8, -3).trim()
-      : trimmed;
+  const unwrapped = trimmed.replace(/^```(?:json)?[ \t]*\r?\n([\s\S]*?)\r?\n?```$/i, "$1").trim();
+  let parsed: Partial<AiChatResponse>;
+  const invalidResponse = () => new GatewayError({
+    code: "serialization",
+    message: "AI returned an invalid editing response. Please try again.",
+  });
   try {
-    const parsed = JSON.parse(unwrapped) as Partial<AiChatResponse>;
-    const message = typeof parsed.message === "string" ? parsed.message.trim() : "";
-    const edit = parsed.edit;
-    const expectedTool = scope === "selection" ? "replace_selection" : "replace_document";
-    if (
-      edit &&
-      edit.tool === expectedTool &&
-      typeof edit.replacement === "string" &&
-      edit.replacement !== ""
-    ) {
-      return { message: message || "I prepared an edit for review.", edit };
-    }
-    return { message: message || unwrapped, edit: null };
+    parsed = JSON.parse(unwrapped);
   } catch {
+    if (/^[{[]|^```(?:json)?\s|"(?:message|edit)"\s*:/.test(unwrapped)) {
+      throw invalidResponse();
+    }
     return { message: unwrapped, edit: null };
   }
+  if (!parsed || typeof parsed !== "object" || typeof parsed.message !== "string") {
+    throw invalidResponse();
+  }
+  const message = parsed.message.trim();
+  const edit = parsed.edit;
+  const expectedTool = scope === "selection" ? "replace_selection" : "replace_document";
+  if (edit != null) {
+    if (edit.tool !== expectedTool || typeof edit.replacement !== "string" || !edit.replacement) {
+      throw invalidResponse();
+    }
+    return { message: message || "I prepared an edit for review.", edit };
+  }
+  if (!message) throw invalidResponse();
+  return { message, edit: null };
 }
 
 const SEARCH_NOTES_TOOL = {
@@ -306,6 +314,42 @@ export class BrowserWorkspaceGateway implements WorkspaceGateway {
     }
     for (const path of collectFolderPaths([normalized])) this.folders.add(path);
     return normalized;
+  }
+
+  async renameFolder(root: string, folder: string, newFolder: string) {
+    this.assertRoot(root);
+    const inside = (path: string) => path === folder || path.startsWith(`${folder}/`);
+    if (!folder || folder.split(/[\\/]/).some((part) => !part || part.startsWith(".")) || folder.split("/").slice(0, -1).join("/") !== newFolder.split("/").slice(0, -1).join("/") || !newFolder || newFolder.split(/[\\/]/).some((part) => !part || part.startsWith(".")) || newFolder.startsWith(`${folder}/`)) {
+      throw new GatewayError({ code: "invalid_path", message: "Folder path is invalid." });
+    }
+    if (!this.folders.has(folder) && ![...this.files.keys()].some(inside)) throw new GatewayError({ code: "not_found", message: "Folder does not exist." });
+    if (this.folders.has(newFolder) || [...this.files.keys()].some((path) => path === newFolder || path.startsWith(`${newFolder}/`))) throw new GatewayError({ code: "conflict", message: "Folder already exists." });
+    for (const [path, content] of [...this.files]) {
+      if (!inside(path)) continue;
+      const nextPath = newFolder + path.slice(folder.length);
+      const modified = this.modified.get(path);
+      if (modified !== undefined) this.modified.set(nextPath, modified);
+      this.modified.delete(path);
+      this.files.set(nextPath, content);
+      this.files.delete(path);
+    }
+    for (const path of [...this.folders]) {
+      if (!inside(path)) continue;
+      this.folders.delete(path);
+      this.folders.add(newFolder + path.slice(folder.length));
+    }
+    for (const path of collectFolderPaths([newFolder])) this.folders.add(path);
+    return newFolder;
+  }
+
+  async deleteFolder(root: string, folder: string) {
+    this.assertRoot(root);
+    if (!folder || folder.split(/[\\/]/).some((part) => !part || part.startsWith("."))) throw new GatewayError({ code: "invalid_path", message: "Folder path is invalid." });
+    const inside = (path: string) => path === folder || path.startsWith(`${folder}/`);
+    if (!this.folders.has(folder) && ![...this.files.keys()].some(inside)) throw new GatewayError({ code: "not_found", message: "Folder does not exist." });
+    for (const path of [...this.files.keys()]) if (inside(path)) { this.files.delete(path); this.modified.delete(path); }
+    for (const path of [...this.folders]) if (inside(path)) this.folders.delete(path);
+    return `.memoir-trash/${folder}`;
   }
 
   async renameNote(root: string, oldRelativePath: string, newRelativePath: string): Promise<RenamedNote> {
@@ -519,34 +563,19 @@ export class BrowserWorkspaceGateway implements WorkspaceGateway {
         },
         body: JSON.stringify({
           model: settings.chatModel.trim(),
+          stream: true,
           messages: requestMessages,
           ...(allowTools ? { tools: [SEARCH_NOTES_TOOL], tool_choice: "auto" } : {}),
         }),
       });
-      const body = (await response.json()) as {
-        error?: { message?: string };
-        choices?: Array<{
-          message?: {
-            role?: string;
-            content?: string | null;
-            tool_calls?: Array<{ id: string; type: string; function: { name: string; arguments: string } }>;
-          };
-        }>;
-      };
-      if (!response.ok) {
-        report({ stage: "failed", model: settings.chatModel });
-        throw new GatewayError({
-          code: "io",
-          message: body.error?.message || `AI request failed with HTTP ${response.status}.`,
-        });
-      }
-      const assistant = body.choices?.[0]?.message;
+      const assistant = await readChatCompletion(response, report);
       const toolCalls = assistant?.tool_calls ?? [];
       if (allowTools && toolCalls.length) {
         requestMessages.push({
           role: "assistant",
           content: assistant?.content ?? null,
           tool_calls: toolCalls,
+          ...(assistant.reasoning_content ? { reasoning_content: assistant.reasoning_content } : {}),
         });
         for (const toolCall of toolCalls) {
           let toolQuery = "";
@@ -586,13 +615,16 @@ export class BrowserWorkspaceGateway implements WorkspaceGateway {
         allowTools = false;
         continue;
       }
+      if (toolCalls.length) throw new GatewayError({ code: "serialization", message: "AI requested an invalid repeated retrieval call." });
       const raw = assistant?.content;
       if (typeof raw !== "string" || !raw.trim()) {
         report({ stage: "failed", model: settings.chatModel });
         throw new GatewayError({ code: "serialization", message: "AI returned an empty response." });
       }
-      report({ stage: "completed", model: settings.chatModel });
-      return parseAiChatResponse(raw, target.scope);
+      report({ stage: "validating" });
+      const parsed = parseAiChatResponse(raw, target.scope);
+      report({ stage: "completed" });
+      return parsed;
     }
   }
 

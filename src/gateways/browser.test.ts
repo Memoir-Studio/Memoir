@@ -18,6 +18,23 @@ describe("BrowserPersistenceGateway", () => {
 });
 
 describe("BrowserWorkspaceGateway", () => {
+  it("renames and deletes nested folders, rejecting conflicts and root deletion", async () => {
+    const gateway = new BrowserWorkspaceGateway();
+    const root = "demo://memoir";
+    await gateway.createFolder(root, "work/empty");
+    const note = await gateway.createNote({ root, title: "Nested", extension: "md", folder: "work/child" });
+    const content = await gateway.readNote(root, note.relativePath);
+    await gateway.createFolder(root, "taken");
+    await expect(gateway.renameFolder(root, "work", "taken")).rejects.toThrow();
+    await expect(gateway.deleteFolder(root, "")).rejects.toThrow();
+    await gateway.renameFolder(root, "work", "renamed");
+    await expect(gateway.readNote(root, "renamed/child/nested.md")).resolves.toBe(content);
+    await gateway.deleteFolder(root, "renamed");
+    await expect(gateway.readNote(root, "renamed/child/nested.md")).rejects.toThrow();
+    const page = await gateway.queryLibrary(root, { q: "", nav: "all", folder: null, tag: null });
+    expect(page.stats.folders.some((item) => item.folder.startsWith("renamed"))).toBe(false);
+  });
+
   it("creates and keeps an empty folder in library stats", async () => {
     const gateway = new BrowserWorkspaceGateway();
     await expect(gateway.createFolder("demo://memoir", "工作/项目")).resolves.toBe("工作/项目");
@@ -169,14 +186,14 @@ describe("BrowserWorkspaceGateway", () => {
     fetchMock.mockRestore();
   });
 
-  it("holds a note conversation through an OpenAI-compatible chat endpoint", async () => {
+  it.each(["```json\n", "```JSON\r\n", "```\n"])("holds a note conversation with a %s wrapper", async (fence) => {
     const gateway = new BrowserWorkspaceGateway();
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       Response.json({
         choices: [{
           message: {
             content:
-              '```json\n{"message":"Updated it.","edit":{"tool":"replace_selection","replacement":"  - revised\\n"}}\n```',
+              fence + '{"message":"Updated it.","edit":{"tool":"replace_selection","replacement":"  - revised\\n"}}\n```',
           },
         }],
       }),
@@ -226,6 +243,64 @@ describe("BrowserWorkspaceGateway", () => {
     fetchMock.mockRestore();
   });
 
+  it.each([
+    '{"message":"Done","edit":{"tool":"replace_document","replacement":"unfinished',
+    String.raw`{"message":"Done","edit":{"tool":"replace_document","replacement":"invalid \` escape"}}`,
+    '{"message":"Done","edit":{"tool":"replace_selection","replacement":"wrong scope"}}',
+    '{"message":"","edit":null}',
+    '{"edit":null}',
+  ])("rejects invalid editing envelopes instead of showing raw JSON: %s", async (content) => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      Response.json({ choices: [{ message: { content } }] }),
+    );
+    try {
+      await expect(new BrowserWorkspaceGateway().chatWithNote(
+        "demo://memoir",
+        { ...DEFAULT_SETTINGS.ai, enabled: true, baseUrl: "https://api.example.com/v1", chatModel: "chat" },
+        [{ role: "user", content: "Polish it" }],
+        { path: "note.md", from: 0, to: 4, source: "note", scope: "document" },
+      )).rejects.toMatchObject({ code: "serialization" });
+    } finally {
+      fetchMock.mockRestore();
+    }
+  });
+
+  it("streams a tool round and then validates the streamed edit", async () => {
+    const gateway = new BrowserWorkspaceGateway();
+    const events: Array<{ stage: string; contentDelta?: string; reasoningDelta?: string }> = [];
+    const stream = (deltas: object[], finish: string) => new Response(
+      deltas.map((delta) => `data: ${JSON.stringify({ choices: [{ delta }] })}\n\n`).join("") +
+      `data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: finish }] })}\n\ndata: [DONE]\n\n`,
+      { headers: { "Content-Type": "text/event-stream" } },
+    );
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(stream([
+        { reasoning_content: "先检索。" },
+        { tool_calls: [{ index: 0, id: "search-1", type: "function", function: { name: "search_notes", arguments: '{"query":"Two ' } }] },
+        { tool_calls: [{ index: 0, function: { arguments: 'Sum"}' } }] },
+      ], "tool_calls"))
+      .mockResolvedValueOnce(stream([
+        { content: '{"message":"**完成**","edit":' },
+        { content: '{"tool":"replace_document","replacement":"# Revised"}}' },
+      ], "stop"));
+    try {
+      await expect(gateway.chatWithNote(
+        "demo://memoir",
+        { ...DEFAULT_SETTINGS.ai, enabled: true, baseUrl: "https://api.example.com/v1", chatModel: "chat" },
+        [{ role: "user", content: "Find Two Sum and revise" }],
+        { path: "note.md", from: 0, to: 4, source: "note", scope: "document" },
+        (event) => events.push(event),
+      )).resolves.toEqual({ message: "**完成**", edit: { tool: "replace_document", replacement: "# Revised" } });
+      const second = JSON.parse(String(fetchMock.mock.calls[1][1]?.body));
+      expect(second.stream).toBe(true);
+      expect(second.messages).toEqual(expect.arrayContaining([
+        expect.objectContaining({ role: "assistant", reasoning_content: "先检索。" }),
+        expect.objectContaining({ role: "tool", tool_call_id: "search-1" }),
+      ]));
+      expect(events.map((event) => event.stage)).toEqual(expect.arrayContaining(["reasoning", "preparingTool", "callingTool", "toolCompleted", "receiving", "validating", "completed"]));
+    } finally { fetchMock.mockRestore(); }
+  });
+
   it("runs the note search tool before returning a grounded answer", async () => {
     const gateway = new BrowserWorkspaceGateway();
     const progress: string[] = [];
@@ -268,6 +343,7 @@ describe("BrowserWorkspaceGateway", () => {
       "callingTool",
       "toolCompleted",
       "generating",
+      "validating",
       "completed",
     ]);
     fetchMock.mockRestore();

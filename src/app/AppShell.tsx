@@ -93,7 +93,7 @@ function WorkspaceLayout({
   const setUiScale = useAppStore((state) => state.setUiScale);
   const setSidebarCollapsed = useAppStore((state) => state.setSidebarCollapsed);
   const saveActiveNote = useAppStore((state) => state.saveActiveNote);
-  const { openCreate, openCreateFolder, openDelete, openRename } = useWorkspaceDialogs();
+  const { openCreate, openCreateFolder, openRenameFolder, openDeleteFolder, openDelete, openRename } = useWorkspaceDialogs();
   const { t } = useI18n();
   const editorRef = useRef<EditorHandle>(null);
   const shellRef = useRef<HTMLElement>(null);
@@ -245,6 +245,8 @@ function WorkspaceLayout({
           <LibrarySidebar
             isDark={isDark}
             onCreateFolder={openCreateFolder}
+            onRenameFolder={openRenameFolder}
+            onDeleteFolder={openDeleteFolder}
             onCreateNote={(folder) => openCreate("mdx", folder)}
             onCreateTag={() => openCreate("mdx", "", t("create.newTag"))}
             onOpenAi={openAiRewrite}

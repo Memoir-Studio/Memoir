@@ -12,7 +12,7 @@ pub use app_state::{
 pub use sync::{get_cloud_sync_profile, run_cloud_sync, save_cloud_sync_profile, test_cloud_sync};
 pub use system::{check_app_update, fetch_link_preview_html};
 pub use workspace::{
-    create_folder, create_note, delete_attachment, delete_note, get_index_info, get_note_graph,
+    rename_folder, delete_folder, create_folder, create_note, delete_attachment, delete_note, get_index_info, get_note_graph,
     import_attachment, query_library, read_note, rebuild_index, reconcile_workspace, rename_note,
     save_attachment, scan_attachments, write_export_file, write_note,
 };

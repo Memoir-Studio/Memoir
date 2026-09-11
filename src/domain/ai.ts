@@ -35,8 +35,15 @@ export type AiChatProgress = {
     | "callingTool"
     | "toolCompleted"
     | "generating"
+    | "reasoning"
+    | "receiving"
+    | "preparingTool"
+    | "validating"
     | "completed"
     | "failed";
+  requestId?: string;
+  contentDelta?: string;
+  reasoningDelta?: string;
   model?: string;
   tool?: string;
   query?: string;

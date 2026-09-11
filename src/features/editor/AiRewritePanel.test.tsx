@@ -202,6 +202,44 @@ describe("AiRewritePanel", () => {
     expect(view.queryByRole("region", { name: "建议修改" })).not.toBeInTheDocument();
   });
 
+  it("streams Markdown and keeps reasoning and activity out of subsequent prompts", async () => {
+    const gateways = createMockGateways();
+    let finish: (value: typeof gateways.workspace.chatResult) => void = () => undefined;
+    let report: Parameters<typeof gateways.workspace.chatWithNote>[4];
+    const chat = vi.fn<typeof gateways.workspace.chatWithNote>().mockImplementation(
+      (_root, _settings, _messages, _target, onProgress) => new Promise((resolve) => {
+        finish = resolve;
+        report = onProgress;
+      }),
+    );
+    gateways.workspace.chatWithNote = chat;
+    setGatewaysForTests(gateways);
+    const user = userEvent.setup();
+    const view = render(<AiRewritePanel onApply={() => true} onClose={() => undefined}
+      onRefreshTarget={() => target} onSave={async () => true} workspaceRoot="/workspace"
+      settings={{ ...DEFAULT_SETTINGS.ai, enabled: true }} target={target} />);
+    await user.type(view.getByRole("textbox", { name: "输入你的要求" }), "总结{enter}");
+    act(() => {
+      report?.({ stage: "reasoning", reasoningDelta: "检查**事实**。" });
+      report?.({ stage: "receiving", contentDelta: '{"message":"## 结论\\n\\n**重点**' });
+    });
+    expect(view.getByRole("heading", { name: "结论" })).toBeInTheDocument();
+    expect(view.getByText("重点").tagName).toBe("STRONG");
+    expect(view.queryByText(/replacement/)).not.toBeInTheDocument();
+    await user.click(view.getByText("思考过程"));
+    expect(view.getByText("事实").tagName).toBe("STRONG");
+    await act(async () => finish({ message: "## 结论\n\n**重点**", edit: null }));
+    expect(view.getByText("思考过程").closest("details")).toBeInTheDocument();
+    chat.mockResolvedValueOnce({ message: "下一轮", edit: null });
+    await user.type(view.getByRole("textbox", { name: "输入你的要求" }), "继续{enter}");
+    await view.findByText("下一轮");
+    expect(chat.mock.calls[1][2]).toEqual([
+      { role: "user", content: "总结" },
+      { role: "assistant", content: "## 结论\n\n**重点**" },
+      { role: "user", content: "继续" },
+    ]);
+  });
+
   it("shows the loading state while a reply is pending", async () => {
     const gateways = createMockGateways();
     let resolveChat: (value: typeof gateways.workspace.chatResult) => void = () => undefined;
