@@ -49,6 +49,11 @@ describe("Tauri gateways", () => {
       folder: "work",
       tags: ["team"],
     });
+    await gateway.createFolder("/notes", "work/projects");
+    expect(invoke).toHaveBeenCalledWith("create_folder", {
+      root: "/notes",
+      folder: "work/projects",
+    });
   });
 
   it("loads and rebuilds the workspace index with camelCase DTOs", async () => {
@@ -77,7 +82,6 @@ describe("Tauri gateways", () => {
         total: 0,
         recent: 0,
         favorites: 0,
-        uncategorized: 0,
         folders: [],
         tags: [],
         truncated: false,
@@ -109,7 +113,6 @@ describe("Tauri gateways", () => {
         total: 0,
         recent: 0,
         favorites: 0,
-        uncategorized: 0,
         folders: [],
         tags: [],
         truncated: false,
@@ -300,6 +303,47 @@ describe("Tauri gateways", () => {
     });
     stop();
     expect(unlisten).toHaveBeenCalled();
+  });
+
+  it("forwards AI chat progress events during a request", async () => {
+    const { TauriWorkspaceGateway } = await import("./tauri");
+    const unlisten = vi.fn();
+    let report: (event: { payload: unknown }) => void = () => undefined;
+    listen.mockImplementation(async (_event: string, handler: typeof report) => {
+      report = handler;
+      return unlisten;
+    });
+    invoke.mockImplementationOnce(async (_command: string, args: { requestId: string }) => {
+      report({ payload: { requestId: "another-request", stage: "receiving", contentDelta: "wrong reply" } });
+      report({ payload: { requestId: args.requestId, stage: "callingTool", tool: "search_notes", query: "bank" } });
+      return { message: "Found it.", edit: null };
+    });
+    const onProgress = vi.fn();
+    const gateway = new TauriWorkspaceGateway();
+    await gateway.chatWithNote(
+      "/notes",
+      {
+        enabled: true,
+        provider: "openai",
+        baseUrl: "https://api.example.com/v1",
+        apiKey: "",
+        embeddingModel: "embedding",
+        rerankingModel: "",
+        chatModel: "chat-model",
+      },
+      [{ role: "user", content: "Search my notes" }],
+      { path: "note.md", from: 0, to: 5, source: "Note", scope: "document" },
+      onProgress,
+    );
+    expect(listen).toHaveBeenCalledWith("ai-chat-progress", expect.any(Function));
+    expect(onProgress).toHaveBeenCalledOnce();
+    expect(onProgress).toHaveBeenCalledWith({
+      requestId: expect.any(String),
+      stage: "callingTool",
+      tool: "search_notes",
+      query: "bank",
+    });
+    expect(unlisten).toHaveBeenCalledOnce();
   });
 
   it("asks draftsExist with camelCase arguments", async () => {

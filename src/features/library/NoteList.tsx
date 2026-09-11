@@ -9,6 +9,8 @@ import {
   Plus,
   Search,
   Star,
+  Sparkles,
+  Loader2,
   Upload,
 } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -18,23 +20,29 @@ import {
   ContextMenuSeparator,
   IconButton,
   Input,
+  PanelHeader,
   SegmentedControl,
   Surface,
   Tag,
 } from "../../components/ui";
-import { isTauriRuntime } from "../../platform/runtime";
 import { useAppStore } from "../../store/app-store";
-import { handleWindowDragMouseDown } from "../window/window-drag";
+import { isTauriRuntime } from "../../platform/runtime";
 import { dateLocale, formatRelativeTime } from "../../i18n";
 import type { AppLocale } from "../../i18n/locale";
 import { useI18n } from "../../i18n/react";
+import { getGateways } from "../../gateways";
+import { mapGatewayError } from "../../domain/errors";
+import type { AiEditorEdit, AiRewriteTarget } from "../../domain/ai";
+import type { SemanticSearchResult } from "../../domain/vector-index";
 import { AttachmentLibrary } from "../attachments/AttachmentLibrary";
 import { CloudSyncPanel } from "../sync/CloudSyncPanel";
+import { AiRewritePanel } from "../editor/AiRewritePanel";
 import { NoteGraphPanel } from "../graph/NoteGraphPanel";
 import { IndexInspector } from "./IndexInspector";
 import { NoteLinksPanel } from "./NoteLinksPanel";
 import { NoteContextMenu, type NoteMenuTarget } from "./NoteContextMenu";
 import { NoteOutline } from "./NoteOutline";
+import { handleWindowDragMouseDown } from "../window/window-drag";
 import type { NoteSortDirection, NoteSortField } from "../../domain/settings";
 import { extractHeadings, noteDisplayName, sortLibraryNotes, stripFrontmatter } from "./note-utils";
 import type { NoteMeta } from "../../domain/notes";
@@ -50,16 +58,27 @@ export function NoteList({
   onRename,
   onDelete,
   onInsertAttachment,
+  aiRewriteTarget = null,
+  onApplyAiRewrite = () => false,
+  onCloseAiRewrite = () => undefined,
+  onRefreshAiRewriteTarget = () => null,
+  onSaveAiRewrite = async () => false,
   style,
 }: {
   onCreate: () => void;
   onRename: (path: string) => void;
   onDelete: (path: string) => void;
   onInsertAttachment?: (markdown: string) => void;
+  aiRewriteTarget?: AiRewriteTarget | null;
+  onApplyAiRewrite?: (edit: AiEditorEdit) => boolean;
+  onCloseAiRewrite?: () => void;
+  onRefreshAiRewriteTarget?: () => AiRewriteTarget | null;
+  onSaveAiRewrite?: () => Promise<boolean>;
   style?: stylex.StyleXStyles;
 }) {
   const notes = useAppStore((state) => state.notes);
   const activePath = useAppStore((state) => state.activePath);
+  const workspaceRoot = useAppStore((state) => state.workspaceRoot);
   const mode = useAppStore((state) => state.libraryPanelMode);
   const content = useAppStore((state) => (state.libraryPanelMode === "outline" ? state.content : ""));
   const query = useAppStore((state) => state.query);
@@ -73,6 +92,8 @@ export function NoteList({
   const { t, tc, locale } = useI18n();
   const [menuTarget, setMenuTarget] = useState<NoteMenuTarget | null>(null);
   const [sortMenu, setSortMenu] = useState<{ x: number; y: number } | null>(null);
+  const [semanticResults, setSemanticResults] = useState<SemanticSearchResult[]>([]);
+  const [semanticLoading, setSemanticLoading] = useState(false);
   const noteSort = settings.general.noteSort;
   const noteSortDirection = settings.general.noteSortDirection;
   const filteredNotes = useMemo(
@@ -84,6 +105,15 @@ export function NoteList({
       ),
     [locale, noteSort, noteSortDirection, notes],
   );
+  const semanticExtras = useMemo(() => {
+    const seen = new Set(filteredNotes.map((note) => note.relativePath));
+    return semanticResults.filter((result) => {
+      if (seen.has(result.relativePath)) return false;
+      seen.add(result.relativePath);
+      return true;
+    });
+  }, [filteredNotes, semanticResults]);
+  const resultCount = filteredNotes.length + semanticExtras.length;
   const selectNoteFromList = useCallback(
     (path: string) => void selectNote(path),
     [selectNote],
@@ -103,13 +133,61 @@ export function NoteList({
     return extractHeadings(stripFrontmatter(content));
   }, [content, mode]);
 
+  useEffect(() => {
+    const root = useAppStore.getState().workspaceRoot;
+    const semanticQuery = query.trim();
+    setSemanticResults([]);
+    if (!root || !semanticQuery || !settings.ai.enabled) {
+      setSemanticResults([]);
+      setSemanticLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setSemanticLoading(true);
+    const timer = window.setTimeout(() => {
+      void getGateways().workspace
+        .semanticSearch(root, settings.ai, semanticQuery, 30)
+        .then((results) => {
+          if (!cancelled) setSemanticResults(results);
+        })
+        .catch((error) => {
+          if (!cancelled) {
+            useAppStore.setState({
+              error: t("errors.vectorIndex", { message: mapGatewayError(error).message }),
+            });
+            setSemanticResults([]);
+          }
+        })
+        .finally(() => {
+          if (!cancelled) setSemanticLoading(false);
+        });
+    }, 320);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [query, settings.ai, t]);
+
   return (
     <section data-note-list-panel="" {...stylex.props(noteListStyles.panel, style)}>
-      {mode !== "sync" && (
-        <header
-          {...stylex.props(noteListStyles.header)}
-          data-tauri-drag-region={isTauriRuntime() ? "" : undefined}
+      {mode !== "sync" && mode !== "ai" && (
+        <PanelHeader
+          dragRegion={isTauriRuntime()}
           onMouseDown={handleWindowDragMouseDown}
+          style={noteListStyles.header}
+          actions={
+            mode === "attachments" ? (
+              <IconButton label={t("library.importAttachment")} onClick={() => void importAttachments()}>
+                <Upload {...stylex.props(sharedLibraryStyles.icon)} />
+              </IconButton>
+            ) : mode === "index" || mode === "graph" ? (
+              <span aria-hidden {...stylex.props(noteListStyles.headerSpacer)} />
+            ) : (
+              <IconButton label={t("library.newNote")} onClick={() => onCreate()}>
+                <Plus {...stylex.props(sharedLibraryStyles.icon)} />
+              </IconButton>
+            )
+          }
         >
           {mode === "index" || mode === "attachments" || mode === "graph" ? (
             <h2 {...stylex.props(noteListStyles.title)}>
@@ -132,22 +210,21 @@ export function NoteList({
               value={mode}
             />
           )}
-          {mode === "attachments" ? (
-            <IconButton label={t("library.importAttachment")} onClick={() => void importAttachments()}>
-              <Upload {...stylex.props(sharedLibraryStyles.icon)} />
-            </IconButton>
-          ) : mode === "index" || mode === "graph" ? (
-            <span aria-hidden {...stylex.props(noteListStyles.headerSpacer)} />
-          ) : (
-            <IconButton label={t("library.newNote")} onClick={() => onCreate()}>
-              <Plus {...stylex.props(sharedLibraryStyles.icon)} />
-            </IconButton>
-          )}
-        </header>
+        </PanelHeader>
       )}
 
       {mode === "attachments" ? (
         <AttachmentLibrary onInsert={onInsertAttachment} />
+      ) : mode === "ai" ? (
+        <AiRewritePanel
+          onApply={onApplyAiRewrite}
+          onClose={onCloseAiRewrite}
+          onRefreshTarget={onRefreshAiRewriteTarget}
+          onSave={onSaveAiRewrite}
+          workspaceRoot={workspaceRoot}
+          settings={settings.ai}
+          target={aiRewriteTarget}
+        />
       ) : mode === "index" ? (
         <IndexInspector />
       ) : mode === "graph" ? (
@@ -161,26 +238,33 @@ export function NoteList({
             <Input
               aria-label={t("library.filterNotes")}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder={t("library.filterPlaceholder")}
+              placeholder={t("library.searchPlaceholder")}
               style={noteListStyles.searchInput}
               type="search"
               value={query}
             />
           </label>
           <div {...stylex.props(noteListStyles.countRow)}>
-            <span>{tc("library.filteredCount", filteredNotes.length)}</span>
-            <IconButton
-              aria-expanded={Boolean(sortMenu)}
-              aria-haspopup="menu"
-              label={t("library.sort")}
-              onClick={(event) => {
-                const rect = event.currentTarget.getBoundingClientRect();
-                setSortMenu({ x: rect.right - 8, y: rect.bottom + 4 });
-              }}
-              style={noteListStyles.compactButton}
-            >
-              <ArrowDownWideNarrow {...stylex.props(sharedLibraryStyles.iconSmall)} />
-            </IconButton>
+            <span>{tc("library.filteredCount", resultCount)}</span>
+            <div {...stylex.props(noteListStyles.countActions)}>
+              {semanticLoading ? (
+                <span title={t("library.semanticSearching")} {...stylex.props(noteListStyles.semanticProgress)}>
+                  <Loader2 {...stylex.props(sharedLibraryStyles.iconSmall, sharedLibraryStyles.spin)} />
+                </span>
+              ) : null}
+              <IconButton
+                aria-expanded={Boolean(sortMenu)}
+                aria-haspopup="menu"
+                label={t("library.sort")}
+                onClick={(event) => {
+                  const rect = event.currentTarget.getBoundingClientRect();
+                  setSortMenu({ x: rect.right - 8, y: rect.bottom + 4 });
+                }}
+                style={noteListStyles.compactButton}
+              >
+                <ArrowDownWideNarrow {...stylex.props(sharedLibraryStyles.iconSmall)} />
+              </IconButton>
+            </div>
           </div>
           <NoteCardWindow
             activePath={activePath}
@@ -190,8 +274,10 @@ export function NoteList({
             notes={filteredNotes}
             onOpenMenu={setMenuTarget}
             onSelect={selectNoteFromList}
+            semanticLabel={t("library.semanticSupplement")}
+            semanticResults={semanticExtras}
           />
-          {!filteredNotes.length && (
+          {!semanticLoading && !resultCount && (
             <p {...stylex.props(noteListStyles.empty)}>{t("library.noMatches")}</p>
           )}
         </div>
@@ -246,6 +332,29 @@ export function NoteList({
   );
 }
 
+function SemanticResultCard({
+  result,
+  onSelect,
+}: {
+  result: SemanticSearchResult;
+  onSelect: (path: string) => void;
+}) {
+  return (
+    <button
+      onClick={() => onSelect(result.relativePath)}
+      type="button"
+      {...stylex.props(noteListStyles.semanticCard)}
+    >
+      <span {...stylex.props(noteListStyles.semanticTitle)}>{result.title || result.relativePath}</span>
+      <span {...stylex.props(noteListStyles.semanticPath)}>{result.relativePath}</span>
+      <span {...stylex.props(noteListStyles.semanticExcerpt)}>
+        {result.content.replace(/\s+/g, " ").trim()}
+      </span>
+      <span {...stylex.props(noteListStyles.semanticScore)}>{result.score.toFixed(3)}</span>
+    </button>
+  );
+}
+
 function NoteCardWindow({
   notes,
   activePath,
@@ -254,6 +363,8 @@ function NoteCardWindow({
   locale,
   onSelect,
   onOpenMenu,
+  semanticLabel,
+  semanticResults,
 }: {
   notes: NoteMeta[];
   activePath: string | null;
@@ -262,6 +373,8 @@ function NoteCardWindow({
   locale: AppLocale;
   onSelect: (path: string) => void;
   onOpenMenu: (target: NoteMenuTarget) => void;
+  semanticLabel: string;
+  semanticResults: SemanticSearchResult[];
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [scrollTop, setScrollTop] = useState(0);
@@ -296,38 +409,71 @@ function NoteCardWindow({
       {...stylex.props(noteListStyles.scroll)}
     >
       {virtual ? (
-        <div {...stylex.props(noteListStyles.virtualSpace(notes.length * rowHeight))}>
-          {windowNotes.map((note, index) => (
-            <div
-              key={note.relativePath}
-              {...stylex.props(noteListStyles.virtualRow((start + index) * rowHeight, rowHeight))}
-            >
-              <NoteCard
-                active={note.relativePath === activePath}
-                density={density}
-                locale={locale}
-                menuOpen={menuPath === note.relativePath}
-                note={note}
-                onOpenMenu={onOpenMenu}
-                onSelect={onSelect}
-              />
-            </div>
-          ))}
-        </div>
+        <>
+          <div {...stylex.props(noteListStyles.virtualSpace(notes.length * rowHeight))}>
+            {windowNotes.map((note, index) => (
+              <div
+                key={note.relativePath}
+                {...stylex.props(noteListStyles.virtualRow((start + index) * rowHeight, rowHeight))}
+              >
+                <NoteCard
+                  active={note.relativePath === activePath}
+                  density={density}
+                  locale={locale}
+                  menuOpen={menuPath === note.relativePath}
+                  note={note}
+                  onOpenMenu={onOpenMenu}
+                  onSelect={onSelect}
+                />
+              </div>
+            ))}
+          </div>
+          <SemanticResultGroup label={semanticLabel} onSelect={onSelect} results={semanticResults} />
+        </>
       ) : (
-        windowNotes.map((note) => (
-          <NoteCard
-            active={note.relativePath === activePath}
-            density={density}
-            key={note.relativePath}
-            locale={locale}
-            menuOpen={menuPath === note.relativePath}
-            note={note}
-            onOpenMenu={onOpenMenu}
-            onSelect={onSelect}
-          />
-        ))
+        <>
+          {windowNotes.map((note) => (
+            <NoteCard
+              active={note.relativePath === activePath}
+              density={density}
+              key={note.relativePath}
+              locale={locale}
+              menuOpen={menuPath === note.relativePath}
+              note={note}
+              onOpenMenu={onOpenMenu}
+              onSelect={onSelect}
+            />
+          ))}
+          <SemanticResultGroup label={semanticLabel} onSelect={onSelect} results={semanticResults} />
+        </>
       )}
+    </div>
+  );
+}
+
+function SemanticResultGroup({
+  label,
+  onSelect,
+  results,
+}: {
+  label: string;
+  onSelect: (path: string) => void;
+  results: SemanticSearchResult[];
+}) {
+  if (!results.length) return null;
+  return (
+    <div {...stylex.props(noteListStyles.semanticGroup)}>
+      <div {...stylex.props(noteListStyles.semanticGroupHeader)}>
+        <Sparkles {...stylex.props(noteListStyles.semanticGroupIcon)} />
+        <span>{label}</span>
+      </div>
+      {results.map((result) => (
+        <SemanticResultCard
+          key={`${result.relativePath}:${result.chunkIndex}`}
+          onSelect={onSelect}
+          result={result}
+        />
+      ))}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { emptyLibraryStats } from "../../domain/notes";
 import { useAppStore } from "../../store/app-store";
 import { LibrarySidebar } from "./LibrarySidebar";
@@ -14,7 +14,6 @@ afterEach(() => {
       total: 0,
       recent: 0,
       favorites: 0,
-      uncategorized: 0,
       folders: [],
       tags: [],
       truncated: false,
@@ -100,7 +99,7 @@ describe("LibrarySidebar folders", () => {
     expect(view.getByText("为“日记”选择图标和颜色")).toBeInTheDocument();
   });
 
-  it("opens a folder context menu", () => {
+  it("opens a folder context menu", async () => {
     useAppStore.setState({
       workspaceRoot: "/notes",
       notes: [
@@ -123,13 +122,48 @@ describe("LibrarySidebar folders", () => {
       },
       folderAppearances: {},
     });
+    const onCreateFolder = vi.fn();
+    const onCreateNote = vi.fn();
+    const onRenameFolder = vi.fn();
+    const onDeleteFolder = vi.fn();
+    const user = userEvent.setup();
     const view = render(
-      <LibrarySidebar isDark={false} onCreateFolder={() => undefined} onCreateTag={() => undefined} />,
+      <LibrarySidebar
+        isDark={false}
+        onCreateFolder={onCreateFolder}
+        onCreateNote={onCreateNote}
+        onRenameFolder={onRenameFolder}
+        onDeleteFolder={onDeleteFolder}
+        onCreateTag={() => undefined}
+      />,
     );
 
     fireEvent.contextMenu(view.getByRole("button", { name: "思考" }));
     expect(view.getByRole("menu", { name: "思考 的操作" })).toBeInTheDocument();
     expect(view.getByRole("menuitem", { name: "自定义外观" })).toBeInTheDocument();
+    await user.click(view.getByRole("menuitem", { name: "新建笔记" }));
+    expect(onCreateNote).toHaveBeenCalledWith("思考");
+
+    fireEvent.contextMenu(view.getByRole("button", { name: "思考" }));
+    await user.click(view.getByRole("menuitem", { name: "新建文件夹" }));
+    expect(onCreateFolder).toHaveBeenCalledWith("思考");
+    fireEvent.contextMenu(view.getByRole("button", { name: "思考" }));
+    await user.click(view.getByRole("menuitem", { name: "重命名" }));
+    expect(onRenameFolder).toHaveBeenCalledWith("思考");
+    fireEvent.contextMenu(view.getByRole("button", { name: "思考" }));
+    await user.click(view.getByRole("menuitem", { name: "删除" }));
+    expect(onDeleteFolder).toHaveBeenCalledWith("思考");
+  });
+
+  it("uses the folders section plus button to create a root folder", async () => {
+    const onCreateFolder = vi.fn();
+    const user = userEvent.setup();
+    const view = render(
+      <LibrarySidebar isDark={false} onCreateFolder={onCreateFolder} onCreateTag={() => undefined} />,
+    );
+
+    await user.click(view.getByRole("button", { name: "新建文件夹" }));
+    expect(onCreateFolder).toHaveBeenCalledWith("");
   });
 
   it("opens cloud sync from the drawer", async () => {
@@ -146,6 +180,21 @@ describe("LibrarySidebar folders", () => {
     await user.click(view.getByRole("button", { name: "云同步" }));
     expect(useAppStore.getState().libraryPanelMode).toBe("sync");
     expect(view.getByRole("button", { name: "云同步" })).toHaveAttribute("aria-current", "page");
+  });
+
+  it("opens AI editing from the drawer", async () => {
+    useAppStore.setState({
+      workspaceRoot: "/notes",
+      libraryPanelMode: "notes",
+    });
+    const user = userEvent.setup();
+    const view = render(
+      <LibrarySidebar isDark={false} onCreateFolder={() => undefined} onCreateTag={() => undefined} />,
+    );
+
+    await user.click(view.getByRole("button", { name: "AI 助手" }));
+    expect(useAppStore.getState().libraryPanelMode).toBe("ai");
+    expect(view.getByRole("button", { name: "AI 助手" })).toHaveAttribute("aria-current", "page");
   });
 
   it("opens the workspace index panel from the drawer", async () => {
@@ -186,7 +235,6 @@ describe("LibrarySidebar folders", () => {
         total: 4,
         recent: 2,
         favorites: 1,
-        uncategorized: 1,
         folders: [{ folder: "日记", count: 3 }],
         tags: [{ tag: "diary", tagNorm: "diary", count: 2 }],
       },
@@ -219,6 +267,10 @@ describe("LibrarySidebar folders", () => {
       <LibrarySidebar isDark={false} onCreateFolder={() => undefined} onCreateTag={() => undefined} />,
     );
 
+    fireEvent.contextMenu(view.getByRole("button", { name: "根目录" }));
+    expect(view.queryByRole("menuitem", { name: "重命名" })).not.toBeInTheDocument();
+    expect(view.queryByRole("menuitem", { name: "删除" })).not.toBeInTheDocument();
+    await user.keyboard("{Escape}");
     expect(view.getByRole("button", { name: "根目录" })).toBeInTheDocument();
     expect(view.queryByRole("button", { name: "折叠“根目录”" })).not.toBeInTheDocument();
     const rootRow = view.getByRole("button", { name: "根目录" }).closest("[data-sidebar-folder-item]");

@@ -309,7 +309,6 @@ export function filterNotes(
   return notes.filter((note) => {
     if (navFilter === "recent" && now - note.modifiedMs > 7 * 86_400_000) return false;
     if (navFilter === "favorites" && !note.favorite) return false;
-    if (navFilter === "uncategorized" && note.tags.length > 0) return false;
     if (scopedFilter?.type === "folder" && !noteBelongsToFolder(note.relativePath, scopedFilter.value)) {
       return false;
     }
@@ -347,13 +346,11 @@ export function libraryStatsFromNotes(
   const folders = new Map<string, number>();
   const tags = new Map<string, { tag: string; count: number }>();
   let recent = 0;
-  let uncategorized = 0;
   const notePaths = new Set(notes.map((note) => note.relativePath));
   for (const note of notes) {
     const folder = folderName(note.relativePath);
     folders.set(folder, (folders.get(folder) ?? 0) + 1);
     if (now - note.modifiedMs <= 7 * 86_400_000) recent += 1;
-    if (note.tags.length === 0) uncategorized += 1;
     for (const tag of note.tags) {
       const tagNorm = normalizeTag(tag);
       if (!tagNorm) continue;
@@ -366,7 +363,6 @@ export function libraryStatsFromNotes(
     total: notes.length,
     recent,
     favorites: [...favorites].filter((path) => notePaths.has(path)).length,
-    uncategorized,
     folders: [...folders.entries()].map(([folder, count]) => ({ folder, count })),
     tags: [...tags.entries()].map(([tagNorm, value]) => ({
       tag: value.tag,

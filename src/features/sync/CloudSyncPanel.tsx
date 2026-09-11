@@ -1,7 +1,7 @@
 import * as stylex from "@stylexjs/stylex";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Cloud, Loader2, RefreshCw, Settings2 } from "lucide-react";
-import { Button, IconButton, Input, SegmentedControl, Select, Toggle } from "../../components/ui";
+import { Button, IconButton, Input, PanelHeader, SegmentedControl, Select, Toggle } from "../../components/ui";
 import {
   cloudSyncProgressRatio,
   hasCloudSyncCredentials,
@@ -215,10 +215,26 @@ export function CloudSyncPanel() {
 
   return (
     <div {...stylex.props(styles.panel, commonStyles.fadeIn)}>
-      <header
-        data-tauri-drag-region={desktop ? "" : undefined}
+      <PanelHeader
+        dragRegion={desktop}
         onMouseDown={handleWindowDragMouseDown}
-        {...stylex.props(styles.header)}
+        actions={
+          section === "status" ? (
+            <IconButton
+              disabled={busy !== null || syncing || !desktop}
+              label={syncing ? t("sync.syncing") : t("sync.syncNow")}
+              onClick={() => void onSync()}
+            >
+              {syncing ? (
+                <Loader2 {...stylex.props(styles.icon, styles.spinning)} />
+              ) : (
+                <RefreshCw {...stylex.props(styles.icon)} />
+              )}
+            </IconButton>
+          ) : (
+            <span aria-hidden {...stylex.props(styles.iconSpacer)} />
+          )
+        }
       >
         <SegmentedControl
           display="icon-text"
@@ -230,22 +246,7 @@ export function CloudSyncPanel() {
           ]}
           value={section}
         />
-        {section === "status" ? (
-          <IconButton
-            disabled={busy !== null || syncing || !desktop}
-            label={syncing ? t("sync.syncing") : t("sync.syncNow")}
-            onClick={() => void onSync()}
-          >
-            {syncing ? (
-              <Loader2 {...stylex.props(styles.icon, styles.spinning)} />
-            ) : (
-              <RefreshCw {...stylex.props(styles.icon)} />
-            )}
-          </IconButton>
-        ) : (
-          <span aria-hidden {...stylex.props(styles.iconSpacer)} />
-        )}
-      </header>
+      </PanelHeader>
 
       {section === "status" ? (
         <div {...stylex.props(styles.form)}>
@@ -540,15 +541,6 @@ const styles = stylex.create({
     minHeight: 0,
     flex: 1,
     flexDirection: "column",
-  },
-  header: {
-    display: "flex",
-    height: 56,
-    flexShrink: 0,
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 8,
-    paddingInline: 16,
   },
   icon: { width: 16, height: 16 },
   iconSpacer: { width: 32, height: 32 },

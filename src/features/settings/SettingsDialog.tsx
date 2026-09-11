@@ -1,10 +1,31 @@
 import * as stylex from "@stylexjs/stylex";
-import { Check, ExternalLink, Info, Palette, RotateCcw, SlidersHorizontal, Type } from "lucide-react";
+import {
+  Check,
+  CheckCircle2,
+  Database,
+  ExternalLink,
+  Eye,
+  EyeOff,
+  Info,
+  KeyRound,
+  MessageSquare,
+  Palette,
+  RotateCcw,
+  Search,
+  Server,
+  ShieldCheck,
+  SlidersHorizontal,
+  Sparkles,
+  Type,
+} from "lucide-react";
+import { useState } from "react";
 import { GITHUB_REPO_URL } from "../../domain/app-update";
 import type { AppSettings, LocalePreference } from "../../domain/settings";
 import {
   Button,
   Dialog,
+  IconButton,
+  Input,
   SegmentedControl,
   Select,
   Toggle,
@@ -332,6 +353,211 @@ function EditorSettings({
   );
 }
 
+function AiModelCard({
+  icon: Icon,
+  label,
+  description,
+  value,
+  placeholder,
+  onChange,
+}: {
+  icon: typeof Database;
+  label: string;
+  description: string;
+  value: string;
+  placeholder: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div {...stylex.props(styles.aiModelCard)}>
+      <div {...stylex.props(styles.aiModelCardTitle)}>
+        <Icon {...stylex.props(styles.aiModelIcon)} />
+        <span>{label}</span>
+      </div>
+      <p {...stylex.props(styles.aiModelDescription)}>{description}</p>
+      <div {...stylex.props(styles.aiModelLabel)}>
+        <Input
+          aria-label={label}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder={placeholder}
+          value={value}
+        />
+      </div>
+    </div>
+  );
+}
+
+function AiSettings({
+  settings,
+  onChange,
+}: {
+  settings: AppSettings;
+  onChange: (settings: AppSettings) => void;
+}) {
+  const { t } = useI18n();
+  const [showApiKey, setShowApiKey] = useState(false);
+  const ai = settings.ai;
+  const update = (patch: Partial<AppSettings["ai"]>) =>
+    onChange({ ...settings, ai: { ...ai, ...patch } });
+
+  const providerBaseUrls = {
+    openai: "https://api.openai.com/v1",
+    ollama: "http://localhost:11434/v1",
+    custom: ai.baseUrl,
+  } as const;
+
+  const updateProvider = (provider: AppSettings["ai"]["provider"]) => {
+    const shouldReplaceUrl = ai.baseUrl === providerBaseUrls[ai.provider] || !ai.baseUrl;
+    update({ provider, baseUrl: shouldReplaceUrl ? providerBaseUrls[provider] : ai.baseUrl });
+  };
+
+  const isConfigured = Boolean(
+    ai.baseUrl.trim() && ai.embeddingModel.trim() && ai.chatModel.trim(),
+  );
+
+  return (
+    <div {...stylex.props(commonStyles.fadeIn, styles.aiSection)}>
+      <div {...stylex.props(styles.aiIntro)}>
+        <div {...stylex.props(styles.aiIntroCopy)}>
+          <h3 {...stylex.props(styles.aiTitle)}>{t("settings.aiTitle")}</h3>
+          <p {...stylex.props(styles.aiDescription)}>{t("settings.aiDescription")}</p>
+        </div>
+        <div {...stylex.props(styles.aiStatus, ai.enabled && styles.aiStatusEnabled)}>
+          <span {...stylex.props(styles.aiStatusDot(ai.enabled))} />
+          <span>{t(ai.enabled ? "settings.aiEnabled" : "settings.aiDisabled")}</span>
+        </div>
+      </div>
+
+      <div {...stylex.props(styles.aiConnection)}>
+        <div {...stylex.props(styles.aiConnectionHeader)}>
+          <div {...stylex.props(styles.aiConnectionTitle)}>
+            <Server {...stylex.props(styles.aiConnectionIcon)} />
+            <div>
+              <span>{t("settings.aiConnection")}</span>
+            </div>
+          </div>
+          <Toggle
+            checked={ai.enabled}
+            label={t("settings.aiEnabled")}
+            onChange={(enabled) => update({ enabled })}
+          />
+        </div>
+        <div {...stylex.props(styles.aiField)}>
+          <div>
+            <div {...stylex.props(styles.aiFieldLabel)}>{t("settings.aiProvider")}</div>
+            <p {...stylex.props(styles.aiFieldHint)}>{t("settings.aiProviderHint")}</p>
+          </div>
+          <div {...stylex.props(styles.aiFieldControl)}>
+            <Select
+              aria-label={t("settings.aiProvider")}
+              label={t("settings.aiProvider")}
+              onChange={(provider) => {
+                if (provider === "openai" || provider === "ollama" || provider === "custom") {
+                  updateProvider(provider);
+                }
+              }}
+              options={[
+                { value: "openai", label: t("settings.aiProviderOpenAI") },
+                { value: "ollama", label: t("settings.aiProviderOllama") },
+                { value: "custom", label: t("settings.aiProviderCustom") },
+              ]}
+              style={styles.select}
+              value={ai.provider}
+            />
+          </div>
+        </div>
+        <div {...stylex.props(styles.aiField)}>
+          <div>
+            <div {...stylex.props(styles.aiFieldLabel)}>{t("settings.aiBaseUrl")}</div>
+            <p {...stylex.props(styles.aiFieldHint)}>{t("settings.aiBaseUrlHint")}</p>
+          </div>
+          <div {...stylex.props(styles.aiFieldControl)}>
+            <Input
+              aria-label={t("settings.aiBaseUrl")}
+              onChange={(event) => update({ baseUrl: event.target.value })}
+              placeholder="https://api.example.com/v1"
+              spellCheck={false}
+              value={ai.baseUrl}
+            />
+          </div>
+        </div>
+        <div {...stylex.props(styles.aiField)}>
+          <div>
+            <div {...stylex.props(styles.aiFieldLabel)}>{t("settings.aiApiKey")}</div>
+            <p {...stylex.props(styles.aiFieldHint)}>{t("settings.aiApiKeyHint")}</p>
+          </div>
+          <div {...stylex.props(styles.aiFieldControl)}>
+            <div {...stylex.props(styles.aiSecretControl)}>
+              <KeyRound {...stylex.props(styles.aiSecretIcon)} />
+              <Input
+                aria-label={t("settings.aiApiKey")}
+                onChange={(event) => update({ apiKey: event.target.value })}
+                placeholder={t("settings.aiApiKeyPlaceholder")}
+                spellCheck={false}
+                style={styles.aiSecretInput}
+                type={showApiKey ? "text" : "password"}
+                value={ai.apiKey}
+              />
+              <IconButton
+                label={t(showApiKey ? "settings.aiHideApiKey" : "settings.aiShowApiKey")}
+                onClick={() => setShowApiKey((visible) => !visible)}
+                style={styles.aiSecretToggle}
+              >
+                {showApiKey ? (
+                  <EyeOff aria-hidden {...stylex.props(styles.aiSecretToggleIcon)} />
+                ) : (
+                  <Eye aria-hidden {...stylex.props(styles.aiSecretToggleIcon)} />
+                )}
+              </IconButton>
+            </div>
+          </div>
+        </div>
+        <div {...stylex.props(styles.aiPrivacyNote)}>
+          <ShieldCheck aria-hidden {...stylex.props(styles.aiPrivacyIcon)} />
+          <span>{t("settings.aiPrivacyNote")}</span>
+        </div>
+      </div>
+
+      <div {...stylex.props(styles.aiModelHeader)}>
+        <div>
+          <h4 {...stylex.props(styles.aiModelHeading)}>{t("settings.aiModels")}</h4>
+          <p {...stylex.props(styles.aiModelHint)}>{t("settings.aiModelsHint")}</p>
+        </div>
+        <div {...stylex.props(styles.aiModelReadiness, isConfigured && styles.aiModelReadinessReady)}>
+          <CheckCircle2 aria-hidden {...stylex.props(styles.aiReadinessIcon)} />
+          <span>{isConfigured ? t("settings.aiReady") : t("settings.aiNeedsSetup")}</span>
+        </div>
+      </div>
+      <div {...stylex.props(styles.aiModelGrid)}>
+        <AiModelCard
+          icon={Database}
+          label={t("settings.aiEmbeddingModel")}
+          description={t("settings.aiEmbeddingDescription")}
+          onChange={(embeddingModel) => update({ embeddingModel })}
+          placeholder="text-embedding-3-small"
+          value={ai.embeddingModel}
+        />
+        <AiModelCard
+          icon={Search}
+          label={t("settings.aiRerankingModel")}
+          description={t("settings.aiRerankingDescription")}
+          onChange={(rerankingModel) => update({ rerankingModel })}
+          placeholder={t("settings.aiOptional")}
+          value={ai.rerankingModel}
+        />
+        <AiModelCard
+          icon={MessageSquare}
+          label={t("settings.aiChatModel")}
+          description={t("settings.aiChatDescription")}
+          onChange={(chatModel) => update({ chatModel })}
+          placeholder="gpt-4o-mini"
+          value={ai.chatModel}
+        />
+      </div>
+    </div>
+  );
+}
+
 export default function SettingsDialog({
   open,
   section,
@@ -354,6 +580,7 @@ export default function SettingsDialog({
     { value: "general", labelKey: "settings.general", icon: SlidersHorizontal },
     { value: "appearance", labelKey: "settings.appearance", icon: Palette },
     { value: "editor", labelKey: "settings.editor", icon: Type },
+    { value: "ai", labelKey: "settings.ai", icon: Sparkles },
     { value: "about", labelKey: "settings.about", icon: Info },
   ] as const satisfies ReadonlyArray<{
     value: SettingsSection;
@@ -407,6 +634,7 @@ export default function SettingsDialog({
           {section === "editor" && (
             <EditorSettings key="editor" onChange={onSettingsChange} settings={settings} />
           )}
+          {section === "ai" && <AiSettings key="ai" onChange={onSettingsChange} settings={settings} />}
           {section === "about" && (
             <div {...stylex.props(commonStyles.fadeIn, styles.about)} key="about">
               <img

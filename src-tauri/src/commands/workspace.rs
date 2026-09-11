@@ -76,6 +76,35 @@ pub fn create_note(
 }
 
 #[tauri::command]
+pub async fn create_folder(
+    services: State<'_, AppServices>,
+    root: String,
+    folder: String,
+) -> Result<String, AppError> {
+    let workspace = services.workspace.clone();
+    tauri::async_runtime::spawn_blocking(move || workspace.create_folder(&root, &folder))
+        .await
+        .map_err(|error| {
+            AppError::new(crate::domain::ErrorCode::Io, "Folder creation interrupted.")
+                .with_details(error.to_string())
+        })?
+}
+
+#[tauri::command]
+pub async fn rename_folder(services: State<'_, AppServices>, root: String, folder: String, new_folder: String) -> Result<String, AppError> {
+    let workspace = services.workspace.clone();
+    tauri::async_runtime::spawn_blocking(move || workspace.rename_folder(&root, &folder, &new_folder))
+        .await.map_err(|error| AppError::new(crate::domain::ErrorCode::Io, error.to_string()))?
+}
+
+#[tauri::command]
+pub async fn delete_folder(services: State<'_, AppServices>, root: String, folder: String) -> Result<String, AppError> {
+    let workspace = services.workspace.clone();
+    tauri::async_runtime::spawn_blocking(move || workspace.delete_folder(&root, &folder))
+        .await.map_err(|error| AppError::new(crate::domain::ErrorCode::Io, error.to_string()))?
+}
+
+#[tauri::command]
 pub fn rename_note(
     services: State<'_, AppServices>,
     root: String,

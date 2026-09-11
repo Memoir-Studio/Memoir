@@ -13,6 +13,8 @@ import type {
   RenamedNote,
 } from "../domain/notes";
 import type { AppSettings } from "../domain/settings";
+import type { AiChatMessage, AiChatProgress, AiChatResponse, AiRewriteTarget } from "../domain/ai";
+import type { AiSettings, SemanticSearchResult, VectorIndexStatus } from "../domain/vector-index";
 import type {
   CloudSyncProbe,
   CloudSyncProfile,
@@ -39,6 +41,9 @@ export interface WorkspaceGateway {
   readNote(root: string, relativePath: string): Promise<string>;
   writeNote(root: string, relativePath: string, content: string): Promise<RawNoteFile>;
   createNote(input: CreateNoteInput): Promise<RawNoteFile>;
+  createFolder(root: string, folder: string): Promise<string>;
+  renameFolder(root: string, folder: string, newFolder: string): Promise<string>;
+  deleteFolder(root: string, folder: string): Promise<string>;
   renameNote(root: string, oldRelativePath: string, newRelativePath: string): Promise<RenamedNote>;
   deleteNote(root: string, relativePath: string): Promise<string>;
   scanAttachments(root: string): Promise<AttachmentFile[]>;
@@ -53,6 +58,16 @@ export interface WorkspaceGateway {
   resolveMediaPath(path: string): string;
   chooseExportPath(input: { defaultPath: string; title?: string }): Promise<string | null>;
   writeExportFile(path: string, bytesBase64: string): Promise<void>;
+  getVectorIndexStatus(root: string, settings: AiSettings): Promise<VectorIndexStatus>;
+  indexVectorWorkspace(root: string, settings: AiSettings, force?: boolean): Promise<VectorIndexStatus>;
+  semanticSearch(root: string, settings: AiSettings, query: string, limit?: number): Promise<SemanticSearchResult[]>;
+  chatWithNote(
+    root: string,
+    settings: AiSettings,
+    messages: AiChatMessage[],
+    target: AiRewriteTarget,
+    onProgress?: (progress: AiChatProgress) => void,
+  ): Promise<AiChatResponse>;
 }
 
 export type AttachmentGateway = Pick<

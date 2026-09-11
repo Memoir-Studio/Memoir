@@ -7,7 +7,6 @@ import {
   FileText,
   Folder,
   FolderOpen,
-  Inbox,
   Moon,
   Network,
   Paperclip,
@@ -15,6 +14,7 @@ import {
   PanelLeftOpen,
   Settings,
   SmilePlus,
+  Sparkles,
   Star,
   Sun,
   Tag as TagIcon,
@@ -266,12 +266,20 @@ function FolderNavItem({
 export function LibrarySidebar({
   isDark,
   onCreateFolder,
+  onCreateNote = () => undefined,
   onCreateTag,
+  onRenameFolder,
+  onDeleteFolder,
+  onOpenAi,
   style,
 }: {
   isDark: boolean;
-  onCreateFolder: () => void;
+  onCreateFolder: (parent?: string) => void;
+  onCreateNote?: (folder: string) => void;
   onCreateTag: () => void;
+  onRenameFolder?: (folder: string) => void;
+  onDeleteFolder?: (folder: string) => void;
+  onOpenAi?: () => void;
   style?: stylex.StyleXStyles;
 }) {
   const libraryStats = useAppStore((state) => state.libraryStats);
@@ -401,14 +409,6 @@ export function LibrarySidebar({
             onClick={() => setNavFilter("favorites")}
           />
           <NavButton
-            active={notesNavActive && navFilter === "uncategorized"}
-            collapsed={collapsed}
-            count={libraryStats.uncategorized}
-            icon={<Inbox strokeWidth={1.8} {...stylex.props(sidebarStyles.navSvg)} />}
-            label={t("nav.uncategorized")}
-            onClick={() => setNavFilter("uncategorized")}
-          />
-          <NavButton
             active={libraryPanelMode === "graph"}
             collapsed={collapsed}
             icon={<Network strokeWidth={1.8} {...stylex.props(sidebarStyles.navSvg)} />}
@@ -431,6 +431,13 @@ export function LibrarySidebar({
             onClick={() => setLibraryPanelMode("index")}
           />
           <NavButton
+            active={libraryPanelMode === "ai"}
+            collapsed={collapsed}
+            icon={<Sparkles strokeWidth={1.8} {...stylex.props(sidebarStyles.navSvg)} />}
+            label={t("nav.aiRewrite")}
+            onClick={onOpenAi ?? (() => setLibraryPanelMode("ai"))}
+          />
+          <NavButton
             active={libraryPanelMode === "sync"}
             collapsed={collapsed}
             icon={<Cloud strokeWidth={1.8} {...stylex.props(sidebarStyles.navSvg)} />}
@@ -445,7 +452,7 @@ export function LibrarySidebar({
               <span>{t("nav.folders")}</span>
               <button
                 aria-label={t("nav.newFolder")}
-                onClick={onCreateFolder}
+                onClick={() => onCreateFolder("")}
                 type="button"
                 {...stylex.props(sidebarStyles.sectionAction)}
               >
@@ -562,6 +569,18 @@ export function LibrarySidebar({
 
       <FolderContextMenu
         onClose={() => setMenuTarget(null)}
+        onCreate={(folder) => {
+          setCollapsedFolders((current) => {
+            if (!folder || !current.has(folder)) return current;
+            const next = new Set(current);
+            next.delete(folder);
+            return next;
+          });
+          onCreateFolder(folder);
+        }}
+        onRename={onRenameFolder}
+        onDelete={onDeleteFolder}
+        onCreateNote={onCreateNote}
         onCustomize={(folder) => setAppearanceFolder(folder)}
         onOpen={(folder) => setScopedFilter({ type: "folder", value: folder })}
         target={menuTarget}

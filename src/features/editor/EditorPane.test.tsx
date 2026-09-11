@@ -99,6 +99,27 @@ describe("EditorPane context menu", () => {
     expect(ref.current?.getSelectedText()).toBe("# Hello");
     expect(view.container.querySelector(".cm-content")?.textContent).toContain("Hello");
   });
+
+  it("replaces a captured range only while its source is unchanged", async () => {
+    const onChange = vi.fn();
+    const ref = createRef<EditorHandle>();
+    render(
+      <EditorPane
+        content="Hello world"
+        fileName="hello.md"
+        isDark={false}
+        onChange={onChange}
+        ref={ref}
+        settings={DEFAULT_SETTINGS}
+      />,
+    );
+
+    expect(ref.current?.replaceRange(6, 11, "Memoir", "world")).toBe(true);
+    expect(ref.current?.replaceRange(6, 12, "again", "world")).toBe(false);
+    await waitFor(() => {
+      expect(onChange.mock.calls.some((call) => call[0] === "Hello Memoir")).toBe(true);
+    });
+  });
 });
 
 describe("EditorPane snapshots", () => {

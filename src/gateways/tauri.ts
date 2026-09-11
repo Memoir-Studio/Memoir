@@ -12,6 +12,14 @@ import type { NoteGraph } from "../domain/note-links";
 import type { LibraryPage, LibraryQuery, RawNoteFile, RenamedNote } from "../domain/notes";
 import type { AppSettings } from "../domain/settings";
 import {
+  AI_CHAT_PROGRESS_EVENT,
+  type AiChatMessage,
+  type AiChatProgress,
+  type AiChatResponse,
+  type AiRewriteTarget,
+} from "../domain/ai";
+import type { AiSettings, SemanticSearchResult, VectorIndexStatus } from "../domain/vector-index";
+import {
   CLOUD_SYNC_PROGRESS_EVENT,
   mergeCloudSyncProgress,
   type CloudSyncProbe,
@@ -77,6 +85,18 @@ export class TauriWorkspaceGateway implements WorkspaceGateway {
 
   createNote({ root, title, extension, folder, tags }: CreateNoteInput) {
     return call<RawNoteFile>("create_note", { root, title, extension, folder, tags });
+  }
+
+  createFolder(root: string, folder: string) {
+    return call<string>("create_folder", { root, folder });
+  }
+
+  renameFolder(root: string, folder: string, newFolder: string) {
+    return call<string>("rename_folder", { root, folder, newFolder });
+  }
+
+  deleteFolder(root: string, folder: string) {
+    return call<string>("delete_folder", { root, folder });
   }
 
   renameNote(root: string, oldRelativePath: string, newRelativePath: string) {
@@ -166,6 +186,42 @@ export class TauriWorkspaceGateway implements WorkspaceGateway {
 
   writeExportFile(path: string, bytesBase64: string) {
     return call<void>("write_export_file", { path, bytesBase64 });
+  }
+
+  getVectorIndexStatus(root: string, settings: AiSettings) {
+    return call<VectorIndexStatus>("get_vector_index_status", { root, settings });
+  }
+
+  indexVectorWorkspace(root: string, settings: AiSettings, force = false) {
+    return call<VectorIndexStatus>("index_vector_workspace", { root, settings, force });
+  }
+
+  semanticSearch(root: string, settings: AiSettings, query: string, limit = 20) {
+    return call<SemanticSearchResult[]>("semantic_search", { root, settings, query, limit });
+  }
+
+  chatWithNote(
+    root: string,
+    settings: AiSettings,
+    messages: AiChatMessage[],
+    target: AiRewriteTarget,
+    onProgress?: (progress: AiChatProgress) => void,
+  ) {
+    return (async () => {
+      const requestId = crypto.randomUUID();
+      let unlisten: (() => void) | undefined;
+      if (onProgress) {
+        const { listen } = await import("@tauri-apps/api/event");
+        unlisten = await listen<AiChatProgress>(AI_CHAT_PROGRESS_EVENT, (event) => {
+          if (event.payload.requestId === requestId) onProgress(event.payload);
+        });
+      }
+      try {
+        return await call<AiChatResponse>("chat_with_note", { root, settings, messages, target, requestId });
+      } finally {
+        unlisten?.();
+      }
+    })();
   }
 }
 

@@ -152,14 +152,10 @@ pub fn replace_dir_cache(
         collected
     };
     let mut keep: HashSet<String> = walked.iter().map(|row| row.relative_dir.clone()).collect();
-    for dir in reused {
-        keep.insert(dir.clone());
-        for name in &existing {
-            if dir.is_empty() || name == dir || name.starts_with(&format!("{dir}/")) {
-                keep.insert(name.clone());
-            }
-        }
-    }
+    // Cache reuse skips read_dir for that directory only. The walker still
+    // visits each child and reports existing directories individually, so a
+    // reused ancestor must not keep deleted descendants in the index.
+    keep.extend(reused.iter().cloned());
     for name in existing {
         if !keep.contains(&name) {
             conn.execute(

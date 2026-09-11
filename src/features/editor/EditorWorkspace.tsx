@@ -78,9 +78,10 @@ import type { MarkdownLineFormat } from "./markdown-format";
 const EditorPane = lazy(() => import("./EditorPane"));
 const PreviewPane = lazy(() => import("../preview/PreviewPane"));
 type ScrollPane = "editor" | "preview";
-type ProgrammaticScroll = { expiresAt: number };
+type ProgrammaticScroll = { expiresAt: number; targetTop: number };
 
-const PROGRAMMATIC_SCROLL_GUARD_MS = 160;
+const PROGRAMMATIC_SCROLL_GUARD_MS = 800;
+const PROGRAMMATIC_SCROLL_TOLERANCE_PX = 2;
 const USER_SCROLL_INTENT_MS = 320;
 
 function PaneFallback({ label }: { label: string }) {
@@ -193,6 +194,7 @@ export const EditorWorkspace = forwardRef<EditorHandle, {
       if (Math.abs(element.scrollTop - nextTop) < 1) return;
       const guard: ProgrammaticScroll = {
         expiresAt: performance.now() + PROGRAMMATIC_SCROLL_GUARD_MS,
+        targetTop: nextTop,
       };
       programmaticScrollRef.current[pane] = guard;
       element.scrollTop = nextTop;
@@ -211,8 +213,14 @@ export const EditorWorkspace = forwardRef<EditorHandle, {
     }
     const guard = programmaticScrollRef.current[source];
     if (!guard) return false;
-    if (guard.expiresAt >= now) {
-      guard.expiresAt = now + PROGRAMMATIC_SCROLL_GUARD_MS;
+    const scroller =
+      source === "editor"
+        ? editorRef.current?.getScrollElement()
+        : previewPaneRef.current;
+    const reachedTarget =
+      scroller &&
+      Math.abs(scroller.scrollTop - guard.targetTop) <= PROGRAMMATIC_SCROLL_TOLERANCE_PX;
+    if (guard.expiresAt >= now && reachedTarget) {
       return true;
     }
     programmaticScrollRef.current[source] = null;
@@ -270,16 +278,17 @@ export const EditorWorkspace = forwardRef<EditorHandle, {
       }
       const previousTop = editorScroller.scrollTop;
       const previousGuard = programmaticScrollRef.current.editor;
-      const guard: ProgrammaticScroll = {
-        expiresAt: performance.now() + PROGRAMMATIC_SCROLL_GUARD_MS,
-      };
-      programmaticScrollRef.current.editor = guard;
       editor.scrollToLine(
         lineForScrollTop(previewScroller.scrollTop, anchors, previewScroller, lastLine, previewOffset),
         editorOffset,
       );
       if (Math.abs(editorScroller.scrollTop - previousTop) < 1) {
         programmaticScrollRef.current.editor = previousGuard;
+      } else {
+        programmaticScrollRef.current.editor = {
+          expiresAt: performance.now() + PROGRAMMATIC_SCROLL_GUARD_MS,
+          targetTop: editorScroller.scrollTop,
+        };
       }
     },
     [applyScrollTop, content, getPreviewAnchors],
@@ -298,6 +307,17 @@ export const EditorWorkspace = forwardRef<EditorHandle, {
       });
     },
     [performScrollSync],
+  );
+
+  const beginScroll = useCallback(
+    (source: ScrollPane) => {
+      markScrollIntent(source);
+      // Wheel and keyboard events run before the browser updates scrollTop.
+      // Reading on the next frame also keeps sync alive if CodeMirror does not
+      // emit a usable scroll event for that interaction.
+      queueScrollSync(source);
+    },
+    [markScrollIntent, queueScrollSync],
   );
 
   const syncScroll = useCallback(
@@ -357,8 +377,15 @@ export const EditorWorkspace = forwardRef<EditorHandle, {
   useEffect(() => {
     return () => {
       if (scrollRafRef.current) window.cancelAnimationFrame(scrollRafRef.current);
+      scrollRafRef.current = 0;
+      pendingScrollRef.current = null;
+      programmaticScrollRef.current.editor = null;
+      programmaticScrollRef.current.preview = null;
+      userScrollIntentRef.current = null;
       previewObserverRef.current?.disconnect();
+      previewObserverRef.current = null;
       previewMutationObserverRef.current?.disconnect();
+      previewMutationObserverRef.current = null;
     };
   }, []);
 
@@ -406,6 +433,9 @@ export const EditorWorkspace = forwardRef<EditorHandle, {
       redo: () => editorRef.current?.redo(),
       selectAll: () => editorRef.current?.selectAll(),
       getSelectedText: () => editorRef.current?.getSelectedText() ?? "",
+      getSelection: () => editorRef.current?.getSelection() ?? null,
+      replaceRange: (from, to, text, expected) =>
+        editorRef.current?.replaceRange(from, to, text, expected) ?? false,
       cut: () => editorRef.current?.cut() ?? Promise.resolve(),
       copy: () => editorRef.current?.copy() ?? Promise.resolve(),
     }),
@@ -664,7 +694,7 @@ export const EditorWorkspace = forwardRef<EditorHandle, {
                   onOpenNote={(path) => void selectNote(path)}
                   onPasteImages={savePastedImages}
                   onScroll={() => syncScroll("editor")}
-                  onScrollIntent={() => markScrollIntent("editor")}
+                  onScrollIntent={() => beginScroll("editor")}
                   ref={editorRef}
                   settings={settings}
                   sourcePath={loadedContentPath || ""}
@@ -699,7 +729,7 @@ export const EditorWorkspace = forwardRef<EditorHandle, {
                   note={renderedNote}
                   onContentChange={setContent}
                   onScroll={() => syncScroll("preview")}
-                  onScrollIntent={() => markScrollIntent("preview")}
+                  onScrollIntent={() => beginScroll("preview")}
                   paneRef={previewPaneRef}
                   root={workspaceRoot}
                 />

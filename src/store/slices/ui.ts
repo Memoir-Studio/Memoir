@@ -13,9 +13,10 @@ type UiSliceContext = {
   set: (partial: Partial<AppStore>) => void;
   get: () => AppStore;
   persistPreferences: () => void;
+  onSettingsChanged?: (previous: AppSettings, next: AppSettings) => void;
 };
 
-export function createUiSlice({ set, get, persistPreferences }: UiSliceContext) {
+export function createUiSlice({ set, get, persistPreferences, onSettingsChanged }: UiSliceContext) {
   return {
     setLibraryPanelMode(libraryPanelMode: LibraryPanelMode) {
       set({
@@ -59,12 +60,17 @@ export function createUiSlice({ set, get, persistPreferences }: UiSliceContext) 
       persistPreferences();
     },
     setSettings(settings: AppSettings) {
-      set({ settings: mergeSettings(settings) });
+      const previous = get().settings;
+      const next = mergeSettings(settings);
+      set({ settings: next });
       persistPreferences();
+      onSettingsChanged?.(previous, next);
     },
     resetSettings() {
+      const previous = get().settings;
       set({ settings: DEFAULT_SETTINGS });
       persistPreferences();
+      onSettingsChanged?.(previous, DEFAULT_SETTINGS);
     },
     openSettings(settingsSection: SettingsSection = "appearance") {
       set({ settingsOpen: true, settingsSection });

@@ -228,5 +228,34 @@ describe("SettingsDialog", () => {
       },
     });
   });
-});
 
+  it("edits AI connection and task model settings", async () => {
+    const onSettingsChange = vi.fn();
+    const user = userEvent.setup();
+    const view = render(
+      <SettingsDialog
+        onClose={() => undefined}
+        onReset={() => undefined}
+        onSectionChange={() => undefined}
+        onSettingsChange={onSettingsChange}
+        open
+        section="ai"
+        settings={DEFAULT_SETTINGS}
+      />,
+    );
+
+    await user.click(view.getByRole("switch", { name: "已启用" }));
+    expect(onSettingsChange).toHaveBeenLastCalledWith({
+      ...DEFAULT_SETTINGS,
+      ai: { ...DEFAULT_SETTINGS.ai, enabled: true },
+    });
+
+    fireEvent.change(view.getByRole("textbox", { name: "对话 / 工具模型" }), {
+      target: { value: "qwen3:8b" },
+    });
+    expect(onSettingsChange).toHaveBeenLastCalledWith({
+      ...DEFAULT_SETTINGS,
+      ai: { ...DEFAULT_SETTINGS.ai, chatModel: "qwen3:8b" },
+    });
+  });
+});

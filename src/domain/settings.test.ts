@@ -74,4 +74,27 @@ describe("settings merge", () => {
       }).general,
     ).toMatchObject({ noteSort: "name", noteSortDirection: "asc" });
   });
+
+  it("adds AI defaults when loading older preferences", () => {
+    const settings = mergeSettings({
+      appearance: { locale: "en" },
+      ai: { provider: "ollama", chatModel: "qwen3:8b" },
+    });
+
+    expect(settings.ai).toMatchObject({
+      enabled: false,
+      provider: "ollama",
+      baseUrl: "https://api.openai.com/v1",
+      embeddingModel: "text-embedding-3-small",
+      chatModel: "qwen3:8b",
+    });
+  });
+
+  it("falls back to the default AI provider for unknown values", () => {
+    expect(
+      mergeSettings({
+        ai: { provider: "unsupported" as AppSettings["ai"]["provider"] },
+      }).ai.provider,
+    ).toBe("openai");
+  });
 });

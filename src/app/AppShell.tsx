@@ -1,7 +1,8 @@
 import * as stylex from "@stylexjs/stylex";
 import { FolderOpen, Library, Menu, Pencil } from "lucide-react";
-import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Button, StatusNotice } from "../components/ui";
+import type { AiEditorEdit, AiRewriteTarget } from "../domain/ai";
 import {
   COLLAPSED_SIDEBAR_WIDTH,
   DEFAULT_LIBRARY_WIDTH,
@@ -88,14 +89,16 @@ function WorkspaceLayout({
   const mobilePanel = useAppStore((state) => state.mobilePanel);
   const setMobilePanel = useAppStore((state) => state.setMobilePanel);
   const libraryPanelMode = useAppStore((state) => state.libraryPanelMode);
+  const setLibraryPanelMode = useAppStore((state) => state.setLibraryPanelMode);
   const setUiScale = useAppStore((state) => state.setUiScale);
   const setSidebarCollapsed = useAppStore((state) => state.setSidebarCollapsed);
   const saveActiveNote = useAppStore((state) => state.saveActiveNote);
-  const { openCreate, openDelete, openRename } = useWorkspaceDialogs();
+  const { openCreate, openCreateFolder, openRenameFolder, openDeleteFolder, openDelete, openRename } = useWorkspaceDialogs();
   const { t } = useI18n();
   const editorRef = useRef<EditorHandle>(null);
   const shellRef = useRef<HTMLElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
+  const [aiRewriteTarget, setAiRewriteTarget] = useState<AiRewriteTarget | null>(null);
   const columns = fitLayoutColumns({
     sidebarWidth: layout.sidebarWidth,
     libraryWidth: layout.libraryWidth,
@@ -130,6 +133,57 @@ function WorkspaceLayout({
     const observer = new ResizeObserver(update);
     observer.observe(shell);
     return () => observer.disconnect();
+  }, []);
+
+  const captureAiRewriteTarget = useCallback((): AiRewriteTarget | null => {
+    const state = useAppStore.getState();
+    if (!state.activePath || state.loadedContentPath !== state.activePath) return null;
+    const selection = editorRef.current?.getSelection();
+    const hasSelection = Boolean(selection && selection.from !== selection.to);
+    return {
+      path: state.activePath,
+      from: hasSelection ? selection!.from : 0,
+      to: hasSelection ? selection!.to : state.content.length,
+      source: hasSelection ? selection!.text : state.content,
+      scope: hasSelection ? "selection" : "document",
+    };
+  }, []);
+
+  const openAiRewrite = useCallback(() => {
+    if (!settings.ai.enabled || !settings.ai.baseUrl.trim() || !settings.ai.chatModel.trim()) {
+      useAppStore.setState({ error: t("errors.aiNeedsSetup") });
+      useAppStore.getState().openSettings("ai");
+      return;
+    }
+    setAiRewriteTarget(captureAiRewriteTarget());
+    setLibraryPanelMode("ai");
+  }, [captureAiRewriteTarget, setLibraryPanelMode, settings.ai, t]);
+
+  const closeAiRewrite = useCallback(() => {
+    setAiRewriteTarget(null);
+    setLibraryPanelMode("notes");
+  }, [setLibraryPanelMode]);
+
+  const applyAiRewrite = useCallback((edit: AiEditorEdit) => {
+    const state = useAppStore.getState();
+    if (state.activePath !== edit.path || state.loadedContentPath !== edit.path) return false;
+    if (editorRef.current?.replaceRange(edit.from, edit.to, edit.replacement, edit.source)) {
+      return true;
+    }
+    if (edit.scope !== "document" || state.content !== edit.source) return false;
+    state.setContent(edit.replacement);
+    return true;
+  }, []);
+
+  const saveAiRewrite = useCallback(async () => {
+    await useAppStore.getState().saveActiveNote();
+    const state = useAppStore.getState();
+    return Boolean(
+      state.activePath &&
+        state.loadedContentPath === state.activePath &&
+        !state.isSaving &&
+        state.content === state.savedContent,
+    );
   }, []);
 
   useEffect(() => {
@@ -190,8 +244,12 @@ function WorkspaceLayout({
         >
           <LibrarySidebar
             isDark={isDark}
-            onCreateFolder={() => openCreate()}
+            onCreateFolder={openCreateFolder}
+            onRenameFolder={openRenameFolder}
+            onDeleteFolder={openDeleteFolder}
+            onCreateNote={(folder) => openCreate("mdx", folder)}
             onCreateTag={() => openCreate("mdx", "", t("create.newTag"))}
+            onOpenAi={openAiRewrite}
           />
           {!isSidebarCollapsed && (
             <LayoutResizeHandle
@@ -211,8 +269,13 @@ function WorkspaceLayout({
           )}
         >
           <NoteList
+            aiRewriteTarget={aiRewriteTarget}
             onCreate={() => openCreate()}
             onDelete={openDelete}
+            onApplyAiRewrite={applyAiRewrite}
+            onCloseAiRewrite={closeAiRewrite}
+            onRefreshAiRewriteTarget={captureAiRewriteTarget}
+            onSaveAiRewrite={saveAiRewrite}
             onInsertAttachment={(markdown) => editorRef.current?.insertText(markdown)}
             onRename={openRename}
           />

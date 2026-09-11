@@ -10,7 +10,8 @@ export type LocalePreference = "system" | AppLocale;
 export type CloseBehavior = "tray" | "quit";
 export type NoteSortField = "name" | "modified" | "title";
 export type NoteSortDirection = "asc" | "desc";
-export type SettingsSection = "general" | "appearance" | "editor" | "about";
+export type AiProvider = "openai" | "ollama" | "custom";
+export type SettingsSection = "general" | "appearance" | "editor" | "ai" | "about";
 
 export const MIN_UI_SCALE = 0.8;
 export const MAX_UI_SCALE = 2;
@@ -40,6 +41,15 @@ export type AppSettings = {
     noteSort: NoteSortField;
     noteSortDirection: NoteSortDirection;
   };
+  ai: {
+    enabled: boolean;
+    provider: AiProvider;
+    baseUrl: string;
+    apiKey: string;
+    embeddingModel: string;
+    rerankingModel: string;
+    chatModel: string;
+  };
 };
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -66,6 +76,15 @@ export const DEFAULT_SETTINGS: AppSettings = {
     noteSort: "name",
     noteSortDirection: "asc",
   },
+  ai: {
+    enabled: false,
+    provider: "openai",
+    baseUrl: "https://api.openai.com/v1",
+    apiKey: "",
+    embeddingModel: "text-embedding-3-small",
+    rerankingModel: "",
+    chatModel: "gpt-4o-mini",
+  },
 };
 
 export function clampUiScale(value: unknown): number {
@@ -91,11 +110,16 @@ export function isNoteSortDirection(value: unknown): value is NoteSortDirection 
   return value === "asc" || value === "desc";
 }
 
+export function isAiProvider(value: unknown): value is AiProvider {
+  return value === "openai" || value === "ollama" || value === "custom";
+}
+
 export function mergeSettings(
   settings?: {
     appearance?: Partial<AppSettings["appearance"]>;
     editor?: Partial<AppSettings["editor"]>;
     general?: Partial<AppSettings["general"]>;
+    ai?: Partial<AppSettings["ai"]>;
   } | null,
 ): AppSettings {
   const appearance = {
@@ -129,6 +153,13 @@ export function mergeSettings(
       noteSortDirection: isNoteSortDirection(general.noteSortDirection)
         ? general.noteSortDirection
         : DEFAULT_SETTINGS.general.noteSortDirection,
+    },
+    ai: {
+      ...DEFAULT_SETTINGS.ai,
+      ...settings?.ai,
+      provider: isAiProvider(settings?.ai?.provider)
+        ? settings.ai.provider
+        : DEFAULT_SETTINGS.ai.provider,
     },
   };
 }

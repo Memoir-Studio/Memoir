@@ -28,10 +28,11 @@ sha2 = "0.10"
 hmac = "0.12"
 thiserror = "2"
 base64 = "0.22"
+hex = "0.4"
 regex = "1"
 serde_yaml = "0.9"
 rusqlite = { version = "0.32", features = ["bundled"] }
-reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls"] }
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
 url = "2"
 httpdate = "1"
 quick-xml = "0.37"

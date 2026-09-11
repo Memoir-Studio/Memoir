@@ -3,11 +3,12 @@ import { GatewayError } from "../domain/errors";
 import type { AppUpdateCheck } from "../domain/app-update";
 import type { AttachmentFile, SaveAttachmentInput } from "../domain/attachments";
 import { attachmentRelativePath, mimeFromExtension } from "../domain/attachments";
-import type { FolderAppearance } from "../domain/folders";
 import {
+  collectFolderPaths,
   folderAppearancesForWorkspace,
   normalizeFolderAppearance,
   normalizeFolderKey,
+  type FolderAppearance,
 } from "../domain/folders";
 import { indexInfoFromNotes, type WorkspaceIndexInfo } from "../domain/index-info";
 import { buildNoteGraph, type NoteGraph } from "../domain/note-links";
@@ -15,6 +16,8 @@ import type { LibraryPage, LibraryQuery, RawNoteFile, RenamedNote } from "../dom
 import { parseNote, queryNotesInMemory } from "../domain/notes/note-utils";
 import { DEFAULT_WORKSPACE_LAYOUT, mergeLayout, type WorkspaceLayoutState } from "../domain/layout";
 import { DEFAULT_SETTINGS } from "../domain/settings";
+import type { AiChatMessage, AiChatProgress, AiChatResponse, AiRewriteTarget } from "../domain/ai";
+import { emptyVectorIndexStatus, type AiSettings, type SemanticSearchResult, type VectorIndexStatus } from "../domain/vector-index";
 import {
   defaultCloudSyncProfile,
   mergeCloudSyncProfile,
@@ -38,6 +41,7 @@ export class MockWorkspaceGateway implements WorkspaceGateway {
     ["one.md", "---\ntitle: One\ntags: [test]\n---\n\n# One\n\nOriginal"],
   ]);
   attachments = new Map<string, AttachmentFile>();
+  folders = new Set<string>();
   writes: Array<{ path: string; content: string }> = [];
   savedAttachments: SaveAttachmentInput[] = [];
   failWrite = false;
@@ -49,6 +53,18 @@ export class MockWorkspaceGateway implements WorkspaceGateway {
   queryLibraryCount = 0;
   scanAttachmentCount = 0;
   indexInfoOverrides: Partial<WorkspaceIndexInfo> = {};
+  vectorIndexStatus = emptyVectorIndexStatus({ totalNotes: 1 });
+  vectorIndexCalls = 0;
+  semanticResults: SemanticSearchResult[] = [];
+  chatResult: AiChatResponse = {
+    message: "I prepared an edit for review.",
+    edit: { tool: "replace_document", replacement: "Rewritten content" },
+  };
+  chatCalls: Array<{
+    settings: AiSettings;
+    messages: AiChatMessage[];
+    target: AiRewriteTarget;
+  }> = [];
 
   async chooseWorkspace(_title?: string) {
     return "/workspace";
@@ -73,7 +89,18 @@ export class MockWorkspaceGateway implements WorkspaceGateway {
 
   async queryLibrary(_root: string, query: LibraryQuery): Promise<LibraryPage> {
     this.queryLibraryCount += 1;
-    return queryNotesInMemory(this.listNotes(), query);
+    const page = queryNotesInMemory(this.listNotes(), query);
+    const counts = new Map(page.stats.folders.map((item) => [item.folder, item.count]));
+    for (const folder of this.folders) {
+      if (!counts.has(folder)) counts.set(folder, 0);
+    }
+    return {
+      ...page,
+      stats: {
+        ...page.stats,
+        folders: [...counts.entries()].map(([folder, count]) => ({ folder, count })),
+      },
+    };
   }
 
   async reconcileWorkspace(root: string, query?: LibraryQuery): Promise<LibraryPage> {
@@ -108,6 +135,41 @@ export class MockWorkspaceGateway implements WorkspaceGateway {
     return this.queryLibrary(root, query ?? { q: "", nav: "all", folder: null, tag: null });
   }
 
+  async getVectorIndexStatus(_root: string, _settings: AiSettings): Promise<VectorIndexStatus> {
+    return structuredClone(this.vectorIndexStatus);
+  }
+
+  async indexVectorWorkspace(_root: string, _settings: AiSettings, _force?: boolean): Promise<VectorIndexStatus> {
+    this.vectorIndexCalls += 1;
+    this.vectorIndexStatus = {
+      ...this.vectorIndexStatus,
+      enabled: true,
+      indexedNotes: this.vectorIndexStatus.totalNotes,
+      pendingNotes: 0,
+    };
+    return structuredClone(this.vectorIndexStatus);
+  }
+
+  async semanticSearch(_root: string, _settings: AiSettings, _query: string): Promise<SemanticSearchResult[]> {
+    return structuredClone(this.semanticResults);
+  }
+
+  async chatWithNote(
+    _root: string,
+    settings: AiSettings,
+    messages: AiChatMessage[],
+    target: AiRewriteTarget,
+    onProgress?: (progress: AiChatProgress) => void,
+  ) {
+    onProgress?.({ stage: "callingModel", model: settings.chatModel });
+    this.chatCalls.push({
+      settings: structuredClone(settings),
+      messages: structuredClone(messages),
+      target: structuredClone(target),
+    });
+    return structuredClone(this.chatResult);
+  }
+
   async readNote(_root: string, relativePath: string) {
     const content = this.files.get(relativePath);
     if (content === undefined) throw new Error("missing");
@@ -122,9 +184,50 @@ export class MockWorkspaceGateway implements WorkspaceGateway {
   }
 
   async createNote(input: CreateNoteInput) {
-    const relativePath = `${input.title.toLowerCase().replace(/\s+/g, "-")}.${input.extension}`;
+    const prefix = normalizeFolderKey(input.folder ?? "");
+    for (const folder of collectFolderPaths([prefix])) this.folders.add(folder);
+    const relativePath = `${prefix ? `${prefix}/` : ""}${input.title.toLowerCase().replace(/\s+/g, "-")}.${input.extension}`;
     this.files.set(relativePath, `# ${input.title}`);
     return this.noteAt(relativePath);
+  }
+
+  async createFolder(_root: string, folder: string) {
+    const normalized = normalizeFolderKey(folder);
+    if (!normalized) throw new Error("invalid folder");
+    for (const path of collectFolderPaths([normalized])) this.folders.add(path);
+    return normalized;
+  }
+
+  async renameFolder(root: string, folder: string, newFolder: string) {
+    void root;
+    const inside = (path: string) => path === folder || path.startsWith(`${folder}/`);
+    if (!folder || folder.split(/[\\/]/).some((part) => !part || part.startsWith(".")) || folder.split("/").slice(0, -1).join("/") !== newFolder.split("/").slice(0, -1).join("/") || !newFolder || newFolder.split(/[\\/]/).some((part) => !part || part.startsWith(".")) || newFolder.startsWith(`${folder}/`)) {
+      throw new GatewayError({ code: "invalid_path", message: "Folder path is invalid." });
+    }
+    if (!this.folders.has(folder) && ![...this.files.keys()].some(inside)) throw new GatewayError({ code: "not_found", message: "Folder does not exist." });
+    if (this.folders.has(newFolder) || [...this.files.keys()].some((path) => path === newFolder || path.startsWith(`${newFolder}/`))) throw new GatewayError({ code: "conflict", message: "Folder already exists." });
+    for (const [path, content] of [...this.files]) {
+      if (!inside(path)) continue;
+      this.files.set(newFolder + path.slice(folder.length), content);
+      this.files.delete(path);
+    }
+    for (const path of [...this.folders]) {
+      if (!inside(path)) continue;
+      this.folders.delete(path);
+      this.folders.add(newFolder + path.slice(folder.length));
+    }
+    for (const path of collectFolderPaths([newFolder])) this.folders.add(path);
+    return newFolder;
+  }
+
+  async deleteFolder(root: string, folder: string) {
+    void root;
+    if (!folder || folder.split(/[\\/]/).some((part) => !part || part.startsWith("."))) throw new GatewayError({ code: "invalid_path", message: "Folder path is invalid." });
+    const inside = (path: string) => path === folder || path.startsWith(`${folder}/`);
+    if (!this.folders.has(folder) && ![...this.files.keys()].some(inside)) throw new GatewayError({ code: "not_found", message: "Folder does not exist." });
+    for (const path of [...this.files.keys()]) if (inside(path)) this.files.delete(path);
+    for (const path of [...this.folders]) if (inside(path)) this.folders.delete(path);
+    return `.memoir-trash/${folder}`;
   }
 
   async renameNote(_root: string, oldRelativePath: string, newRelativePath: string): Promise<RenamedNote> {

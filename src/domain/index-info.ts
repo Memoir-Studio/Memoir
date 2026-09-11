@@ -1,6 +1,6 @@
 export const INDEX_RELATIVE_PATH = ".memoir/index.sqlite";
 export const INDEX_SCHEMA_NAME = "memoir-index";
-export const INDEX_SCHEMA_VERSION = 3;
+export const INDEX_SCHEMA_VERSION = 4;
 export const INDEX_PARSE_ALGO_VERSION = 2;
 export const INDEX_READ_CAP = 1024 * 1024;
 

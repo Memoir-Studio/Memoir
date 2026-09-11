@@ -1,4 +1,5 @@
 import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react";
+import { StrictMode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_SETTINGS } from "../../domain/settings";
 import { useAppStore } from "../../store/app-store";
@@ -39,6 +40,9 @@ vi.mock("./EditorPane", async () => {
       return () => {
         scrollHarness.editorScroller = null;
       };
+    }, []);
+    React.useLayoutEffect(() => {
+      props.onScroll?.();
     }, []);
     return React.createElement("div", {
       "data-testid": "editor-scroller",
@@ -114,11 +118,20 @@ describe("EditorWorkspace synchronized scrolling", () => {
       takeRecords() { return []; }
       unobserve() {}
     };
+    let nextFrameId = 0;
+    const frameIds: number[] = [];
     vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+      const id = ++nextFrameId;
       frames.push(callback);
-      return frames.length;
+      frameIds.push(id);
+      return id;
     });
-    vi.spyOn(window, "cancelAnimationFrame").mockImplementation(() => undefined);
+    vi.spyOn(window, "cancelAnimationFrame").mockImplementation((id) => {
+      const index = frameIds.indexOf(id);
+      if (index < 0) return;
+      frameIds.splice(index, 1);
+      frames.splice(index, 1);
+    });
     const content = Array.from({ length: 40 }, (_, index) => `Line ${index + 1}`).join("\n");
     useAppStore.setState({
       workspaceRoot: null,
@@ -143,7 +156,9 @@ describe("EditorWorkspace synchronized scrolling", () => {
     });
 
     const view = render(
-      <EditorWorkspace isDark={false} onDelete={() => undefined} onRename={() => undefined} />,
+      <StrictMode>
+        <EditorWorkspace isDark={false} onDelete={() => undefined} onRename={() => undefined} />
+      </StrictMode>,
     );
     const editor = await waitFor(() => view.getByTestId("editor-scroller"));
     const preview = view.getByTestId("preview-scroller");
@@ -158,17 +173,26 @@ describe("EditorWorkspace synchronized scrolling", () => {
     fireEvent.scroll(preview);
     // Repeated events from the same programmatic write must also stay suppressed.
     fireEvent.scroll(preview);
+
+    // A different position is real movement even if the old guard has not expired.
+    preview.scrollTop += 180;
+    fireEvent.scroll(preview);
+    expect(frames).toHaveLength(1);
+    act(() => frames.shift()?.(8));
+    expect(scrollHarness.scrollToLine).toHaveBeenCalledTimes(1);
+
+    // Intent alone must schedule synchronization. Some CodeMirror/browser
+    // combinations do not deliver a separate usable scroll event.
     fireEvent.wheel(preview);
     preview.scrollTop = 1200;
-    fireEvent.scroll(preview);
     act(() => {
       for (const callback of resizeCallbacks) callback([], {} as ResizeObserver);
     });
     expect(preview.scrollTop).toBe(1200);
     act(() => frames.shift()?.(16));
 
-    expect(scrollHarness.scrollToLine).toHaveBeenCalledTimes(1);
-    expect(scrollHarness.scrollToLine.mock.calls[0]?.[0]).toBeGreaterThan(25);
+    expect(scrollHarness.scrollToLine).toHaveBeenCalledTimes(2);
+    expect(scrollHarness.scrollToLine.mock.calls[1]?.[0]).toBeGreaterThan(25);
 
     // CodeMirror may emit multiple scroll events while correcting its virtual viewport.
     fireEvent.scroll(editor);

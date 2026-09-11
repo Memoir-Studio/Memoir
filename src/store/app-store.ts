@@ -127,6 +127,7 @@ function mergeAttachments(current: AttachmentFile[], incoming: AttachmentFile[])
 
 export function createAppStore(gateways: AppGateways = getGateways()) {
   let preferencesTimer: number | null = null;
+  let folderMutationPending = false;
   let draftTimer: number | null = null;
   let draftIdentity: string | null = null;
   let cloudSyncTimer: number | null = null;
@@ -135,6 +136,9 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
   let cloudSyncProgressWatch: Promise<void> | null = null;
   let metadataTimer: number | null = null;
   let metadataPath: string | null = null;
+  let vectorIndexTimer: number | null = null;
+  let vectorIndexInFlight = false;
+  let vectorIndexPending = false;
   const noteContentCache = new Map<string, CachedNoteContent>();
 
   const contentCacheKey = (root: string, relativePath: string) => `${root}\0${relativePath}`;
@@ -307,6 +311,38 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
         state.favoritePaths,
       );
 
+    const runVectorIndex = async () => {
+      const state = get();
+      if (!state.workspaceRoot || !state.settings.ai.enabled) return;
+      if (vectorIndexInFlight) {
+        vectorIndexPending = true;
+        return;
+      }
+      vectorIndexInFlight = true;
+      try {
+        await gateways.workspace.indexVectorWorkspace(state.workspaceRoot, state.settings.ai, false);
+      } catch (error) {
+        // Background indexing must not interrupt editing; the index panel exposes the failure.
+        set({ error: storeT(get().settings, "errors.vectorIndex", { message: toMessage(error) }) });
+      } finally {
+        vectorIndexInFlight = false;
+        if (vectorIndexPending) {
+          vectorIndexPending = false;
+          scheduleVectorIndex(400);
+        }
+      }
+    };
+
+    const scheduleVectorIndex = (delayMs = 1200) => {
+      const state = get();
+      if (!state.workspaceRoot || !state.settings.ai.enabled) return;
+      if (vectorIndexTimer !== null) window.clearTimeout(vectorIndexTimer);
+      vectorIndexTimer = window.setTimeout(() => {
+        vectorIndexTimer = null;
+        void runVectorIndex();
+      }, delayMs);
+    };
+
     const applyLibraryPage = async (
       root: string,
       page: LibraryPage,
@@ -375,7 +411,7 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
     const saveActiveNoteAction = async () => {
       syncLiveEditorContent();
       const { workspaceRoot, activePath, content, loadedContentPath, isSaving } = get();
-      if (!workspaceRoot || !activePath || loadedContentPath !== activePath || isSaving) return;
+      if (!workspaceRoot || !activePath || loadedContentPath !== activePath || isSaving || folderMutationPending) return;
       const saveRoot = workspaceRoot;
       const savePath = activePath;
       const saveContent = content;
@@ -405,6 +441,7 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
           };
         });
         scheduleCloudSync();
+        scheduleVectorIndex();
       } catch (error) {
         set((state) => ({
           isSaving: state.activePath === savePath ? false : state.isSaving,
@@ -526,11 +563,80 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
         const created = await gateways.workspace.createNote({ root, ...input });
         const page = await gateways.workspace.queryLibrary(root, currentQuery());
         await applyLibraryPage(root, page, created.relativePath);
+        scheduleVectorIndex();
       } catch (error) {
         set({
           isLoading: false,
           error: storeT(get().settings, "errors.createNote", { message: toMessage(error) }),
         });
+      }
+    };
+
+    const createFolderAction = async (folder: string) => {
+      const root = get().workspaceRoot;
+      const normalized = normalizeFolderKey(folder);
+      if (!root || !normalized) return;
+      set({ isLoading: true, error: "" });
+      try {
+        await gateways.workspace.createFolder(root, normalized);
+        const page = await gateways.workspace.queryLibrary(root, currentQuery());
+        await applyLibraryPage(root, page);
+      } catch (error) {
+        set({
+          isLoading: false,
+          error: storeT(get().settings, "errors.createFolder", { message: toMessage(error) }),
+        });
+      }
+    };
+
+    const mutateFolder = async (folder: string, newFolder?: string) => {
+      syncLiveEditorContent();
+      const { workspaceRoot: root } = get();
+      if (!root || !folder || newFolder === folder || get().isLoading || get().isSaving) return;
+      folderMutationPending = true;
+      set({ isLoading: true, error: "" });
+      try {
+        // The graph contains all indexed paths, including notes outside the current page/filter.
+        const graph = await gateways.workspace.getNoteGraph(root);
+        const inside = (path: string) => path === folder || path.startsWith(`${folder}/`);
+        const remap = (path: string) => newFolder + path.slice(folder.length);
+        const paths = graph.nodes.map((node) => node.relativePath).filter(inside);
+        if (newFolder !== undefined) await gateways.workspace.renameFolder(root, folder, newFolder);
+        else await gateways.workspace.deleteFolder(root, folder);
+        syncLiveEditorContent();
+        const { activePath, content, savedContent, scopedFilter, favoritePaths, folderAppearances } = get();
+        if (activePath && inside(activePath) && draftTimer !== null) { window.clearTimeout(draftTimer); draftTimer = null; }
+        if (activePath && inside(activePath) && !paths.includes(activePath)) paths.push(activePath);
+        for (const path of paths) {
+          const draft = path === activePath && content !== savedContent
+            ? content : await gateways.persistence.readDraft(root, path);
+          if (newFolder !== undefined && draft !== null) await gateways.persistence.writeDraft(root, remap(path), draft);
+          await gateways.persistence.deleteDraft(root, path);
+        }
+        for (const path of favoritePaths.filter(inside)) {
+          if (newFolder !== undefined) await gateways.persistence.setFavorite(root, remap(path), true);
+          await gateways.persistence.setFavorite(root, path, false);
+        }
+        for (const [path, appearance] of Object.entries(folderAppearances)) {
+          if (!inside(path)) continue;
+          if (newFolder !== undefined) await gateways.persistence.setFolderAppearance(root, remap(path), appearance);
+          await gateways.persistence.setFolderAppearance(root, path, null);
+        }
+        const activeAffected = Boolean(activePath && inside(activePath));
+        set({
+          ...(scopedFilter?.type === "folder" && inside(scopedFilter.value)
+            ? { scopedFilter: newFolder === undefined ? null : { type: "folder" as const, value: remap(scopedFilter.value) } } : {}),
+          ...(activeAffected ? newFolder === undefined
+            ? { activePath: null, loadedContentPath: null, content: "", savedContent: "" }
+            : { activePath: remap(activePath!), loadedContentPath: remap(activePath!) } : {}),
+        });
+        const page = await gateways.workspace.queryLibrary(root, currentQuery());
+        await applyLibraryPage(root, page, undefined, { selectIfNeeded: activeAffected });
+        scheduleVectorIndex();
+      } catch (error) {
+        set({ isLoading: false, error: storeT(get().settings, newFolder === undefined ? "errors.deleteFolder" : "errors.renameFolder", { message: toMessage(error) }) });
+      } finally {
+        folderMutationPending = false;
       }
     };
 
@@ -541,6 +647,7 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
       try {
         const page = await gateways.workspace.rebuildIndex(root, currentQuery());
         await applyLibraryPage(root, page);
+        scheduleVectorIndex(100);
         set({ status: storeT(get().settings, "status.indexRebuilt") });
       } catch (error) {
         set({
@@ -580,6 +687,7 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
         await applyLibraryPage(workspaceRoot, page, wasActive ? renamed.note.relativePath : undefined, {
           selectIfNeeded: wasActive,
         });
+        scheduleVectorIndex();
       } catch (error) {
         set({
           isLoading: false,
@@ -609,6 +717,7 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
         } else set({ favoritePaths: nextFavorites });
         const page = await gateways.workspace.queryLibrary(workspaceRoot, currentQuery());
         await applyLibraryPage(workspaceRoot, page, null, { selectIfNeeded: relativePath === activePath });
+        scheduleVectorIndex();
       } catch (error) {
         set({
           isLoading: false,
@@ -630,6 +739,7 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
         const { page, attachments } = await loadWorkspaceSnapshot(gateways, root, currentQuery());
         set({ attachments });
         await applyLibraryPage(root, page, preferredPath);
+        scheduleVectorIndex();
       } catch (error) {
         set({
           isLoading: false,
@@ -940,6 +1050,9 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
         initialize: initializeAction,
         refreshWorkspace: refreshWorkspaceAction,
         createNote: createNoteAction,
+        createFolder: createFolderAction,
+        renameFolder: (folder, newFolder) => mutateFolder(folder, newFolder),
+        deleteFolder: (folder) => mutateFolder(folder),
         rebuildIndex: rebuildIndexAction,
         renameNote: renameNoteAction,
         renameActiveNote: renameActiveNoteAction,
@@ -964,7 +1077,20 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
           libraryQuery.runNow();
         },
       }),
-      ...createUiSlice({ set, get, persistPreferences }),
+      ...createUiSlice({
+        set,
+        get,
+        persistPreferences,
+        onSettingsChanged: (previous, next) => {
+          const connectionChanged =
+            previous.ai.enabled !== next.ai.enabled ||
+            previous.ai.provider !== next.ai.provider ||
+            previous.ai.baseUrl !== next.ai.baseUrl ||
+            previous.ai.apiKey !== next.ai.apiKey ||
+            previous.ai.embeddingModel !== next.ai.embeddingModel;
+          if (next.ai.enabled && connectionChanged) scheduleVectorIndex(100);
+        },
+      }),
       ...createSyncSlice({
         saveProfile: saveCloudSyncProfileAction,
         testConnection: testCloudSyncAction,

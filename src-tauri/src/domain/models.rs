@@ -33,7 +33,6 @@ pub enum LibraryNav {
     All,
     Recent,
     Favorites,
-    Uncategorized,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -74,7 +73,6 @@ pub struct LibraryStats {
     pub total: u64,
     pub recent: u64,
     pub favorites: u64,
-    pub uncategorized: u64,
     pub folders: Vec<FolderStat>,
     pub tags: Vec<TagStat>,
     pub truncated: bool,
@@ -131,6 +129,85 @@ pub struct WorkspaceIndexInfo {
     pub tag_link_count: u64,
     pub note_link_count: u64,
     pub truncated_count: u64,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct VectorIndexStatus {
+    pub enabled: bool,
+    pub model: String,
+    pub dimensions: u32,
+    pub total_notes: u64,
+    pub indexed_notes: u64,
+    pub pending_notes: u64,
+    pub failed_notes: u64,
+    pub chunk_count: u64,
+    pub last_indexed_ms: u128,
+    pub last_error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SemanticSearchResult {
+    pub relative_path: String,
+    pub title: String,
+    pub excerpt: String,
+    pub content: String,
+    pub score: f32,
+    pub chunk_index: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AiChatMessage {
+    pub role: String,
+    pub content: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AiRewriteTarget {
+    pub path: String,
+    pub from: u64,
+    pub to: u64,
+    pub source: String,
+    pub scope: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AiEditProposal {
+    pub tool: String,
+    pub replacement: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AiChatResponse {
+    pub message: String,
+    pub edit: Option<AiEditProposal>,
+}
+
+pub const AI_CHAT_PROGRESS_EVENT: &str = "ai-chat-progress";
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AiChatProgress {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content_delta: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning_delta: Option<String>,
+    pub stage: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub query: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub result_count: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -206,6 +283,55 @@ pub struct GeneralSettings {
     pub note_sort_direction: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AiSettings {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default = "default_ai_provider")]
+    pub provider: String,
+    #[serde(default = "default_ai_base_url")]
+    pub base_url: String,
+    #[serde(default)]
+    pub api_key: String,
+    #[serde(default = "default_embedding_model")]
+    pub embedding_model: String,
+    #[serde(default)]
+    pub reranking_model: String,
+    #[serde(default = "default_chat_model")]
+    pub chat_model: String,
+}
+
+fn default_ai_provider() -> String {
+    "openai".into()
+}
+
+fn default_ai_base_url() -> String {
+    "https://api.openai.com/v1".into()
+}
+
+fn default_embedding_model() -> String {
+    "text-embedding-3-small".into()
+}
+
+fn default_chat_model() -> String {
+    "gpt-4o-mini".into()
+}
+
+impl Default for AiSettings {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            provider: default_ai_provider(),
+            base_url: default_ai_base_url(),
+            api_key: String::new(),
+            embedding_model: default_embedding_model(),
+            reranking_model: String::new(),
+            chat_model: default_chat_model(),
+        }
+    }
+}
+
 fn default_close_behavior() -> String {
     "tray".into()
 }
@@ -236,6 +362,8 @@ pub struct AppSettings {
     pub editor: EditorSettings,
     #[serde(default)]
     pub general: GeneralSettings,
+    #[serde(default)]
+    pub ai: AiSettings,
 }
 
 impl AppSettings {

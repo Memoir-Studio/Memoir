@@ -22,7 +22,7 @@ export type HeadingItem = {
   text: string;
 };
 
-export type NavFilter = "all" | "recent" | "favorites" | "uncategorized";
+export type NavFilter = "all" | "recent" | "favorites";
 
 export type ScopedFilter =
   | { type: "folder"; value: string }
@@ -53,7 +53,6 @@ export type LibraryStats = {
   total: number;
   recent: number;
   favorites: number;
-  uncategorized: number;
   folders: FolderStat[];
   tags: TagStat[];
   truncated: boolean;
@@ -74,7 +73,6 @@ export function emptyLibraryStats(): LibraryStats {
     total: 0,
     recent: 0,
     favorites: 0,
-    uncategorized: 0,
     folders: [],
     tags: [],
     truncated: false,

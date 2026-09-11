@@ -434,6 +434,8 @@ export interface EditorHandle {
   redo: () => void;
   selectAll: () => void;
   getSelectedText: () => string;
+  getSelection: () => { from: number; to: number; text: string } | null;
+  replaceRange: (from: number, to: number, text: string, expected: string) => boolean;
   cut: () => Promise<void>;
   copy: () => Promise<void>;
 }
@@ -481,10 +483,12 @@ export const EditorPane = forwardRef<EditorHandle, EditorPaneProps>(function Edi
   const dropDepthRef = useRef(0);
   const ignorePointerUntil = useRef(0);
   const onScrollRef = useRef(onScroll);
+  const onScrollIntentRef = useRef(onScrollIntent);
   const detachScrollRef = useRef<(() => void) | null>(null);
   const callbacksRef = useRef({ onPasteImages, onContextMenu, onOpenNote });
   callbacksRef.current = { onPasteImages, onContextMenu, onOpenNote };
   onScrollRef.current = onScroll;
+  onScrollIntentRef.current = onScrollIntent;
   const extensions = useMemo(
     () =>
       createEditorExtensions(
@@ -597,6 +601,28 @@ export const EditorPane = forwardRef<EditorHandle, EditorPaneProps>(function Edi
         const selection = view.state.selection.main;
         return view.state.sliceDoc(selection.from, selection.to);
       },
+      getSelection: () => {
+        const view = hostRef.current?.getView();
+        if (!view) return null;
+        const selection = view.state.selection.main;
+        return {
+          from: selection.from,
+          to: selection.to,
+          text: view.state.sliceDoc(selection.from, selection.to),
+        };
+      },
+      replaceRange: (from, to, text, expected) => {
+        const view = hostRef.current?.getView();
+        if (!view || from < 0 || to < from || to > view.state.doc.length) return false;
+        if (view.state.sliceDoc(from, to) !== expected) return false;
+        view.dispatch({
+          changes: { from, to, insert: text },
+          selection: EditorSelection.range(from, from + text.length),
+          userEvent: "input.ai",
+        });
+        view.focus();
+        return true;
+      },
       cut: async () => {
         const view = hostRef.current?.getView();
         if (!view) return;
@@ -648,8 +674,17 @@ export const EditorPane = forwardRef<EditorHandle, EditorPaneProps>(function Edi
         onCreateEditor={(view) => {
           detachScrollRef.current?.();
           const handleScroll = () => onScrollRef.current?.();
+          const handleScrollIntent = () => onScrollIntentRef.current?.();
           view.scrollDOM.addEventListener("scroll", handleScroll, { passive: true });
-          detachScrollRef.current = () => view.scrollDOM.removeEventListener("scroll", handleScroll);
+          view.scrollDOM.addEventListener("wheel", handleScrollIntent, { passive: true });
+          view.scrollDOM.addEventListener("pointerdown", handleScrollIntent, { passive: true });
+          view.scrollDOM.addEventListener("touchstart", handleScrollIntent, { passive: true });
+          detachScrollRef.current = () => {
+            view.scrollDOM.removeEventListener("scroll", handleScroll);
+            view.scrollDOM.removeEventListener("wheel", handleScrollIntent);
+            view.scrollDOM.removeEventListener("pointerdown", handleScrollIntent);
+            view.scrollDOM.removeEventListener("touchstart", handleScrollIntent);
+          };
           handleScroll();
         }}
         ref={hostRef}
