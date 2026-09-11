@@ -257,5 +257,21 @@ describe("SettingsDialog", () => {
       ...DEFAULT_SETTINGS,
       ai: { ...DEFAULT_SETTINGS.ai, chatModel: "qwen3:8b" },
     });
+
+    fireEvent.change(view.getByRole("spinbutton", { name: "上下文最大长度" }), {
+      target: { value: "64000" },
+    });
+    expect(onSettingsChange).toHaveBeenLastCalledWith({
+      ...DEFAULT_SETTINGS,
+      ai: { ...DEFAULT_SETTINGS.ai, contextMaxLength: 64_000 },
+    });
+
+    fireEvent.change(view.getByRole("spinbutton", { name: "向量化最大长度" }), {
+      target: { value: "1200" },
+    });
+    expect(onSettingsChange).toHaveBeenLastCalledWith({
+      ...DEFAULT_SETTINGS,
+      ai: { ...DEFAULT_SETTINGS.ai, embeddingMaxLength: 1_200 },
+    });
   });
 });

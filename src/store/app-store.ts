@@ -1087,7 +1087,8 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
             previous.ai.provider !== next.ai.provider ||
             previous.ai.baseUrl !== next.ai.baseUrl ||
             previous.ai.apiKey !== next.ai.apiKey ||
-            previous.ai.embeddingModel !== next.ai.embeddingModel;
+            previous.ai.embeddingModel !== next.ai.embeddingModel ||
+            previous.ai.embeddingMaxLength !== next.ai.embeddingMaxLength;
           if (next.ai.enabled && connectionChanged) scheduleVectorIndex(100);
         },
       }),

@@ -708,6 +708,15 @@ export const settingsStyles = stylex.create({
       gridTemplateColumns: "1fr",
     },
   },
+  aiLimitGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+    gap: "12px",
+    marginTop: "12px",
+    "@media (max-width: 700px)": {
+      gridTemplateColumns: "1fr",
+    },
+  },
   aiModelCard: {
     minWidth: 0,
     borderWidth: "1px",

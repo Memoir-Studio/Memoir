@@ -24,7 +24,13 @@ import { indexInfoFromNotes, type WorkspaceIndexInfo } from "../domain/index-inf
 import { buildNoteGraph, type NoteGraph } from "../domain/note-links";
 import type { LibraryPage, LibraryQuery, RawNoteFile, RenamedNote } from "../domain/notes";
 import { parseNote, queryNotesInMemory } from "../domain/notes/note-utils";
-import { DEFAULT_SETTINGS } from "../domain/settings";
+import {
+  clampAiLength,
+  DEFAULT_AI_CONTEXT_MAX_LENGTH,
+  DEFAULT_SETTINGS,
+  MAX_AI_CONTEXT_MAX_LENGTH,
+  MIN_AI_CONTEXT_MAX_LENGTH,
+} from "../domain/settings";
 import type { AiChatMessage, AiChatProgress, AiChatResponse, AiRewriteTarget } from "../domain/ai";
 import { emptyVectorIndexStatus, type AiSettings, type SemanticSearchResult, type VectorIndexStatus } from "../domain/vector-index";
 import { APP_VERSION } from "../platform/app-version";
@@ -138,6 +144,41 @@ function parseAiChatResponse(value: string, scope: AiRewriteTarget["scope"]): Ai
   }
   if (!message) throw invalidResponse();
   return { message, edit: null };
+}
+
+function recentContextMessages(
+  messages: AiChatMessage[],
+  target: AiRewriteTarget,
+  configuredMaxLength: number,
+) {
+  const maxLength = clampAiLength(
+    configuredMaxLength,
+    MIN_AI_CONTEXT_MAX_LENGTH,
+    MAX_AI_CONTEXT_MAX_LENGTH,
+    DEFAULT_AI_CONTEXT_MAX_LENGTH,
+  );
+  const targetLength = [...target.source].length;
+  if (targetLength > maxLength) {
+    throw new GatewayError({
+      code: "io",
+      message: `Editor context exceeds the configured limit of ${maxLength} characters.`,
+    });
+  }
+  let remaining = maxLength - targetLength;
+  let start = messages.length;
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const length = [...messages[index].content].length;
+    if (length > remaining) break;
+    remaining -= length;
+    start = index;
+  }
+  if (messages.length && start === messages.length) {
+    throw new GatewayError({
+      code: "io",
+      message: `The latest message exceeds the configured context limit of ${maxLength} characters.`,
+    });
+  }
+  return messages.slice(start);
 }
 
 const SEARCH_NOTES_TOOL = {
@@ -535,6 +576,7 @@ export class BrowserWorkspaceGateway implements WorkspaceGateway {
     onProgress?: (progress: AiChatProgress) => void,
   ): Promise<AiChatResponse> {
     const base = settings.baseUrl.trim().replace(/\/+$/, "");
+    const contextMessages = recentContextMessages(messages, target, settings.contextMaxLength);
     const report = (progress: AiChatProgress) => onProgress?.(progress);
     report({ stage: "preparing", model: settings.chatModel });
     const requestMessages: Array<Record<string, unknown>> = [
@@ -547,7 +589,7 @@ export class BrowserWorkspaceGateway implements WorkspaceGateway {
         role: "user",
         content: `Editor target: ${target.scope}\nPath: ${target.path}\n<editor_context>\n${target.source}\n</editor_context>`,
       },
-      ...messages,
+      ...contextMessages,
     ];
     let allowTools = true;
     while (true) {

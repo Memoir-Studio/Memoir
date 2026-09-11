@@ -210,6 +210,8 @@ describe("BrowserWorkspaceGateway", () => {
           embeddingModel: "embedding",
           rerankingModel: "",
           chatModel: "chat-model",
+          contextMaxLength: 32_000,
+          embeddingMaxLength: 1_800,
         },
         [{ role: "user", content: "Polish it" }],
         {
@@ -260,6 +262,21 @@ describe("BrowserWorkspaceGateway", () => {
         [{ role: "user", content: "Polish it" }],
         { path: "note.md", from: 0, to: 4, source: "note", scope: "document" },
       )).rejects.toMatchObject({ code: "serialization" });
+    } finally {
+      fetchMock.mockRestore();
+    }
+  });
+
+  it("rejects editor content over the configured context length", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch");
+    try {
+      await expect(new BrowserWorkspaceGateway().chatWithNote(
+        "demo://memoir",
+        { ...DEFAULT_SETTINGS.ai, enabled: true, contextMaxLength: 1_000 },
+        [{ role: "user", content: "Summarize it" }],
+        { path: "note.md", from: 0, to: 1_001, source: "字".repeat(1_001), scope: "document" },
+      )).rejects.toMatchObject({ code: "io", message: expect.stringContaining("1000 characters") });
+      expect(fetchMock).not.toHaveBeenCalled();
     } finally {
       fetchMock.mockRestore();
     }

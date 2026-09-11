@@ -330,6 +330,8 @@ describe("Tauri gateways", () => {
         embeddingModel: "embedding",
         rerankingModel: "",
         chatModel: "chat-model",
+        contextMaxLength: 32_000,
+        embeddingMaxLength: 1_800,
       },
       [{ role: "user", content: "Search my notes" }],
       { path: "note.md", from: 0, to: 5, source: "Note", scope: "document" },

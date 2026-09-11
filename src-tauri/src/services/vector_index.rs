@@ -14,8 +14,6 @@ use rusqlite::{params, Connection, OptionalExtension};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 
-const CHUNK_TARGET_CHARS: usize = 1800;
-const CHUNK_OVERLAP_CHARS: usize = 240;
 const MAX_VECTOR_NOTE_BYTES: u64 = 16 * 1024 * 1024;
 
 #[derive(Debug, Clone)]
@@ -72,6 +70,9 @@ impl VectorIndexService {
             .notes;
         let mut dimensions = 0_u32;
         let mut last_error = None;
+        let chunk_target_chars = settings.embedding_max_length();
+        let stored_chunk_target_chars = stored_chunk_target_chars(&index.conn, model);
+        let chunk_length_changed = stored_chunk_target_chars != chunk_target_chars;
 
         for identity in notes {
             let note_id: Option<i64> = index
@@ -85,6 +86,7 @@ impl VectorIndexService {
                 .map_err(db_error)?;
             let Some(note_id) = note_id else { continue };
             if !force
+                && !chunk_length_changed
                 && is_current_ready(
                     &index.conn,
                     note_id,
@@ -112,7 +114,7 @@ impl VectorIndexService {
                     continue;
                 }
             };
-            let chunks = make_chunks(&content, &identity.file_name);
+            let chunks = make_chunks(&content, &identity.file_name, chunk_target_chars);
             let inputs = chunks
                 .iter()
                 .map(|chunk| chunk.content.clone())
@@ -139,6 +141,11 @@ impl VectorIndexService {
             )?;
         }
         set_meta(&index.conn, "active_model", model)?;
+        set_meta(
+            &index.conn,
+            &model_meta_key("chunk_target_chars", model),
+            &chunk_target_chars.to_string(),
+        )?;
         set_meta(
             &index.conn,
             &model_meta_key("last_indexed_ms", model),
@@ -169,14 +176,17 @@ impl VectorIndexService {
         if query.is_empty() {
             return Ok(Vec::new());
         }
+        let root_path = crate::domain::path::normalize_root(root)?;
+        let index = index::open_or_rebuild(&root_path);
+        let model = settings.embedding_model.trim();
+        if stored_chunk_target_chars(&index.conn, model) != settings.embedding_max_length() {
+            return Ok(Vec::new());
+        }
         let client = EmbeddingClient::new(settings)?;
         let query_vector = client
             .embed(&[query.to_string()])?
             .pop()
             .unwrap_or_default();
-        let root_path = crate::domain::path::normalize_root(root)?;
-        let index = index::open_or_rebuild(&root_path);
-        let model = settings.embedding_model.trim();
         let mut statement = index
             .conn
             .prepare(
@@ -228,7 +238,11 @@ impl VectorIndexService {
     }
 }
 
-fn make_chunks(content: &str, file_name: &str) -> Vec<Chunk> {
+fn make_chunks(content: &str, file_name: &str, target_chars: usize) -> Vec<Chunk> {
+    let target_chars = target_chars.max(1);
+    let overlap_chars = (target_chars / 8)
+        .max(1)
+        .min(target_chars.saturating_sub(1));
     let body = strip_frontmatter(content);
     let title = parse_note(content, file_name).title;
     let text = format!("Title: {title}\n\n{body}");
@@ -240,12 +254,12 @@ fn make_chunks(content: &str, file_name: &str) -> Vec<Chunk> {
     let mut start = 0;
     let mut index = 0;
     while start < chars.len() {
-        let mut end = (start + CHUNK_TARGET_CHARS).min(chars.len());
+        let mut end = (start + target_chars).min(chars.len());
         if end < chars.len() {
             if let Some(boundary) = chars[start..end].iter().rposition(|ch| {
                 *ch == '\n' || *ch == '。' || *ch == '！' || *ch == '？' || *ch == '.'
             }) {
-                if boundary > CHUNK_TARGET_CHARS / 2 {
+                if boundary > target_chars / 2 {
                     end = start + boundary + 1;
                 }
             }
@@ -269,7 +283,7 @@ fn make_chunks(content: &str, file_name: &str) -> Vec<Chunk> {
         if end >= chars.len() {
             break;
         }
-        start = end.saturating_sub(CHUNK_OVERLAP_CHARS);
+        start = end.saturating_sub(overlap_chars);
     }
     chunks
 }
@@ -353,23 +367,41 @@ fn is_current_ready(
 fn status_from_db(conn: &Connection, settings: &AiSettings) -> AppResult<VectorIndexStatus> {
     let model = settings.embedding_model.trim();
     let total_notes = scalar(conn, "SELECT COUNT(*) FROM notes")?;
-    let indexed_notes = scalar_params(conn, "SELECT COUNT(*) FROM ai_vector_state s JOIN notes n ON n.id = s.note_id WHERE s.model = ?1 AND s.status = 'ready' AND s.modified_ms = n.modified_ms AND s.size = n.size", params![model])?;
-    let failed_notes = scalar_params(conn, "SELECT COUNT(*) FROM ai_vector_state s JOIN notes n ON n.id = s.note_id WHERE s.model = ?1 AND s.status = 'error' AND s.modified_ms = n.modified_ms AND s.size = n.size", params![model])?;
-    let chunk_count = scalar_params(
-        conn,
-        "SELECT COUNT(*) FROM note_chunks WHERE model = ?1",
-        params![model],
-    )?;
+    let chunk_length_matches =
+        stored_chunk_target_chars(conn, model) == settings.embedding_max_length();
+    let indexed_notes = if chunk_length_matches {
+        scalar_params(conn, "SELECT COUNT(*) FROM ai_vector_state s JOIN notes n ON n.id = s.note_id WHERE s.model = ?1 AND s.status = 'ready' AND s.modified_ms = n.modified_ms AND s.size = n.size", params![model])?
+    } else {
+        0
+    };
+    let failed_notes = if chunk_length_matches {
+        scalar_params(conn, "SELECT COUNT(*) FROM ai_vector_state s JOIN notes n ON n.id = s.note_id WHERE s.model = ?1 AND s.status = 'error' AND s.modified_ms = n.modified_ms AND s.size = n.size", params![model])?
+    } else {
+        0
+    };
+    let chunk_count = if chunk_length_matches {
+        scalar_params(
+            conn,
+            "SELECT COUNT(*) FROM note_chunks WHERE model = ?1",
+            params![model],
+        )?
+    } else {
+        0
+    };
     let last_indexed_ms = meta_u128(conn, &model_meta_key("last_indexed_ms", model));
     let last_error = meta_string(conn, &model_meta_key("last_error", model));
     Ok(VectorIndexStatus {
         enabled: settings.enabled,
         model: model.to_string(),
-        dimensions: scalar_params(
-            conn,
-            "SELECT COALESCE(MAX(dimensions), 0) FROM note_chunks WHERE model = ?1",
-            params![model],
-        )? as u32,
+        dimensions: if chunk_length_matches {
+            scalar_params(
+                conn,
+                "SELECT COALESCE(MAX(dimensions), 0) FROM note_chunks WHERE model = ?1",
+                params![model],
+            )? as u32
+        } else {
+            0
+        },
         total_notes,
         indexed_notes,
         pending_notes: total_notes
@@ -405,6 +437,11 @@ fn meta_string(conn: &Connection, key: &str) -> String {
 }
 fn meta_u128(conn: &Connection, key: &str) -> u128 {
     meta_string(conn, key).parse().unwrap_or(0)
+}
+fn stored_chunk_target_chars(conn: &Connection, model: &str) -> usize {
+    meta_string(conn, &model_meta_key("chunk_target_chars", model))
+        .parse()
+        .unwrap_or(crate::domain::models::DEFAULT_AI_EMBEDDING_MAX_LENGTH as usize)
 }
 fn set_meta(conn: &Connection, key: &str, value: &str) -> AppResult<()> {
     conn.execute(
@@ -456,12 +493,23 @@ mod tests {
     #[test]
     fn chunks_are_bounded_and_overlap_long_notes() {
         let content = format!("# Topic\n\n{}", "word ".repeat(900));
-        let chunks = make_chunks(&content, "topic.md");
+        let target_chars = 1_800;
+        let chunks = make_chunks(&content, "topic.md", target_chars);
         assert!(chunks.len() > 1);
         assert!(chunks
             .iter()
-            .all(|chunk| chunk.content.chars().count() <= CHUNK_TARGET_CHARS));
+            .all(|chunk| chunk.content.chars().count() <= target_chars));
         assert!(chunks.windows(2).all(|pair| pair[1].start < pair[0].end));
+    }
+
+    #[test]
+    fn chunk_length_is_configurable() {
+        let content = format!("# Topic\n\n{}", "字".repeat(1_000));
+        let chunks = make_chunks(&content, "topic.md", 200);
+        assert!(chunks.len() > 5);
+        assert!(chunks
+            .iter()
+            .all(|chunk| chunk.content.chars().count() <= 200));
     }
 
     #[test]

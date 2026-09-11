@@ -87,7 +87,18 @@ describe("settings merge", () => {
       baseUrl: "https://api.openai.com/v1",
       embeddingModel: "text-embedding-3-small",
       chatModel: "qwen3:8b",
+      contextMaxLength: 32_000,
+      embeddingMaxLength: 1_800,
     });
+  });
+
+  it("defaults and clamps independent AI length limits", () => {
+    expect(mergeSettings({ ai: { contextMaxLength: 500, embeddingMaxLength: 500_000 } }).ai)
+      .toMatchObject({ contextMaxLength: 1_000, embeddingMaxLength: 100_000 });
+    expect(mergeSettings({ ai: {
+      contextMaxLength: Number.NaN,
+      embeddingMaxLength: Number.NaN,
+    } }).ai).toMatchObject({ contextMaxLength: 32_000, embeddingMaxLength: 1_800 });
   });
 
   it("falls back to the default AI provider for unknown values", () => {

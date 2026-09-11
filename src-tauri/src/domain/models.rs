@@ -300,7 +300,18 @@ pub struct AiSettings {
     pub reranking_model: String,
     #[serde(default = "default_chat_model")]
     pub chat_model: String,
+    #[serde(default = "default_ai_context_max_length")]
+    pub context_max_length: u32,
+    #[serde(default = "default_ai_embedding_max_length")]
+    pub embedding_max_length: u32,
 }
+
+pub const MIN_AI_CONTEXT_MAX_LENGTH: u32 = 1_000;
+pub const MAX_AI_CONTEXT_MAX_LENGTH: u32 = 2_000_000;
+pub const DEFAULT_AI_CONTEXT_MAX_LENGTH: u32 = 32_000;
+pub const MIN_AI_EMBEDDING_MAX_LENGTH: u32 = 100;
+pub const MAX_AI_EMBEDDING_MAX_LENGTH: u32 = 100_000;
+pub const DEFAULT_AI_EMBEDDING_MAX_LENGTH: u32 = 1_800;
 
 fn default_ai_provider() -> String {
     "openai".into()
@@ -318,6 +329,26 @@ fn default_chat_model() -> String {
     "gpt-4o-mini".into()
 }
 
+fn default_ai_context_max_length() -> u32 {
+    DEFAULT_AI_CONTEXT_MAX_LENGTH
+}
+
+fn default_ai_embedding_max_length() -> u32 {
+    DEFAULT_AI_EMBEDDING_MAX_LENGTH
+}
+
+impl AiSettings {
+    pub fn context_max_length(&self) -> usize {
+        self.context_max_length
+            .clamp(MIN_AI_CONTEXT_MAX_LENGTH, MAX_AI_CONTEXT_MAX_LENGTH) as usize
+    }
+
+    pub fn embedding_max_length(&self) -> usize {
+        self.embedding_max_length
+            .clamp(MIN_AI_EMBEDDING_MAX_LENGTH, MAX_AI_EMBEDDING_MAX_LENGTH) as usize
+    }
+}
+
 impl Default for AiSettings {
     fn default() -> Self {
         Self {
@@ -328,6 +359,8 @@ impl Default for AiSettings {
             embedding_model: default_embedding_model(),
             reranking_model: String::new(),
             chat_model: default_chat_model(),
+            context_max_length: default_ai_context_max_length(),
+            embedding_max_length: default_ai_embedding_max_length(),
         }
     }
 }

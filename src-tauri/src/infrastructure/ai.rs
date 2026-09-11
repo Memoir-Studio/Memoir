@@ -140,6 +140,7 @@ pub struct ChatCompletionClient {
     endpoint: String,
     model: String,
     api_key: String,
+    context_max_length: usize,
 }
 
 impl ChatCompletionClient {
@@ -164,6 +165,7 @@ impl ChatCompletionClient {
             endpoint: format!("{base}/chat/completions"),
             model: settings.chat_model.trim().to_string(),
             api_key: settings.api_key.trim().to_string(),
+            context_max_length: settings.context_max_length(),
         })
     }
 
@@ -192,6 +194,7 @@ impl ChatCompletionClient {
         } else {
             "replace_document"
         };
+        let context_messages = recent_context_messages(messages, target, self.context_max_length)?;
         let mut request_messages = vec![
             json!({
                 "role": "system",
@@ -205,7 +208,7 @@ impl ChatCompletionClient {
                 )
             }),
         ];
-        request_messages.extend(messages.iter().filter_map(|message| {
+        request_messages.extend(context_messages.iter().filter_map(|message| {
             let role = match message.role.as_str() {
                 "user" => "user",
                 "assistant" => "assistant",
@@ -369,6 +372,37 @@ impl ChatCompletionClient {
         }
         Ok(choice.message)
     }
+}
+
+fn recent_context_messages<'a>(
+    messages: &'a [AiChatMessage],
+    target: &AiRewriteTarget,
+    max_chars: usize,
+) -> AppResult<&'a [AiChatMessage]> {
+    let target_chars = target.source.chars().count();
+    if target_chars > max_chars {
+        return Err(AppError::new(
+            ErrorCode::Io,
+            format!("Editor context exceeds the configured limit of {max_chars} characters."),
+        ));
+    }
+    let mut remaining = max_chars - target_chars;
+    let mut start = messages.len();
+    for (index, message) in messages.iter().enumerate().rev() {
+        let length = message.content.chars().count();
+        if length > remaining {
+            break;
+        }
+        remaining -= length;
+        start = index;
+    }
+    if !messages.is_empty() && start == messages.len() {
+        return Err(AppError::new(
+            ErrorCode::Io,
+            format!("The latest message exceeds the configured context limit of {max_chars} characters."),
+        ));
+    }
+    Ok(&messages[start..])
 }
 
 fn invalid_chat_stream() -> AppError {
@@ -727,10 +761,11 @@ fn map_chat_request_error(error: reqwest::Error) -> AppError {
 #[cfg(test)]
 mod tests {
     use super::{
-        chat_message_text, parse_chat_response, read_chat_stream, run_search_tool,
-        search_notes_tool_definition, strip_wrapping_json_fence, ChatFunctionCall, ChatToolCall,
+        chat_message_text, parse_chat_response, read_chat_stream, recent_context_messages,
+        run_search_tool, search_notes_tool_definition, strip_wrapping_json_fence, ChatFunctionCall,
+        ChatToolCall,
     };
-    use crate::domain::SemanticSearchResult;
+    use crate::domain::{AiChatMessage, AiRewriteTarget, SemanticSearchResult};
     use serde_json::json;
 
     #[test]
@@ -877,5 +912,46 @@ mod tests {
             }])
         });
         assert_eq!(result["results"][0]["path"], "rust.md");
+    }
+
+    #[test]
+    fn keeps_only_recent_messages_within_the_context_limit() {
+        let messages = vec![
+            AiChatMessage {
+                role: "user".into(),
+                content: "a".repeat(400),
+            },
+            AiChatMessage {
+                role: "assistant".into(),
+                content: "b".repeat(400),
+            },
+            AiChatMessage {
+                role: "user".into(),
+                content: "c".repeat(400),
+            },
+        ];
+        let target = AiRewriteTarget {
+            path: "note.md".into(),
+            from: 0,
+            to: 100,
+            source: "d".repeat(100),
+            scope: "document".into(),
+        };
+        let selected = recent_context_messages(&messages, &target, 1_000).unwrap();
+        assert_eq!(selected.len(), 2);
+        assert_eq!(selected[0].role, "assistant");
+    }
+
+    #[test]
+    fn rejects_an_editor_context_over_the_limit() {
+        let target = AiRewriteTarget {
+            path: "note.md".into(),
+            from: 0,
+            to: 1_001,
+            source: "字".repeat(1_001),
+            scope: "document".into(),
+        };
+        let error = recent_context_messages(&[], &target, 1_000).unwrap_err();
+        assert!(error.message.contains("1000 characters"));
     }
 }

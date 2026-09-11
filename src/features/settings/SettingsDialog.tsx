@@ -20,7 +20,15 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { GITHUB_REPO_URL } from "../../domain/app-update";
-import type { AppSettings, LocalePreference } from "../../domain/settings";
+import {
+  clampAiLength,
+  MAX_AI_CONTEXT_MAX_LENGTH,
+  MAX_AI_EMBEDDING_MAX_LENGTH,
+  MIN_AI_CONTEXT_MAX_LENGTH,
+  MIN_AI_EMBEDDING_MAX_LENGTH,
+  type AppSettings,
+  type LocalePreference,
+} from "../../domain/settings";
 import {
   Button,
   Dialog,
@@ -387,6 +395,49 @@ function AiModelCard({
   );
 }
 
+function AiLengthCard({
+  icon: Icon,
+  label,
+  description,
+  value,
+  min,
+  max,
+  onChange,
+}: {
+  icon: typeof Database;
+  label: string;
+  description: string;
+  value: number;
+  min: number;
+  max: number;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <div {...stylex.props(styles.aiModelCard)}>
+      <div {...stylex.props(styles.aiModelCardTitle)}>
+        <Icon {...stylex.props(styles.aiModelIcon)} />
+        <span>{label}</span>
+      </div>
+      <p {...stylex.props(styles.aiModelDescription)}>{description}</p>
+      <div {...stylex.props(styles.aiModelLabel)}>
+        <Input
+          aria-label={label}
+          inputMode="numeric"
+          max={max}
+          min={min}
+          onChange={(event) => {
+            if (event.target.value === "") return;
+            onChange(clampAiLength(event.target.value, min, max, value));
+          }}
+          step={100}
+          type="number"
+          value={value}
+        />
+      </div>
+    </div>
+  );
+}
+
 function AiSettings({
   settings,
   onChange,
@@ -552,6 +603,32 @@ function AiSettings({
           onChange={(chatModel) => update({ chatModel })}
           placeholder="gpt-4o-mini"
           value={ai.chatModel}
+        />
+      </div>
+      <div {...stylex.props(styles.aiModelHeader)}>
+        <div>
+          <h4 {...stylex.props(styles.aiModelHeading)}>{t("settings.aiLengthLimits")}</h4>
+          <p {...stylex.props(styles.aiModelHint)}>{t("settings.aiLengthLimitsHint")}</p>
+        </div>
+      </div>
+      <div {...stylex.props(styles.aiLimitGrid)}>
+        <AiLengthCard
+          icon={MessageSquare}
+          label={t("settings.aiContextMaxLength")}
+          description={t("settings.aiContextMaxLengthDescription")}
+          min={MIN_AI_CONTEXT_MAX_LENGTH}
+          max={MAX_AI_CONTEXT_MAX_LENGTH}
+          onChange={(contextMaxLength) => update({ contextMaxLength })}
+          value={ai.contextMaxLength}
+        />
+        <AiLengthCard
+          icon={Database}
+          label={t("settings.aiEmbeddingMaxLength")}
+          description={t("settings.aiEmbeddingMaxLengthDescription")}
+          min={MIN_AI_EMBEDDING_MAX_LENGTH}
+          max={MAX_AI_EMBEDDING_MAX_LENGTH}
+          onChange={(embeddingMaxLength) => update({ embeddingMaxLength })}
+          value={ai.embeddingMaxLength}
         />
       </div>
     </div>

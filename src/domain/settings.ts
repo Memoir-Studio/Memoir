@@ -16,6 +16,12 @@ export type SettingsSection = "general" | "appearance" | "editor" | "ai" | "abou
 export const MIN_UI_SCALE = 0.8;
 export const MAX_UI_SCALE = 2;
 export const DEFAULT_UI_SCALE = 1;
+export const MIN_AI_CONTEXT_MAX_LENGTH = 1_000;
+export const MAX_AI_CONTEXT_MAX_LENGTH = 2_000_000;
+export const DEFAULT_AI_CONTEXT_MAX_LENGTH = 256_000;
+export const MIN_AI_EMBEDDING_MAX_LENGTH = 100;
+export const MAX_AI_EMBEDDING_MAX_LENGTH = 100_000;
+export const DEFAULT_AI_EMBEDDING_MAX_LENGTH = 1_800;
 
 export type AppSettings = {
   appearance: {
@@ -49,6 +55,8 @@ export type AppSettings = {
     embeddingModel: string;
     rerankingModel: string;
     chatModel: string;
+    contextMaxLength: number;
+    embeddingMaxLength: number;
   };
 };
 
@@ -84,6 +92,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
     embeddingModel: "text-embedding-3-small",
     rerankingModel: "",
     chatModel: "gpt-4o-mini",
+    contextMaxLength: DEFAULT_AI_CONTEXT_MAX_LENGTH,
+    embeddingMaxLength: DEFAULT_AI_EMBEDDING_MAX_LENGTH,
   },
 };
 
@@ -92,6 +102,12 @@ export function clampUiScale(value: unknown): number {
   if (!Number.isFinite(numeric)) return DEFAULT_UI_SCALE;
   const stepped = Math.round(numeric * 20) / 20;
   return Math.min(MAX_UI_SCALE, Math.max(MIN_UI_SCALE, stepped));
+}
+
+export function clampAiLength(value: unknown, minimum: number, maximum: number, fallback: number): number {
+  const numeric = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(numeric)) return fallback;
+  return Math.min(maximum, Math.max(minimum, Math.round(numeric)));
 }
 
 export function isLocalePreference(value: unknown): value is LocalePreference {
@@ -130,6 +146,10 @@ export function mergeSettings(
     ...DEFAULT_SETTINGS.general,
     ...settings?.general,
   };
+  const ai = {
+    ...DEFAULT_SETTINGS.ai,
+    ...settings?.ai,
+  };
   return {
     appearance: {
       ...appearance,
@@ -155,11 +175,22 @@ export function mergeSettings(
         : DEFAULT_SETTINGS.general.noteSortDirection,
     },
     ai: {
-      ...DEFAULT_SETTINGS.ai,
-      ...settings?.ai,
-      provider: isAiProvider(settings?.ai?.provider)
-        ? settings.ai.provider
+      ...ai,
+      provider: isAiProvider(ai.provider)
+        ? ai.provider
         : DEFAULT_SETTINGS.ai.provider,
+      contextMaxLength: clampAiLength(
+        ai.contextMaxLength,
+        MIN_AI_CONTEXT_MAX_LENGTH,
+        MAX_AI_CONTEXT_MAX_LENGTH,
+        DEFAULT_AI_CONTEXT_MAX_LENGTH,
+      ),
+      embeddingMaxLength: clampAiLength(
+        ai.embeddingMaxLength,
+        MIN_AI_EMBEDDING_MAX_LENGTH,
+        MAX_AI_EMBEDDING_MAX_LENGTH,
+        DEFAULT_AI_EMBEDDING_MAX_LENGTH,
+      ),
     },
   };
 }
