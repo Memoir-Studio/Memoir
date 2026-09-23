@@ -202,7 +202,7 @@ export const zh = {
   "library.vectorFailed": "失败",
   "library.vectorUpdated": "上次更新",
   "library.updateVectorIndex": "增量更新",
-  "library.rebuildVectorIndex": "重建索引",
+  "library.rebuildVectorIndex": "重建向量",
 
   "menu.insertAttachment": "插入到笔记",
   "dialog.deleteAttachment": "删除附件",

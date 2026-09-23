@@ -45,6 +45,7 @@ describe("IndexInspector", () => {
     });
     expect(view.getAllByText(".memoir/index.sqlite").length).toBeGreaterThan(0);
     expect(view.getByText("笔记")).toBeInTheDocument();
+    expect(view.getByRole("button", { name: "重建向量" })).toBeDisabled();
 
     await user.click(view.getByRole("button", { name: "重建索引" }));
     expect(view.getByRole("dialog", { name: "重建索引" })).toBeInTheDocument();

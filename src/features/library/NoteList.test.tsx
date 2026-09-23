@@ -381,6 +381,7 @@ describe("NoteList", () => {
       expect(view.getByText("磁盘缓存")).toBeInTheDocument();
     });
     expect(view.getByRole("button", { name: "重建索引" })).toBeInTheDocument();
+    expect(view.getByRole("button", { name: "重建向量" })).toBeInTheDocument();
   });
 
   it("shows the cloud sync panel from the sidebar", async () => {
