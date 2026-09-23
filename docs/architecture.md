@@ -87,6 +87,41 @@ Important command payloads use camelCase serde fields to match TypeScript. Chang
 to `AppState`, `LibraryQuery`, `LibraryPage`, sync progress, error codes, or
 rename results require matching frontend adapter tests and Rust tests.
 
+## Semantic vector retrieval
+
+SQLite remains the durable store for embeddings. The Rust vector service uses
+an in-memory [hnsw_rs](https://docs.rs/hnsw_rs/0.3.4/hnsw_rs/) graph for models
+with at least 1,024 usable chunks, with cosine distance over normalized vectors.
+The graph uses 24 connections, `efConstruction=200`, and `efSearch>=320`.
+Independent distance accumulators allow compiler SIMD optimization without
+platform-specific unsafe code. Candidate scores are recomputed from SQLite
+using the existing dot-product scoring before selecting the top notes.
+
+The service shares one active workspace/model/dimension graph across clones.
+A background worker constructs it from owned vectors read in a SQLite snapshot;
+searches continue using exact retrieval until it is ready. Graphs are rebuilt
+after application restart or vector changes; they are not persisted to disk.
+Every vector replacement or explicit vector deletion must change
+`ai_vector_meta.hnsw_revision` in the same transaction. Random revision tokens
+prevent row ID reuse across database rebuilds from matching an old cache.
+
+Each search checks candidate eligibility against its current SQLite snapshot,
+including model, ready state, source size and modification time. Note deletion
+and renaming are therefore visible without rebuilding the graph. Candidate
+counts expand when long notes or stale chunks leave too few distinct notes;
+exact retrieval is the fallback. Small datasets and graphs whose estimated
+memory exceeds 256 MiB also use exact retrieval. HNSW is approximate, so exact
+reranking of candidates does not guarantee global top-K recall.
+
+Run the synthetic recall and timing comparison with:
+
+```sh
+cargo test --manifest-path src-tauri/Cargo.toml --release --lib benchmark_hnsw -- --ignored --nocapture
+```
+
+It measures the first query, background graph construction, warm local queries,
+and recall against exact retrieval; embedding API latency is excluded.
+
 ## Error handling
 
 Rust returns typed error codes. The adapter maps transport errors into gateway

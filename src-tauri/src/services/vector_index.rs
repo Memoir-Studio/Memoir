@@ -1,3 +1,5 @@
+mod search;
+
 use crate::{
     domain::{
         note_parse::parse_note, AiSettings, AppError, AppResult, LibraryQuery,
@@ -12,7 +14,7 @@ use crate::{
 };
 use rusqlite::{params, Connection, OptionalExtension};
 use sha2::{Digest, Sha256};
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 const MAX_VECTOR_NOTE_BYTES: u64 = 16 * 1024 * 1024;
 
@@ -20,6 +22,7 @@ const MAX_VECTOR_NOTE_BYTES: u64 = 16 * 1024 * 1024;
 pub struct VectorIndexService {
     filesystem: LocalFileSystem,
     workspace: WorkspaceService,
+    search_cache: Arc<search::hnsw::HnswCache>,
 }
 
 #[derive(Debug, Clone)]
@@ -36,6 +39,7 @@ impl VectorIndexService {
         Self {
             filesystem,
             workspace,
+            search_cache: Arc::default(),
         }
     }
 
@@ -187,54 +191,14 @@ impl VectorIndexService {
             .embed(&[query.to_string()])?
             .pop()
             .unwrap_or_default();
-        let mut statement = index
-            .conn
-            .prepare(
-                "SELECT n.relative_path, n.title, n.excerpt, c.chunk_index, c.content, c.embedding
-               FROM note_chunks c
-               JOIN notes n ON n.id = c.note_id
-               JOIN ai_vector_state s ON s.note_id = c.note_id AND s.model = c.model
-              WHERE c.model = ?1 AND s.status = 'ready'
-                AND s.modified_ms = n.modified_ms AND s.size = n.size
-              ORDER BY c.note_id, c.chunk_index",
-            )
-            .map_err(db_error)?;
-        let rows = statement
-            .query_map(params![model], |row| {
-                Ok((
-                    row.get::<_, String>(0)?,
-                    row.get::<_, String>(1)?,
-                    row.get::<_, String>(2)?,
-                    row.get::<_, u32>(3)?,
-                    row.get::<_, String>(4)?,
-                    row.get::<_, Vec<u8>>(5)?,
-                ))
-            })
-            .map_err(db_error)?;
-        let mut best: HashMap<String, SemanticSearchResult> = HashMap::new();
-        for row in rows {
-            let (path, title, excerpt, chunk_index, content, bytes) = row.map_err(db_error)?;
-            let vector = blob_to_vector(&bytes)?;
-            let score = dot(&query_vector, &vector);
-            let result = SemanticSearchResult {
-                relative_path: path.clone(),
-                title,
-                excerpt,
-                content,
-                score,
-                chunk_index,
-            };
-            if best
-                .get(&path)
-                .map_or(true, |current| score > current.score)
-            {
-                best.insert(path, result);
-            }
-        }
-        let mut results = best.into_values().collect::<Vec<_>>();
-        results.sort_by(|left, right| right.score.total_cmp(&left.score));
-        results.truncate(limit.clamp(1, 100) as usize);
-        Ok(results)
+        search::hnsw::search_cached(
+            &index.conn,
+            &root_path,
+            model,
+            &query_vector,
+            limit,
+            &self.search_cache,
+        )
     }
 }
 
@@ -326,6 +290,7 @@ fn replace_note_vectors(
          ON CONFLICT(note_id, model) DO UPDATE SET modified_ms = excluded.modified_ms, size = excluded.size, status = 'ready', error = NULL, chunk_count = excluded.chunk_count, updated_at_ms = excluded.updated_at_ms",
         params![note_id, model, chunks.len() as i64, now_ms()],
     ).map_err(db_error)?;
+    search::hnsw::bump_revision(&txn)?;
     txn.commit().map_err(db_error)?;
     Ok(())
 }
@@ -337,17 +302,20 @@ fn mark_error(
     identity: &crate::domain::NoteIdentity,
     error: &str,
 ) -> AppResult<()> {
-    conn.execute(
+    let txn = conn.unchecked_transaction().map_err(db_error)?;
+    txn.execute(
         "DELETE FROM note_chunks WHERE note_id = ?1 AND model = ?2",
         params![note_id, model],
     )
     .map_err(db_error)?;
-    conn.execute(
+    txn.execute(
         "INSERT INTO ai_vector_state(note_id, model, modified_ms, size, status, error, chunk_count, updated_at_ms)
          VALUES (?1,?2,?3,?4,'error',?5,0,?6)
          ON CONFLICT(note_id, model) DO UPDATE SET modified_ms = excluded.modified_ms, size = excluded.size, status = 'error', error = excluded.error, chunk_count = 0, updated_at_ms = excluded.updated_at_ms",
         params![note_id, model, identity.modified_ms as i64, identity.size as i64, error, now_ms()],
     ).map_err(db_error)?;
+    search::hnsw::bump_revision(&txn)?;
+    txn.commit().map_err(db_error)?;
     Ok(())
 }
 
@@ -460,24 +428,6 @@ fn vector_to_blob(vector: &[f32]) -> Vec<u8> {
         .flat_map(|value| value.to_le_bytes())
         .collect()
 }
-fn blob_to_vector(bytes: &[u8]) -> AppResult<Vec<f32>> {
-    if bytes.len() % 4 != 0 {
-        return Err(AppError::new(
-            crate::domain::ErrorCode::Serialization,
-            "Stored vector has an invalid binary format.",
-        ));
-    }
-    Ok(bytes
-        .chunks_exact(4)
-        .map(|chunk| f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]))
-        .collect())
-}
-fn dot(left: &[f32], right: &[f32]) -> f32 {
-    if left.len() != right.len() {
-        return -1.0;
-    }
-    left.iter().zip(right).map(|(a, b)| a * b).sum()
-}
 fn db_error(error: rusqlite::Error) -> AppError {
     AppError::new(
         crate::domain::ErrorCode::Io,
@@ -510,13 +460,5 @@ mod tests {
         assert!(chunks
             .iter()
             .all(|chunk| chunk.content.chars().count() <= 200));
-    }
-
-    #[test]
-    fn vectors_round_trip_as_little_endian_float32() {
-        let source = vec![0.25_f32, -1.5, 2.0];
-        let encoded = vector_to_blob(&source);
-        assert_eq!(blob_to_vector(&encoded).unwrap(), source);
-        assert!(blob_to_vector(&[1, 2, 3]).is_err());
     }
 }

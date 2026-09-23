@@ -40,6 +40,7 @@ percent-encoding = "2"
 cpal = "0.15.3"
 whisper-rs = "0.16"
 simplet2s = "0.2"
+hnsw_rs = "0.3.4"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 whisper-rs = { version = "0.16", features = ["metal"] }
