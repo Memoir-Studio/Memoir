@@ -6,10 +6,16 @@ import { I18nProvider } from "../../i18n/react";
 import { applyElementTheme } from "../../styles/document-theme";
 import { parseNote } from "../library/note-utils";
 import { NotePreviewArticle } from "../preview/NotePreviewArticle";
+import { planPdfPageSegments } from "./pdf-pagination";
 
 const A4_WIDTH_MM = 210;
 const A4_HEIGHT_MM = 297;
 const EXPORT_WIDTH_PX = 794;
+const EXPORT_PAGE_HEIGHT_PX = (EXPORT_WIDTH_PX * A4_HEIGHT_MM) / A4_WIDTH_MM;
+const EXPORT_MARGIN_TOP_PX = 48;
+const EXPORT_MARGIN_BOTTOM_PX = 64;
+const EXPORT_PAGE_CONTENT_HEIGHT_PX =
+  EXPORT_PAGE_HEIGHT_PX - EXPORT_MARGIN_TOP_PX - EXPORT_MARGIN_BOTTOM_PX;
 
 async function waitForPreviewReady(host: HTMLElement, timeoutMs = 10_000) {
   const started = Date.now();
@@ -28,6 +34,7 @@ async function waitForPreviewReady(host: HTMLElement, timeoutMs = 10_000) {
     }
     await new Promise((resolve) => window.setTimeout(resolve, 40));
   }
+  throw new Error("Preview assets did not finish loading.");
 }
 
 async function elementToPdfBytes(element: HTMLElement, title: string) {
@@ -35,30 +42,94 @@ async function elementToPdfBytes(element: HTMLElement, title: string) {
     import("html2canvas-pro"),
     import("jspdf"),
   ]);
-  const canvas = await html2canvas(element, {
-    backgroundColor: "#ffffff",
-    logging: false,
-    scale: 2,
-    useCORS: true,
-    windowHeight: element.scrollHeight,
-    windowWidth: element.scrollWidth,
-  });
-  const image = canvas.toDataURL("image/jpeg", 0.95);
-  const imgWidth = A4_WIDTH_MM;
-  const imgHeight = (canvas.height * imgWidth) / Math.max(canvas.width, 1);
+  const originalInlineStyle = element.style.cssText;
+  let canvas: HTMLCanvasElement;
+  let pageBreakpoints: number[];
+  let contentHeight: number;
+
+  try {
+    Object.assign(element.style, {
+      boxSizing: "border-box",
+      width: `${EXPORT_WIDTH_PX}px`,
+      minWidth: `${EXPORT_WIDTH_PX}px`,
+      maxWidth: `${EXPORT_WIDTH_PX}px`,
+      paddingTop: "0px",
+      paddingBottom: "0px",
+      overflowX: "hidden",
+    });
+    const elementTop = element.getBoundingClientRect().top;
+    pageBreakpoints = [...element.children].map(
+      (child) => child.getBoundingClientRect().top - elementTop,
+    );
+    contentHeight = Math.max(element.scrollHeight, 1);
+    canvas = await html2canvas(element, {
+      backgroundColor: "#ffffff",
+      height: contentHeight,
+      logging: false,
+      scale: 2,
+      useCORS: true,
+      width: EXPORT_WIDTH_PX,
+      windowHeight: contentHeight,
+      windowWidth: EXPORT_WIDTH_PX,
+    });
+  } finally {
+    element.style.cssText = originalInlineStyle;
+  }
+
+  const segments = planPdfPageSegments(
+    contentHeight,
+    pageBreakpoints,
+    EXPORT_PAGE_CONTENT_HEIGHT_PX,
+  );
+  if (segments.length === 0) throw new Error("Preview did not contain exportable content.");
+
+  const renderScale = canvas.width / EXPORT_WIDTH_PX;
+  const pageHeight = Math.round(EXPORT_PAGE_HEIGHT_PX * renderScale);
+  const marginTop = Math.round(EXPORT_MARGIN_TOP_PX * renderScale);
+  const marginBottom = Math.round(EXPORT_MARGIN_BOTTOM_PX * renderScale);
   const pdf = new jsPDF({ compress: true, format: "a4", orientation: "portrait", unit: "mm" });
   pdf.setProperties({ creator: "Memoir", title });
 
-  let remaining = imgHeight;
-  let offset = 0;
-  pdf.addImage(image, "JPEG", 0, offset, imgWidth, imgHeight, undefined, "FAST");
-  remaining -= A4_HEIGHT_MM;
-  while (remaining > 0.5) {
-    offset -= A4_HEIGHT_MM;
-    pdf.addPage();
-    pdf.addImage(image, "JPEG", 0, offset, imgWidth, imgHeight, undefined, "FAST");
-    remaining -= A4_HEIGHT_MM;
+  for (const [index, segment] of segments.entries()) {
+    const sourceStart = Math.round(segment.start * renderScale);
+    const sourceEnd = Math.min(canvas.height, Math.round(segment.end * renderScale));
+    const sourceHeight = Math.max(sourceEnd - sourceStart, 1);
+    const pageCanvas = document.createElement("canvas");
+    pageCanvas.width = canvas.width;
+    pageCanvas.height = pageHeight;
+    const context = pageCanvas.getContext("2d");
+    if (!context) throw new Error("Could not create a PDF page canvas.");
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+    const availableHeight = pageHeight - marginTop - marginBottom;
+    const destinationHeight = Math.min(sourceHeight, availableHeight);
+    context.drawImage(
+      canvas,
+      0,
+      sourceStart,
+      canvas.width,
+      sourceHeight,
+      0,
+      marginTop,
+      pageCanvas.width,
+      destinationHeight,
+    );
+    if (index > 0) pdf.addPage();
+    pdf.addImage(
+      pageCanvas.toDataURL("image/jpeg", 0.92),
+      "JPEG",
+      0,
+      0,
+      A4_WIDTH_MM,
+      A4_HEIGHT_MM,
+      undefined,
+      "FAST",
+    );
+    pageCanvas.width = 0;
+    pageCanvas.height = 0;
   }
+  canvas.width = 0;
+  canvas.height = 0;
   return new Uint8Array(pdf.output("arraybuffer"));
 }
 
@@ -121,12 +192,13 @@ export async function renderNotePdf({
 
 const styles = stylex.create({
   host: (width: number) => ({
+    boxSizing: "border-box",
     position: "fixed",
     left: -12000,
     top: 0,
     zIndex: -1,
     width,
-    overflow: "visible",
+    overflow: "hidden",
     color: "#222222",
     backgroundColor: "#ffffff",
     pointerEvents: "none",
