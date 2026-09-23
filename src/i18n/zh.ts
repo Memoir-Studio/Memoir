@@ -201,8 +201,8 @@ export const zh = {
   "library.vectorPending": "待处理",
   "library.vectorFailed": "失败",
   "library.vectorUpdated": "上次更新",
-  "library.updateVectorIndex": "增量更新向量",
-  "library.rebuildVectorIndex": "重建向量索引",
+  "library.updateVectorIndex": "增量更新",
+  "library.rebuildVectorIndex": "重建索引",
 
   "menu.insertAttachment": "插入到笔记",
   "dialog.deleteAttachment": "删除附件",
