@@ -2385,7 +2385,7 @@ dependencies = [
 
 [[package]]
 name = "memoir"
-version = "0.4.3"
+version = "0.4.4"
 dependencies = [
  "base64 0.22.1",
  "hex",
