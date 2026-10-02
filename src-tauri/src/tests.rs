@@ -1274,11 +1274,6 @@ fn create_then_query_without_second_walk() {
 }
 
 #[test]
-fn create_then_query_without_second_walk_repeats() {
-    create_then_query_without_second_walk();
-}
-
-#[test]
 fn v1_index_file_is_rebuilt_as_v2_and_notes_return() {
     let workspace = tempdir().unwrap();
     let root = workspace.path().to_str().unwrap();

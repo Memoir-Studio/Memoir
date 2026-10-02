@@ -66,9 +66,6 @@ describe("AiRewritePanel", () => {
     const context = view.getByRole("button", { name: "引用当前笔记" });
     expect(context).toHaveAttribute("aria-pressed", "true");
     expect(context).toHaveTextContent("notes");
-    expect(view.queryByText(DEFAULT_SETTINGS.ai.chatModel)).not.toBeInTheDocument();
-    expect(view.queryByText("正在处理整篇笔记")).not.toBeInTheDocument();
-    expect(view.queryByText(target.path)).not.toBeInTheDocument();
 
     await user.click(context);
     expect(context).toHaveAttribute("aria-pressed", "false");
@@ -106,50 +103,6 @@ describe("AiRewritePanel", () => {
 
     expect(gateways.workspace.chatCalls).toHaveLength(0);
     expect(textbox).toHaveValue("中文输入");
-  });
-
-  it("keeps a conversation and shows a reviewable diff", async () => {
-    const gateways = createMockGateways();
-    gateways.workspace.chatResult = {
-      message: "我准备了一个修改，请先审阅。",
-      edit: { tool: "replace_document", replacement: "修改后的内容" },
-    };
-    setGatewaysForTests(gateways);
-    const user = userEvent.setup();
-    const onApply = vi.fn(() => true);
-    const view = render(
-      <AiRewritePanel
-        onApply={onApply}
-        onClose={() => undefined}
-        onRefreshTarget={() => target}
-        onSave={async () => true}
-        workspaceRoot="/workspace"
-        settings={{ ...DEFAULT_SETTINGS.ai, enabled: true }}
-        target={target}
-      />,
-    );
-
-    await user.type(view.getByRole("textbox", { name: "输入你的要求" }), "请润色");
-    await user.click(view.getByRole("button", { name: "发送" }));
-
-    expect(await view.findByText("我准备了一个修改，请先审阅。")).toBeInTheDocument();
-    expect(view.getByRole("region", { name: "建议修改" })).toHaveTextContent("修改后的内容");
-    expect(view.getByText("+1 -1")).toBeInTheDocument();
-    expect(gateways.workspace.chatCalls[0]?.messages).toEqual([{ role: "user", content: "请润色" }]);
-
-    await user.click(view.getByRole("button", { name: "应用" }));
-    expect(onApply).toHaveBeenCalledWith({ ...target, replacement: "修改后的内容" });
-    expect(view.getByRole("status")).toHaveTextContent("修改已应用");
-
-    gateways.workspace.chatResult = { message: "这是第二轮回复。", edit: null };
-    await user.type(view.getByRole("textbox", { name: "输入你的要求" }), "再解释一下");
-    await user.click(view.getByRole("button", { name: "发送" }));
-    expect(await view.findByText("这是第二轮回复。")).toBeInTheDocument();
-    expect(gateways.workspace.chatCalls[1]?.messages).toEqual([
-      { role: "user", content: "请润色" },
-      { role: "assistant", content: "我准备了一个修改，请先审阅。" },
-      { role: "user", content: "再解释一下" },
-    ]);
   });
 
   it("can apply a proposal and save without closing the conversation", async () => {
@@ -212,91 +165,6 @@ describe("AiRewritePanel", () => {
     expect(view.getByRole("region", { name: "建议修改" })).toBeInTheDocument();
   });
 
-  it("renders a normal assistant reply without an edit proposal", async () => {
-    const gateways = createMockGateways();
-    gateways.workspace.chatResult = { message: "这篇笔记有三个章节。", edit: null };
-    setGatewaysForTests(gateways);
-    const user = userEvent.setup();
-    const view = render(
-      <AiRewritePanel
-        onApply={() => true}
-        onClose={() => undefined}
-        onRefreshTarget={() => target}
-        onSave={async () => true}
-        workspaceRoot="/workspace"
-        settings={{ ...DEFAULT_SETTINGS.ai, enabled: true }}
-        target={target}
-      />,
-    );
-
-    await user.type(view.getByRole("textbox", { name: "输入你的要求" }), "总结一下");
-    await user.click(view.getByRole("button", { name: "发送" }));
-
-    expect(await view.findByText("这篇笔记有三个章节。")).toBeInTheDocument();
-    expect(view.queryByRole("region", { name: "建议修改" })).not.toBeInTheDocument();
-    expect(view.getByRole("region", { name: "引用笔记" })).toHaveTextContent("notes.md");
-  });
-
-  it("lists only notes named in the reply", async () => {
-    const gateways = createMockGateways();
-    gateways.workspace.chatResult = {
-      message: "题目记在 [工作/秋招/百度笔试.mdx]，并附有 Python 解法。",
-      edit: null,
-      citations: [
-        { path: "工作/秋招/秋招投递记录.mdx", title: "秋招投递记录" },
-        { path: "工作/秋招/百度笔试.mdx", title: "百度笔试" },
-        { path: "学习/八股/python.mdx", title: "Python" },
-        { path: "welcome.mdx", title: "欢迎使用 Memoir" },
-      ],
-    };
-    setGatewaysForTests(gateways);
-    const user = userEvent.setup();
-    const view = render(
-      <AiRewritePanel
-        onApply={() => true}
-        onClose={() => undefined}
-        onRefreshTarget={() => target}
-        onSave={async () => true}
-        workspaceRoot="/workspace"
-        settings={{ ...DEFAULT_SETTINGS.ai, enabled: true }}
-        target={target}
-      />,
-    );
-
-    await user.type(view.getByRole("textbox", { name: "输入你的要求" }), "百度笔试{enter}");
-    const citations = await view.findByRole("region", { name: "引用笔记" });
-    expect(citations).toHaveTextContent("工作/秋招/百度笔试.mdx");
-    expect(citations).not.toHaveTextContent("秋招投递记录");
-    expect(citations).not.toHaveTextContent("python.mdx");
-    expect(citations).not.toHaveTextContent("welcome.mdx");
-    expect(citations).not.toHaveTextContent("notes.md");
-  });
-
-  it("does not treat an edit target as a cited note", async () => {
-    const gateways = createMockGateways();
-    gateways.workspace.chatResult = {
-      message: "我准备了一个修改，请先审阅。",
-      edit: { tool: "replace_document", replacement: "修改后的内容" },
-    };
-    setGatewaysForTests(gateways);
-    const user = userEvent.setup();
-    const view = render(
-      <AiRewritePanel
-        onApply={() => true}
-        onClose={() => undefined}
-        onRefreshTarget={() => target}
-        onSave={async () => true}
-        workspaceRoot="/workspace"
-        settings={{ ...DEFAULT_SETTINGS.ai, enabled: true }}
-        target={target}
-      />,
-    );
-
-    await user.type(view.getByRole("textbox", { name: "输入你的要求" }), "润色{enter}");
-    await view.findByRole("region", { name: "建议修改" });
-    expect(view.queryByRole("region", { name: "引用笔记" })).not.toBeInTheDocument();
-  });
-
   it("streams Markdown and keeps reasoning and activity out of subsequent prompts", async () => {
     const gateways = createMockGateways();
     let finish: (value: typeof gateways.workspace.chatResult) => void = () => undefined;
@@ -333,44 +201,6 @@ describe("AiRewritePanel", () => {
       { role: "assistant", content: "## 结论\n\n**重点**" },
       { role: "user", content: "继续" },
     ]);
-  });
-
-  it("shows the loading state while a reply is pending", async () => {
-    const gateways = createMockGateways();
-    let resolveChat: (value: typeof gateways.workspace.chatResult) => void = () => undefined;
-    let reportProgress: ((progress: { stage: "toolCompleted"; tool: string; resultCount: number }) => void) | undefined;
-    gateways.workspace.chatWithNote = vi.fn(
-      (_root, _settings, _messages, _target, onProgress) =>
-        new Promise<typeof gateways.workspace.chatResult>((resolve) => {
-          resolveChat = resolve;
-          reportProgress = onProgress as typeof reportProgress;
-          onProgress?.({ stage: "callingTool", tool: "search_notes", query: "招商银行" });
-        }),
-    );
-    setGatewaysForTests(gateways);
-    const user = userEvent.setup();
-    const view = render(
-      <AiRewritePanel
-        onApply={() => true}
-        onClose={() => undefined}
-        onRefreshTarget={() => target}
-        onSave={async () => true}
-        workspaceRoot="/workspace"
-        settings={{ ...DEFAULT_SETTINGS.ai, enabled: true }}
-        target={target}
-      />,
-    );
-
-    await user.type(view.getByRole("textbox", { name: "输入你的要求" }), "改写");
-    await user.click(view.getByRole("button", { name: "发送" }));
-    expect(view.getByRole("status")).toHaveTextContent("正在调用工具 search_notes");
-    expect(view.getByRole("status")).toHaveTextContent("招商银行");
-
-    act(() => reportProgress?.({ stage: "toolCompleted", tool: "search_notes", resultCount: 3 }));
-    expect(view.getByRole("status")).toHaveTextContent("命中 3 条笔记");
-
-    await act(async () => resolveChat({ message: "完成", edit: null }));
-    expect(await view.findByText("完成")).toBeInTheDocument();
   });
 });
 

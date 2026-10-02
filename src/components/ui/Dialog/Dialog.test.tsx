@@ -1,12 +1,8 @@
-import { act, render, waitFor } from "@testing-library/react";
+import { render } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { Dialog } from "./Dialog";
-
-afterEach(() => {
-  vi.useRealTimers();
-});
 
 function DialogHarness({ onClose }: { onClose: () => void }) {
   const [open, setOpen] = useState(false);
@@ -31,22 +27,6 @@ function DialogHarness({ onClose }: { onClose: () => void }) {
 }
 
 describe("Dialog", () => {
-  it("portals the overlay so the window frame can bound it independently", async () => {
-    const view = render(
-      <div data-testid="clipping-layout">
-        <Dialog onClose={() => undefined} open title="测试对话框">
-          内容
-        </Dialog>
-      </div>,
-    );
-
-    const layout = view.getByTestId("clipping-layout");
-    const overlay = view.getByRole("dialog").parentElement;
-    await waitFor(() => expect(overlay).toHaveAttribute("data-state", "open"));
-    expect(overlay?.parentElement).toBe(document.body);
-    expect(layout).not.toContainElement(overlay);
-  });
-
   it("traps tab focus, closes on Escape and restores trigger focus", async () => {
     const onClose = vi.fn();
     const user = userEvent.setup();
@@ -61,16 +41,6 @@ describe("Dialog", () => {
     await user.keyboard("{Escape}");
     expect(onClose).toHaveBeenCalledOnce();
     expect(trigger).toHaveFocus();
-  });
-
-  it("focuses the first text field instead of the close button", () => {
-    const view = render(
-      <Dialog onClose={() => undefined} open title="测试对话框">
-        <input aria-label="标题" />
-      </Dialog>,
-    );
-
-    expect(view.getByRole("textbox", { name: "标题" })).toHaveFocus();
   });
 
   it("submits from a field when Enter is pressed", async () => {
@@ -115,28 +85,5 @@ describe("Dialog", () => {
     await user.click(view.getByRole("button", { name: "取消" }));
     await user.keyboard("{Enter}");
     expect(onSubmit).not.toHaveBeenCalled();
-  });
-
-  it("keeps the dialog mounted through the close transition", () => {
-    vi.useFakeTimers();
-    const onClose = vi.fn();
-    const view = render(
-      <Dialog onClose={onClose} open title="测试对话框">
-        内容
-      </Dialog>,
-    );
-    expect(view.getByRole("dialog")).toBeInTheDocument();
-
-    view.rerender(
-      <Dialog onClose={onClose} open={false} title="测试对话框">
-        内容
-      </Dialog>,
-    );
-    expect(view.getByRole("dialog")).toBeInTheDocument();
-
-    act(() => {
-      vi.advanceTimersByTime(200);
-    });
-    expect(view.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });

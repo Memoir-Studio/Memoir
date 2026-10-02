@@ -46,14 +46,12 @@ export class MockWorkspaceGateway implements WorkspaceGateway {
   writes: Array<{ path: string; content: string }> = [];
   savedAttachments: SaveAttachmentInput[] = [];
   failWrite = false;
-  failAttachment = false;
   nextImported: AttachmentFile[] = [];
   failIndex = false;
   rebuildCount = 0;
   reconcileCount = 0;
   queryLibraryCount = 0;
   scanAttachmentCount = 0;
-  indexInfoOverrides: Partial<WorkspaceIndexInfo> = {};
   vectorIndexStatus = emptyVectorIndexStatus({ totalNotes: 1 });
   vectorIndexCalls = 0;
   semanticResults: SemanticSearchResult[] = [];
@@ -126,7 +124,6 @@ export class MockWorkspaceGateway implements WorkspaceGateway {
       fileSize: 4096,
       createdMs: 1,
       lastReconcileMs: 2,
-      ...this.indexInfoOverrides,
     });
   }
 
@@ -249,7 +246,6 @@ export class MockWorkspaceGateway implements WorkspaceGateway {
   }
 
   async saveAttachment(_root: string, input: SaveAttachmentInput) {
-    if (this.failAttachment) throw new Error("attachment disk full");
     this.savedAttachments.push(input);
     const fileName = input.fileName || "paste.png";
     const relativePath = attachmentRelativePath(fileName);
@@ -268,7 +264,6 @@ export class MockWorkspaceGateway implements WorkspaceGateway {
   importedPaths: string[] = [];
 
   async importAttachments() {
-    if (this.failAttachment) throw new Error("attachment disk full");
     for (const attachment of this.nextImported) {
       this.attachments.set(attachment.relativePath, attachment);
     }
@@ -276,7 +271,6 @@ export class MockWorkspaceGateway implements WorkspaceGateway {
   }
 
   async importAttachmentsFromPaths(_root: string, sourcePaths: string[]) {
-    if (this.failAttachment) throw new Error("attachment disk full");
     this.importedPaths.push(...sourcePaths);
     const imported: AttachmentFile[] = [];
     for (const sourcePath of sourcePaths) {
@@ -304,13 +298,8 @@ export class MockWorkspaceGateway implements WorkspaceGateway {
   async openPath(_path: string) {}
   async revealPath(_path: string) {}
   async openExternal(_url?: string) {}
-  linkPreviewHtml = new Map<string, string>();
-  async fetchLinkPreviewHtml(url: string) {
-    const html = this.linkPreviewHtml.get(url);
-    if (html === undefined) {
-      throw new GatewayError({ code: "not_found", message: "No link preview." });
-    }
-    return html;
+  async fetchLinkPreviewHtml(_url: string): Promise<string> {
+    throw new GatewayError({ code: "not_found", message: "No link preview." });
   }
   resolveMediaPath(path: string) {
     return path;

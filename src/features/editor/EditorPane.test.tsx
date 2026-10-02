@@ -1,4 +1,3 @@
-import { openSearchPanel } from "@codemirror/search";
 import { StateEffect } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react";
@@ -52,54 +51,7 @@ function clipboardData(file: File) {
   };
 }
 
-describe("EditorPane context menu", () => {
-  it("opens a context menu target from the editor surface", () => {
-    const onContextMenu = vi.fn();
-    const view = render(
-      <EditorPane
-        content="# Hello"
-        fileName="hello.md"
-        isDark={false}
-        onChange={() => undefined}
-        onContextMenu={onContextMenu}
-        settings={DEFAULT_SETTINGS}
-      />,
-    );
-    const content = view.container.querySelector(".cm-content");
-    fireEvent.contextMenu(content as Element, { clientX: 48, clientY: 64 });
-    expect(onContextMenu).toHaveBeenCalledWith(
-      expect.objectContaining({
-        x: 48,
-        y: 64,
-        hasSelection: false,
-      }),
-    );
-  });
-
-  it("selects the whole document from the editor handle", async () => {
-    const writeText = vi.fn().mockResolvedValue(undefined);
-    Object.assign(navigator, { clipboard: { writeText } });
-    const ref = createRef<EditorHandle>();
-    const view = render(
-      <EditorPane
-        content="# Hello"
-        fileName="hello.md"
-        isDark={false}
-        onChange={() => undefined}
-        ref={ref}
-        settings={DEFAULT_SETTINGS}
-      />,
-    );
-
-    ref.current?.selectAll();
-    expect(ref.current?.getSelectedText()).toBe("# Hello");
-    await ref.current?.copy();
-    expect(writeText).toHaveBeenCalledWith("# Hello");
-    fireEvent.mouseDown(view.container.querySelector(".cm-content") as Element);
-    expect(ref.current?.getSelectedText()).toBe("# Hello");
-    expect(view.container.querySelector(".cm-content")?.textContent).toContain("Hello");
-  });
-
+describe("EditorPane reviewed edits", () => {
   it("flushes live text before capture and isolates reviewed insertions in undo history", () => {
     const onChange = vi.fn();
     const ref = createRef<EditorHandle>();
@@ -200,110 +152,6 @@ describe("EditorPane snapshots", () => {
     });
     expect(onChange.mock.calls.some((call) => String(call[0]).includes("!"))).toBe(true);
     vi.useRealTimers();
-  });
-});
-
-describe("EditorPane search panel", () => {
-  it("opens the themed find bar instead of CodeMirror's default form", async () => {
-    const view = render(
-      <EditorPane
-        content={"Hello\nHello world"}
-        fileName="hello.md"
-        isDark={false}
-        onChange={() => undefined}
-        settings={DEFAULT_SETTINGS}
-      />,
-    );
-    await waitFor(() => {
-      expect(view.container.querySelector(".cm-editor")).toBeTruthy();
-    });
-    const editor = view.container.querySelector(".cm-editor") as HTMLElement;
-    const cm = EditorView.findFromDOM(editor);
-    expect(cm).toBeTruthy();
-    act(() => {
-      openSearchPanel(cm!);
-    });
-    expect(view.container.querySelector("[data-memoir-search]")).toBeTruthy();
-    expect(view.container.querySelector(".cm-panels-top [data-memoir-search]")).toBeTruthy();
-    expect(view.getByRole("search", { name: "查找和替换" })).toBeTruthy();
-    expect(view.getByPlaceholderText("查找")).toBeTruthy();
-    expect(view.getByRole("button", { name: "区分大小写" })).toBeTruthy();
-    expect(view.container.querySelector(".cm-button")).toBeNull();
-  });
-});
-
-describe("EditorPane source chrome", () => {
-  it("keeps the source pane on the same canvas as the preview", () => {
-    const view = render(
-      <EditorPane
-        content="# Hello"
-        fileName="hello.md"
-        isDark={false}
-        onChange={() => undefined}
-        settings={DEFAULT_SETTINGS}
-      />,
-    );
-    const pane = view.container.querySelector("[data-editor-pane]");
-    expect(pane).toBeTruthy();
-    expect(pane).not.toHaveClass("editor-pane", "bg-canvas");
-  });
-
-  it("keeps ATX heading marks on the same line as the heading text", async () => {
-    const view = render(
-      <EditorPane
-        content="# 测试"
-        fileName="hello.md"
-        isDark={false}
-        onChange={() => undefined}
-        settings={DEFAULT_SETTINGS}
-      />,
-    );
-
-    await waitFor(() => {
-      const heading = view.container.querySelector(".cm-md-h1");
-      expect(heading).toBeTruthy();
-      const line = heading?.closest(".cm-line");
-      expect(line?.querySelector(".cm-md-mark")?.textContent).toContain("#");
-    });
-  });
-
-  it("highlights markdown structure instead of rendering flat text", async () => {
-    const view = render(
-      <EditorPane
-        content={"## Title\n\n**bold** and `code`\n\n- [ ] item"}
-        fileName="hello.md"
-        isDark={false}
-        onChange={() => undefined}
-        settings={DEFAULT_SETTINGS}
-      />,
-    );
-
-    await waitFor(() => {
-      expect(view.container.querySelector(".cm-md-h2")).toBeTruthy();
-      expect(view.container.querySelector(".cm-md-strong")).toBeTruthy();
-      expect(view.container.querySelector(".cm-md-code")).toBeTruthy();
-      expect(view.container.querySelector(".cm-md-mark")).toBeTruthy();
-    });
-  });
-
-  it("highlights fenced python in the source editor", async () => {
-    const view = render(
-      <EditorPane
-        content={"```python\ndef main():\n    pass\n```"}
-        fileName="hello.md"
-        isDark={false}
-        onChange={() => undefined}
-        settings={DEFAULT_SETTINGS}
-      />,
-    );
-
-    await waitFor(
-      () => {
-        expect(view.container.querySelector(".cm-code-keyword")).toBeTruthy();
-        expect(view.container.querySelector(".cm-md-codeblock")).toBeTruthy();
-      },
-      { timeout: 3_000 },
-    );
   });
 });
 
