@@ -1,4 +1,3 @@
-import { createUnavailableSpeechGateway } from "./speech";
 import type { AiConversation } from "../domain/ai";
 import { readChatCompletion } from "./ai-stream";
 import type { AppState, LegacyStatePayload } from "../domain/app-state";
@@ -979,7 +978,6 @@ export function createBrowserGateways(): AppGateways {
   const workspace = new BrowserWorkspaceGateway();
   return {
     workspace,
-    speech: createUnavailableSpeechGateway(),
     attachments: workspace,
     system: workspace,
     persistence: new BrowserPersistenceGateway(),

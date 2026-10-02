@@ -16,23 +16,20 @@ use std::time::Duration;
 use tempfile::tempdir;
 
 #[test]
-fn speech_preferences_migrate_and_round_trip() {
-    let legacy: AppSettings = serde_json::from_str("{}").unwrap();
-    assert_eq!(legacy.speech.language, "auto");
-    assert_eq!(legacy.speech.model, crate::domain::speech::SpeechModel::Small);
-    assert!(legacy.speech.organize);
+fn removed_preferences_are_ignored_when_loading_existing_settings() {
+    let mut appearance = AppSettings::default().appearance;
+    appearance.locale = "en".into();
     let settings: AppSettings = serde_json::from_value(serde_json::json!({
-        "speech": { "model": "base", "language": "ja", "organize": false }
+        "speech": { "model": "base", "language": "ja", "organize": false },
+        "shortcuts": { "voiceInput": "Mod+Shift+KeyM", "save": "Mod+Alt+KeyS" },
+        "appearance": appearance
     }))
     .unwrap();
+    assert_eq!(settings.shortcuts.save.as_deref(), Some("Mod+Alt+KeyS"));
+    assert_eq!(settings.appearance.locale, "en");
     let serialized = serde_json::to_value(&settings).unwrap();
-    assert_eq!(serialized["speech"]["language"], "ja");
-    assert_eq!(serialized["speech"]["model"], "base");
-    assert_eq!(serialized["speech"]["organize"], false);
-    assert_eq!(
-        serde_json::from_value::<AppSettings>(serialized).unwrap(),
-        settings
-    );
+    assert!(serialized.get("speech").is_none());
+    assert!(serialized["shortcuts"].get("voiceInput").is_none());
 }
 
 #[test]
@@ -50,19 +47,12 @@ fn shortcut_preferences_preserve_custom_and_disabled_bindings() {
     );
     let serialized = serde_json::to_value(&settings).unwrap();
     assert!(serialized["shortcuts"]["newNote"].is_null());
-    assert_eq!(serialized["shortcuts"]["voiceInput"], "Mod+Shift+KeyM");
     assert_eq!(
         serde_json::from_value::<AppSettings>(serialized).unwrap(),
         settings
     );
     let legacy: AppSettings = serde_json::from_str("{}").unwrap();
     assert_eq!(legacy.shortcuts, AppSettings::default().shortcuts);
-    for binding in [serde_json::json!("Mod+Alt+KeyR"), serde_json::Value::Null] {
-        let customized: AppSettings = serde_json::from_value(serde_json::json!({
-            "shortcuts": { "voiceInput": binding }
-        })).unwrap();
-        assert_eq!(serde_json::to_value(&customized).unwrap()["shortcuts"]["voiceInput"], binding);
-    }
 }
 
 #[test]

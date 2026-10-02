@@ -11,14 +11,6 @@ function key(code: string, options: Partial<KeyboardEventInit> = {}) {
 }
 
 describe("global shortcuts", () => {
-  it("supports voice input with Ctrl/Cmd, custom bindings and disabling", () => {
-    expect(globalShortcutAction(key("KeyM", { shiftKey: true }))).toBe("voiceInput");
-    expect(globalShortcutAction(key("KeyM", { ctrlKey: false, metaKey: true, shiftKey: true }))).toBe("voiceInput");
-    const custom = { ...DEFAULT_SHORTCUTS, voiceInput: "Mod+Alt+KeyR" };
-    expect(globalShortcutAction(key("KeyM", { shiftKey: true }), custom)).toBeNull();
-    expect(globalShortcutAction(key("KeyR", { altKey: true }), custom)).toBe("voiceInput");
-    expect(globalShortcutAction(key("KeyM", { shiftKey: true }), { ...DEFAULT_SHORTCUTS, voiceInput: null })).toBeNull();
-  });
   it("supports the default and custom focus mode bindings", () => {
     expect(globalShortcutAction(key("KeyF", { shiftKey: true }))).toBe("toggleFocus");
     expect(globalShortcutAction(key("KeyF", { ctrlKey: false, metaKey: true, shiftKey: true }))).toBe("toggleFocus");

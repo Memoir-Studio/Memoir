@@ -8,7 +8,6 @@ mod tray;
 mod window_frame;
 
 use commands::{
-    speech_model_status, install_speech_model, start_speech_recording, stop_speech_recording, cancel_speech, format_speech_transcript,
     load_ai_conversations, save_ai_conversations,
     rename_folder, delete_folder, chat_with_note, check_app_update, create_folder, create_note, delete_attachment, delete_draft,
     delete_note, drafts_exist, fetch_link_preview_html, get_cloud_sync_profile, get_index_info,
@@ -36,7 +35,6 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             let app_data_dir = app.path().app_data_dir()?;
-            app.manage(services::speech::SpeechService::new(app_data_dir.clone()));
             let app_data = AppDataRepository::new(app_data_dir);
             let app_state = AppStateService::new(app_data.clone());
             let filesystem = LocalFileSystem::new();
@@ -107,7 +105,6 @@ pub fn run() {
             index_vector_workspace,
             semantic_search,
             chat_with_note,
-            speech_model_status, install_speech_model, start_speech_recording, stop_speech_recording, cancel_speech, format_speech_transcript
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

@@ -10,7 +10,6 @@ import {
   KeyRound,
   Keyboard,
   MessageSquare,
-  Mic,
   Palette,
   RotateCcw,
   Search,
@@ -50,7 +49,6 @@ import { UpdateCheckControls } from "../update/UpdateCheckControls";
 import { settingsStyles as styles } from "./settings-styles.stylex";
 import type { SettingsSection } from "./types";
 import { ShortcutSettings } from "./ShortcutSettings";
-import { SpeechSettings } from "./SpeechSettings";
 
 export { GITHUB_REPO_URL };
 
@@ -662,7 +660,6 @@ export default function SettingsDialog({
     { value: "appearance", labelKey: "settings.appearance", icon: Palette },
     { value: "editor", labelKey: "settings.editor", icon: Type },
     { value: "shortcuts", labelKey: "settings.shortcuts", icon: Keyboard },
-    { value: "speech", labelKey: "speech.title", icon: Mic },
     { value: "ai", labelKey: "settings.ai", icon: Sparkles },
     { value: "about", labelKey: "settings.about", icon: Info },
   ] as const satisfies ReadonlyArray<{
@@ -720,7 +717,6 @@ export default function SettingsDialog({
           {section === "shortcuts" && open && (
             <ShortcutSettings key="shortcuts" onChange={onSettingsChange} settings={settings} />
           )}
-          {section === "speech" && open && <SpeechSettings key={settings.speech.model} settings={settings} onChange={onSettingsChange} onConfigureAi={() => onSectionChange("ai")} />}
           {section === "ai" && <AiSettings key="ai" onChange={onSettingsChange} settings={settings} />}
           {section === "about" && (
             <div {...stylex.props(commonStyles.fadeIn, styles.about)} key="about">

@@ -24,7 +24,6 @@ import {
   ListTodo,
   LoaderCircle,
   MessageSquareQuote,
-  Mic,
   Minus,
   Pilcrow,
   Quote,
@@ -77,11 +76,6 @@ import {
 import { exportNotePdf } from "../export/export-note-pdf";
 import { useNoteGraph } from "../graph/useNoteGraph";
 import { editorStyles } from "./editor-styles.stylex";
-import { SpeechDialog, type SpeechDialogHandle } from "../speech/SpeechDialog";
-import { formatShortcut } from "../../domain/shortcuts";
-import { detectHostOs } from "../../platform/runtime";
-import type { SpeechAnchor } from "../speech/speech-position";
-import type { SpeechTarget } from "../../domain/speech";
 import type { MarkdownLineFormat } from "./markdown-format";
 
 const EditorPane = lazy(() => import("./EditorPane"));
@@ -97,9 +91,7 @@ function PaneFallback({ label }: { label: string }) {
   return <div {...stylex.props(editorStyles.fallback)}>{label}</div>;
 }
 
-export interface EditorWorkspaceHandle extends EditorHandle {
-  activateSpeech: () => void;
-}
+export type EditorWorkspaceHandle = EditorHandle;
 
 export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, {
   isDark: boolean;
@@ -118,7 +110,6 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, {
   forwardedRef,
 ) {
   const editorRef = useRef<EditorHandle>(null);
-  const speechRef = useRef<SpeechDialogHandle>(null);
   const previewPaneRef = useRef<HTMLElement>(null);
   const programmaticScrollRef = useRef<Record<ScrollPane, ProgrammaticScroll | null>>({
     editor: null,
@@ -167,16 +158,6 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, {
   const splitRef = useRef<HTMLDivElement>(null);
   const [splitWidth, setSplitWidth] = useState(0);
   const [isExporting, setIsExporting] = useState(false);
-  const [speechTarget, setSpeechTarget] = useState<(SpeechTarget & { anchor: SpeechAnchor }) | null>(null);
-  const closeSpeech = useCallback(() => setSpeechTarget(null), []);
-  const getSpeechAnchor = useCallback(() => {
-    if (!speechTarget) return null;
-    const current = useAppStore.getState();
-    if (current.activePath !== speechTarget.path || current.workspaceRoot !== speechTarget.root || current.content !== speechTarget.content) {
-      return speechTarget.anchor;
-    }
-    return editorRef.current?.getPositionRect(speechTarget.from) ?? speechTarget.anchor;
-  }, [speechTarget]);
   const [nativeDropActive, setNativeDropActive] = useState(false);
   const [editorMenu, setEditorMenu] = useState<EditorMenuTarget | null>(null);
   const [headingMenu, setHeadingMenu] = useState<{ x: number; y: number } | null>(null);
@@ -446,25 +427,9 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, {
     };
   }, [importDroppedImages]);
 
-  const activateSpeech = useCallback(() => {
-    if (speechTarget) {
-      speechRef.current?.activate();
-      return;
-    }
-    if (!hasDocument || isLoading || viewMode === "preview") return;
-    const snapshot = editorRef.current?.flushContent();
-    const selection = editorRef.current?.getSelection();
-    if (workspaceRoot && activePath && selection && snapshot != null) {
-      const anchor = editorRef.current?.getPositionRect(selection.from)
-        ?? editorRef.current?.getScrollElement()?.getBoundingClientRect();
-      if (anchor) setSpeechTarget({ root: workspaceRoot, path: activePath, content: snapshot, from: selection.from, anchor });
-    }
-  }, [speechTarget, hasDocument, isLoading, viewMode, workspaceRoot, activePath]);
-
   useImperativeHandle(
     forwardedRef,
     () => ({
-      activateSpeech,
       captureEcho: () => editorRef.current?.captureEcho() ?? null,
       insertEcho: (snapshot, text) => editorRef.current?.insertEcho(snapshot, text) ?? false,
       restoreEcho: (snapshot) => editorRef.current?.restoreEcho(snapshot),
@@ -483,13 +448,12 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, {
       selectAll: () => editorRef.current?.selectAll(),
       getSelectedText: () => editorRef.current?.getSelectedText() ?? "",
       getSelection: () => editorRef.current?.getSelection() ?? null,
-      getPositionRect: (position) => editorRef.current?.getPositionRect(position) ?? null,
       replaceRange: (from, to, text, expected) =>
         editorRef.current?.replaceRange(from, to, text, expected) ?? false,
       cut: () => editorRef.current?.cut() ?? Promise.resolve(),
       copy: () => editorRef.current?.copy() ?? Promise.resolve(),
     }),
-    [activateSpeech],
+    [],
   );
 
   const openEditorMenu = useCallback((target: EditorMenuTarget) => {
@@ -605,11 +569,6 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, {
           <IconButton active={activeNote?.favorite} label={t("editor.favorite")} onClick={() => void toggleFavorite()}>
             <Star {...stylex.props(editorStyles.favoriteIcon, activeNote?.favorite && editorStyles.favoriteIconActive)} />
           </IconButton>
-          <IconButton active={Boolean(speechTarget)} disabled={!hasDocument || isLoading || viewMode === "preview"} label={t("speech.title")}
-            title={settings.shortcuts.voiceInput ? `${t("speech.title")} (${formatShortcut(settings.shortcuts.voiceInput, detectHostOs() === "macos")})` : t("speech.title")}
-            onClick={activateSpeech}>
-            <Mic {...stylex.props(editorStyles.icon)} />
-          </IconButton>
           <IconButton disabled={!hasDocument} label={t("editor.save")} onClick={() => void saveActiveNote()}>
             <Save {...stylex.props(editorStyles.icon)} />
           </IconButton>
@@ -689,17 +648,6 @@ export const EditorWorkspace = forwardRef<EditorWorkspaceHandle, {
           </IconButton>
         </div>
       </div>
-
-      {speechTarget && <SpeechDialog ref={speechRef} target={speechTarget} getAnchor={getSpeechAnchor}
-        anchorElement={editorRef.current?.getScrollElement()} onClose={closeSpeech} onInsert={(text) => {
-        const current = useAppStore.getState();
-        if (current.workspaceRoot !== speechTarget.root || current.activePath !== speechTarget.path ||
-            current.loadedContentPath !== speechTarget.path || current.content !== speechTarget.content || current.viewMode === "preview") return false;
-        if (editorRef.current?.flushContent() !== speechTarget.content) return false;
-        const inserted = editorRef.current?.replaceRange(speechTarget.from, speechTarget.from, text, "") ?? false;
-        if (inserted) editorRef.current?.flushContent();
-        return inserted;
-      }} />}
 
       <ContextMenu
         label={t("toolbar.heading")}

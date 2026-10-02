@@ -1,4 +1,3 @@
-import { createUnavailableSpeechGateway } from "../gateways/speech";
 import type { AiConversation } from "../domain/ai";
 import type { AppState } from "../domain/app-state";
 import { GatewayError } from "../domain/errors";
@@ -559,7 +558,6 @@ export function createMockGateways(): AppGateways & {
   const workspace = new MockWorkspaceGateway();
   return {
     workspace,
-    speech: createUnavailableSpeechGateway(),
     attachments: workspace,
     system: workspace,
     persistence: new MockPersistenceGateway(),

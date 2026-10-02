@@ -7,5 +7,3 @@ pub use app_state::AppStateService;
 pub use cloud_sync::CloudSyncService;
 pub use vector_index::VectorIndexService;
 pub use workspace::WorkspaceService;
-
-pub mod speech;

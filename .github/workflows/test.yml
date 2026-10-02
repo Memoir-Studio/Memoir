@@ -70,7 +70,6 @@ jobs:
         with:
           workspaces: ./src-tauri -> target
           shared-key: rust-test
-          prefix-key: v2-whisper-bindings
           cache-all-crates: true
 
       - name: Install Linux test dependencies
@@ -78,9 +77,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             libwebkit2gtk-4.1-dev \
-            libasound2-dev \
-            cmake \
-            libclang-dev \
             libayatana-appindicator3-dev \
             librsvg2-dev
 

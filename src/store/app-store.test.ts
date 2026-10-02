@@ -61,19 +61,6 @@ describe("app store actions", () => {
     expect(store.getState().isLoading).toBe(false);
   });
 
-  it("persists voice preferences and restores them on initialization", async () => {
-    const gateways = createMockGateways();
-    const store = createAppStore(gateways);
-    const speech = { model: "base" as const, language: "ja" as const, organize: false };
-    store.getState().setSettings({ ...store.getState().settings, speech });
-    vi.advanceTimersByTime(350);
-    await Promise.resolve();
-    expect(gateways.persistence.state.preferences.speech).toEqual(speech);
-    const restored = createAppStore(gateways);
-    await restored.getState().initialize();
-    expect(restored.getState().settings.speech).toEqual(speech);
-  });
-
   it("persists custom shortcuts and restores them on initialization", async () => {
     const gateways = createMockGateways();
     const store = createAppStore(gateways);

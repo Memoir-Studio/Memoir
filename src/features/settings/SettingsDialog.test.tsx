@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -16,62 +16,6 @@ afterEach(() => {
 });
 
 describe("SettingsDialog", () => {
-  it("switches voice models, checks the selected model and downloads it", async () => {
-    const gateways = createMockGateways();
-    gateways.speech = { ...gateways.speech, available: true,
-      modelStatus: vi.fn().mockImplementation(async (model) => ({ ready: model === "small", model, bytes: 0 })),
-      installModel: vi.fn().mockResolvedValue({ ready: true, model: "base", bytes: 59707625 }),
-    };
-    setGatewaysForTests(gateways);
-    function Harness() {
-      const [settings, onSettingsChange] = useState(DEFAULT_SETTINGS);
-      return <SettingsDialog open section="speech" settings={settings} onSettingsChange={onSettingsChange}
-        onClose={() => undefined} onReset={() => undefined} onSectionChange={() => undefined} />;
-    }
-    const user = userEvent.setup();
-    const view = render(<Harness />);
-    await view.findByText("本地语音模型已就绪");
-    await user.click(view.getByRole("combobox", { name: "语音模型" }));
-    await user.click(view.getByRole("option", { name: "快速 · Whisper base" }));
-    await waitFor(() => expect(view.getByRole("button", { name: "下载模型" })).toBeEnabled());
-    expect(gateways.speech.modelStatus).toHaveBeenLastCalledWith("base");
-    expect(view.getByText(/Whisper base 多语言量化版/)).toBeInTheDocument();
-    await user.click(view.getByRole("button", { name: "下载模型" }));
-    await view.findByText("本地语音模型已就绪");
-    expect(gateways.speech.installModel).toHaveBeenCalledWith(expect.any(String), null, "base");
-  });
-  it.each([false, true])("prepares a voice model in settings (import: %s) and saves voice preferences", async (importFile) => {
-    const gateways = createMockGateways();
-    gateways.speech = {
-      ...gateways.speech,
-      available: true,
-      modelStatus: vi.fn().mockResolvedValue({ ready: false, model: "small", bytes: 0 }),
-      chooseModel: vi.fn().mockResolvedValue("/tmp/ggml-small-q5_1.bin"),
-      installModel: vi.fn().mockResolvedValue({ ready: true, model: "small", bytes: 190085487 }),
-      start: vi.fn(),
-    };
-    setGatewaysForTests(gateways);
-    const onSettingsChange = vi.fn();
-    const onSectionChange = vi.fn();
-    const user = userEvent.setup();
-    const view = render(<SettingsDialog open section="speech" settings={DEFAULT_SETTINGS}
-      onSettingsChange={onSettingsChange} onSectionChange={onSectionChange}
-      onClose={() => undefined} onReset={() => undefined} />);
-    const button = view.getByRole("button", { name: importFile ? "导入模型" : "下载模型" });
-    await waitFor(() => expect(button).toBeEnabled());
-    await user.click(button);
-    await view.findByText("本地语音模型已就绪");
-    expect(gateways.speech.installModel).toHaveBeenCalledWith(expect.any(String), importFile ? "/tmp/ggml-small-q5_1.bin" : null, "small");
-    expect(gateways.speech.start).not.toHaveBeenCalled();
-    await user.click(view.getByRole("combobox", { name: "识别语言" }));
-    await user.click(view.getByRole("option", { name: "日本語" }));
-    expect(onSettingsChange).toHaveBeenLastCalledWith({ ...DEFAULT_SETTINGS, speech: { ...DEFAULT_SETTINGS.speech, language: "ja" } });
-    await user.click(view.getByRole("switch", { name: "转写后自动整理" }));
-    expect(onSettingsChange).toHaveBeenLastCalledWith({ ...DEFAULT_SETTINGS, speech: { ...DEFAULT_SETTINGS.speech, organize: false } });
-    await user.click(view.getByRole("button", { name: "配置 AI 以启用文字整理" }));
-    expect(onSectionChange).toHaveBeenCalledWith("ai");
-  });
-
   it("switches sections and emits changed editor settings", async () => {
     const onSectionChange = vi.fn();
     const onSettingsChange = vi.fn();

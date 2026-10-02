@@ -441,7 +441,6 @@ export interface EditorHandle {
   selectAll: () => void;
   getSelectedText: () => string;
   getSelection: () => { from: number; to: number; text: string } | null;
-  getPositionRect: (position: number) => { left: number; right: number; top: number; bottom: number } | null;
   replaceRange: (from: number, to: number, text: string, expected: string) => boolean;
   cut: () => Promise<void>;
   copy: () => Promise<void>;
@@ -670,16 +669,6 @@ export const EditorPane = forwardRef<EditorHandle, EditorPaneProps>(function Edi
           to: selection.to,
           text: view.state.sliceDoc(selection.from, selection.to),
         };
-      },
-      getPositionRect: (position) => {
-        const view = hostRef.current?.getView();
-        if (!view || position < 0 || position > view.state.doc.length) return null;
-        const bounds = view.scrollDOM.getBoundingClientRect();
-        const rect = view.coordsAtPos(position);
-        // Keep the anchor at the editor edge when the insertion point scrolls out of view.
-        const left = Math.max(bounds.left, Math.min(rect?.left ?? bounds.left, bounds.right));
-        const top = Math.max(bounds.top, Math.min(rect?.top ?? bounds.top, bounds.bottom));
-        return { left, right: left, top, bottom: Math.max(top, Math.min(rect?.bottom ?? top, bounds.bottom)) };
       },
       replaceRange: (from, to, text, expected) => {
         const view = hostRef.current?.getView();

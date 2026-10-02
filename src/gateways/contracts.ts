@@ -1,4 +1,3 @@
-import type { SpeechLanguage, SpeechModel, SpeechModelStatus, SpeechProgress, SpeechTranscript } from "../domain/speech";
 import type { AppState, LegacyStatePayload, MigrationResult } from "../domain/app-state";
 import type { WorkspaceLayoutState } from "../domain/layout";
 import type { AppUpdateCheck } from "../domain/app-update";
@@ -125,20 +124,7 @@ export interface CloudSyncGateway {
   watchProgress(onProgress: (progress: CloudSyncProgress) => void): Promise<() => void>;
 }
 
-export interface SpeechGateway {
-  readonly available: boolean;
-  modelStatus(model?: SpeechModel): Promise<SpeechModelStatus>;
-  chooseModel(model?: SpeechModel): Promise<string | null>;
-  installModel(requestId: string, source: string | null, model?: SpeechModel): Promise<SpeechModelStatus>;
-  start(requestId: string, model?: SpeechModel): Promise<void>;
-  stop(requestId: string, language: SpeechLanguage, context?: string): Promise<SpeechTranscript>;
-  cancel(requestId: string): Promise<void>;
-  format(settings: AiSettings, text: string): Promise<string>;
-  watchProgress(onProgress: (progress: SpeechProgress) => void): Promise<() => void>;
-}
-
 export type AppGateways = {
-  speech: SpeechGateway;
   workspace: WorkspaceGateway;
   attachments: AttachmentGateway;
   system: SystemGateway;

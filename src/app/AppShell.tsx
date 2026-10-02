@@ -200,11 +200,6 @@ function WorkspaceLayout({
       event.preventDefault();
       event.stopPropagation();
       switch (action) {
-        case "voiceInput":
-          if (!event.repeat && !document.querySelector('[role="dialog"][aria-modal="true"]')) {
-            editorRef.current?.activateSpeech();
-          }
-          break;
         case "save":
           void saveActiveNote();
           break;

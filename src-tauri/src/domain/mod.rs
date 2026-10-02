@@ -15,5 +15,3 @@ pub use note_links::{
     resolve_note_ref, NoteGraph, NoteGraphEdge, NoteGraphNode, NoteLinkIdentity, NoteLinkKind,
     RawNoteLink,
 };
-
-pub mod speech;

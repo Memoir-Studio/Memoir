@@ -1,5 +1,4 @@
 import { DEFAULT_SHORTCUTS, mergeShortcuts, type ShortcutSettings } from "./shortcuts";
-import type { SpeechLanguage, SpeechModel } from "./speech";
 
 export type ThemePreference = "system" | "light" | "dark";
 export type AccentColor = "ink" | "coral" | "blue" | "green" | "gold" | "violet" | "slate";
@@ -14,7 +13,7 @@ export type CloseBehavior = "tray" | "quit";
 export type NoteSortField = "name" | "modified" | "title";
 export type NoteSortDirection = "asc" | "desc";
 export type AiProvider = "openai" | "ollama" | "custom";
-export type SettingsSection = "general" | "appearance" | "editor" | "shortcuts" | "ai" | "speech" | "about";
+export type SettingsSection = "general" | "appearance" | "editor" | "shortcuts" | "ai" | "about";
 
 export const MIN_UI_SCALE = 0.8;
 export const MAX_UI_SCALE = 2;
@@ -27,11 +26,6 @@ export const MAX_AI_EMBEDDING_MAX_LENGTH = 100_000;
 export const DEFAULT_AI_EMBEDDING_MAX_LENGTH = 1_800;
 
 export type AppSettings = {
-  speech: {
-    model: SpeechModel;
-    language: SpeechLanguage;
-    organize: boolean;
-  };
   shortcuts: ShortcutSettings;
   appearance: {
     locale: LocalePreference;
@@ -70,7 +64,6 @@ export type AppSettings = {
 };
 
 export const DEFAULT_SETTINGS: AppSettings = {
-  speech: { model: "small", language: "auto", organize: true },
   shortcuts: DEFAULT_SHORTCUTS,
   appearance: {
     locale: "system",
@@ -147,7 +140,6 @@ export function mergeSettings(
     editor?: Partial<AppSettings["editor"]>;
     general?: Partial<AppSettings["general"]>;
     ai?: Partial<AppSettings["ai"]>;
-    speech?: Partial<AppSettings["speech"]>;
     shortcuts?: Partial<ShortcutSettings>;
   } | null,
 ): AppSettings {
@@ -164,13 +156,6 @@ export function mergeSettings(
     ...settings?.ai,
   };
   return {
-    speech: {
-      model: settings?.speech?.model === "base" ? "base" : "small",
-      language: settings?.speech?.language && ["auto", "zh", "en", "ja", "ko", "fr", "de", "es"].includes(settings.speech.language)
-        ? settings.speech.language : DEFAULT_SETTINGS.speech.language,
-      organize: typeof settings?.speech?.organize === "boolean"
-        ? settings.speech.organize : DEFAULT_SETTINGS.speech.organize,
-    },
     shortcuts: mergeShortcuts(settings?.shortcuts),
     appearance: {
       ...appearance,

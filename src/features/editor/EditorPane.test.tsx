@@ -108,8 +108,8 @@ describe("EditorPane context menu", () => {
     const snapshot = ref.current?.flushContent();
     expect(snapshot).toBe("typed Hello");
     expect(onChange).toHaveBeenLastCalledWith(snapshot);
-    act(() => { ref.current?.replaceRange(6, 6, "speech ", ""); });
-    expect(ref.current?.flushContent()).toBe("typed speech Hello");
+    act(() => { ref.current?.replaceRange(6, 6, "reviewed ", ""); });
+    expect(ref.current?.flushContent()).toBe("typed reviewed Hello");
     act(() => { ref.current?.undo(); });
     expect(ref.current?.flushContent()).toBe("typed Hello");
   });

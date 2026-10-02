@@ -37,13 +37,7 @@ url = "2"
 httpdate = "1"
 quick-xml = "0.37"
 percent-encoding = "2"
-cpal = "0.15.3"
-whisper-rs = "0.16"
-simplet2s = "0.2"
 hnsw_rs = "0.3.4"
-
-[target.'cfg(target_os = "macos")'.dependencies]
-whisper-rs = { version = "0.16", features = ["metal"] }
 
 [target.'cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))'.dependencies]
 tauri-plugin-single-instance = "2"

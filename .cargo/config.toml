@@ -1,7 +1,3 @@
 [env]
-# Release binaries must not inherit the CI machine's CPU-specific instruction set.
-GGML_NATIVE = "OFF"
 # Keep direct Cargo builds aligned with bundle.macOS.minimumSystemVersion.
 MACOSX_DEPLOYMENT_TARGET = "11.0"
-# Let whisper-rs generate bindings for the target ABI using libclang.
-# Its bundled bindings contain Linux libc layouts and cannot be used on Windows.

@@ -2,15 +2,21 @@ import { describe, expect, it } from "vitest";
 import { clampUiScale, DEFAULT_SETTINGS, mergeSettings, type AppSettings } from "./settings";
 
 describe("settings merge", () => {
-  it("migrates speech preferences and preserves disabled cleanup", () => {
-    expect(mergeSettings({}).speech).toEqual({ model: "small", language: "auto", organize: true });
-    expect(mergeSettings({ speech: { model: "base" } }).speech.model).toBe("base");
-    expect(mergeSettings({ speech: { model: "unknown" as AppSettings["speech"]["model"] } }).speech.model).toBe("small");
-    expect(mergeSettings({ speech: { language: "ja", organize: false } }).speech)
-      .toEqual({ model: "small", language: "ja", organize: false });
-    expect(mergeSettings({ speech: { language: "invalid" as AppSettings["speech"]["language"] } }).speech.language)
-      .toBe("auto");
+  it("drops removed preferences while preserving current settings", () => {
+    const legacy = JSON.parse(JSON.stringify({
+      speech: { model: "base", language: "ja", organize: false },
+      shortcuts: { voiceInput: "Mod+Shift+KeyM", save: "Mod+Alt+KeyS" },
+      appearance: { locale: "en" },
+      ai: { chatModel: "custom-model" },
+    }));
+    const settings = mergeSettings(legacy);
+    expect(settings).not.toHaveProperty("speech");
+    expect(settings.shortcuts).not.toHaveProperty("voiceInput");
+    expect(settings.shortcuts.save).toBe("Mod+Alt+KeyS");
+    expect(settings.appearance.locale).toBe("en");
+    expect(settings.ai.chatModel).toBe("custom-model");
   });
+
   it("migrates old settings and preserves custom or disabled shortcuts", () => {
     expect(mergeSettings({}).shortcuts).toEqual(DEFAULT_SETTINGS.shortcuts);
     expect(mergeSettings({ shortcuts: { save: "Mod+Shift+KeyS", newNote: null } }).shortcuts)

@@ -1,5 +1,5 @@
 export const SHORTCUT_ACTIONS = [
-  "save", "newNote", "voiceInput", "openSettings", "toggleSidebar", "toggleFocus", "zoomIn", "zoomOut", "resetZoom",
+  "save", "newNote", "openSettings", "toggleSidebar", "toggleFocus", "zoomIn", "zoomOut", "resetZoom",
 ] as const;
 
 export type GlobalShortcutAction = typeof SHORTCUT_ACTIONS[number];
@@ -8,7 +8,6 @@ export type ShortcutSettings = Record<GlobalShortcutAction, string | null>;
 export const DEFAULT_SHORTCUTS: ShortcutSettings = {
   save: "Mod+KeyS",
   newNote: "Mod+KeyN",
-  voiceInput: "Mod+Shift+KeyM",
   openSettings: "Mod+Comma",
   toggleSidebar: "Mod+KeyB",
   toggleFocus: "Mod+Shift+KeyF",
