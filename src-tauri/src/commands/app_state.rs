@@ -10,8 +10,11 @@ use std::sync::Arc;
 use tauri::{AppHandle, State};
 
 #[tauri::command]
-pub fn load_app_state(services: State<'_, AppServices>) -> Result<AppState, AppError> {
-    services.app_state.load()
+pub fn load_app_state(
+    services: State<'_, AppServices>,
+    workspace_root: Option<String>,
+) -> Result<AppState, AppError> {
+    services.app_state.load_for_workspace(workspace_root.as_deref())
 }
 
 #[tauri::command]

@@ -333,9 +333,15 @@ fn app_state_defaults_version_compatibility_and_favorites_are_isolated() {
         Some(&vec!["one.md".to_string()])
     );
     let state = service
-        .set_favorite(workspace_b_key, "one.md".into(), true)
+        .set_favorite(workspace_b_key.clone(), "one.md".into(), true)
         .unwrap();
-    assert_eq!(state.favorites.len(), 2);
+    assert_eq!(state.favorites.len(), 1);
+    assert!(state.favorites.contains_key(&workspace_b_key));
+    assert!(repository.load_state().unwrap().favorites.is_empty());
+    assert_eq!(
+        service.load_for_workspace(Some(&workspace_a_key)).unwrap().favorites[&workspace_a_key],
+        vec!["one.md".to_string()]
+    );
 
     let legacy_state = serde_json::json!({
         "version": 0,
@@ -410,6 +416,95 @@ fn last_open_note_persists_per_workspace_and_can_be_cleared() {
     let state = restarted.load().unwrap();
     assert!(!state.last_open_notes.contains_key(&root));
     assert!(state.last_open_notes.contains_key(&other_root));
+}
+
+#[test]
+fn workspace_settings_migrate_once_and_travel_with_the_workspace() {
+    let app_data = tempdir().unwrap();
+    let workspace = tempdir().unwrap();
+    let copied_workspace = tempdir().unwrap();
+    let fresh_app_data = tempdir().unwrap();
+    let root = workspace.path().canonicalize().unwrap().to_string_lossy().to_string();
+    let copied_root = copied_workspace.path().canonicalize().unwrap().to_string_lossy().to_string();
+    let repository = AppDataRepository::new(app_data.path().to_path_buf());
+    let service = AppStateService::new(repository.clone());
+    let appearance = FolderAppearance { emoji: None, color: Some("blue".into()) };
+    let mut legacy = repository.load_state().unwrap();
+    legacy.last_workspace = Some(root.clone());
+    legacy.favorites.insert(root.clone(), vec!["folder/note.md".into()]);
+    legacy.folder_appearances.insert(root.clone(), [("folder".into(), appearance.clone())].into());
+    repository.save_state(&legacy).unwrap();
+
+    let migrated = service.load_for_workspace(None).unwrap();
+    assert_eq!(migrated.favorites[&root], vec!["folder/note.md"]);
+    assert_eq!(migrated.folder_appearances[&root]["folder"], appearance);
+    let global = repository.load_state().unwrap();
+    assert!(global.favorites.is_empty());
+    assert!(global.folder_appearances.is_empty());
+    assert_eq!(global.last_workspace, Some(root.clone()));
+    let relative = ".memoir/workspace-state.json";
+    let file: serde_json::Value = serde_json::from_slice(&fs::read(workspace.path().join(relative)).unwrap()).unwrap();
+    assert_eq!(file["favorites"], serde_json::json!(["folder/note.md"]));
+    assert_eq!(file["folderAppearances"]["folder"]["color"], "blue");
+
+    fs::create_dir(copied_workspace.path().join(".memoir")).unwrap();
+    fs::copy(workspace.path().join(relative), copied_workspace.path().join(relative)).unwrap();
+    let fresh_service = AppStateService::new(AppDataRepository::new(fresh_app_data.path().to_path_buf()));
+    let copied = fresh_service.load_for_workspace(Some(&copied_root)).unwrap();
+    assert_eq!(copied.favorites[&copied_root], vec!["folder/note.md"]);
+    assert_eq!(copied.folder_appearances[&copied_root]["folder"], appearance);
+
+    service.set_favorite(root.clone(), "folder/note.md".into(), false).unwrap();
+    service.set_folder_appearance(root.clone(), "folder".into(), None).unwrap();
+    repository.save_state(&legacy).unwrap();
+    let empty = service.load_for_workspace(Some(&root)).unwrap();
+    assert!(empty.favorites[&root].is_empty());
+    assert!(empty.folder_appearances[&root].is_empty());
+    assert!(repository.load_state().unwrap().favorites.is_empty());
+    assert!(repository.load_state().unwrap().folder_appearances.is_empty());
+}
+
+#[test]
+fn invalid_workspace_state_preserves_legacy_data_for_retry() {
+    let app_data = tempdir().unwrap();
+    let workspace = tempdir().unwrap();
+    let root = workspace.path().canonicalize().unwrap().to_string_lossy().to_string();
+    let repository = AppDataRepository::new(app_data.path().to_path_buf());
+    let service = AppStateService::new(repository.clone());
+    let mut legacy = repository.load_state().unwrap();
+    legacy.favorites.insert(root.clone(), vec!["note.md".into()]);
+    repository.save_state(&legacy).unwrap();
+    fs::create_dir(workspace.path().join(".memoir")).unwrap();
+    let path = workspace.path().join(".memoir/workspace-state.json");
+    fs::write(&path, b"invalid JSON").unwrap();
+
+    assert!(service.load_for_workspace(Some(&root)).is_err());
+    assert!(service.set_favorite(root.clone(), "other.md".into(), true).is_err());
+    assert_eq!(fs::read(&path).unwrap(), b"invalid JSON");
+    assert_eq!(repository.load_state().unwrap(), legacy);
+    fs::remove_file(path).unwrap();
+    assert_eq!(service.load_for_workspace(Some(&root)).unwrap().favorites[&root], vec!["note.md"]);
+}
+
+#[cfg(unix)]
+#[test]
+fn workspace_state_rejects_symbolic_links() {
+    use std::os::unix::fs::symlink;
+    let app_data = tempdir().unwrap();
+    let workspace = tempdir().unwrap();
+    let outside = tempdir().unwrap();
+    let root = workspace.path().canonicalize().unwrap().to_string_lossy().to_string();
+    let service = AppStateService::new(AppDataRepository::new(app_data.path().to_path_buf()));
+    symlink(outside.path(), workspace.path().join(".memoir")).unwrap();
+    assert_eq!(service.set_favorite(root.clone(), "note.md".into(), true).unwrap_err().code, ErrorCode::InvalidPath);
+    assert!(!outside.path().join("workspace-state.json").exists());
+    fs::remove_file(workspace.path().join(".memoir")).unwrap();
+    fs::create_dir(workspace.path().join(".memoir")).unwrap();
+    let target = outside.path().join("state.json");
+    fs::write(&target, b"{}").unwrap();
+    symlink(&target, workspace.path().join(".memoir/workspace-state.json")).unwrap();
+    assert_eq!(service.load_for_workspace(Some(&root)).unwrap_err().code, ErrorCode::InvalidPath);
+    assert_eq!(fs::read(target).unwrap(), b"{}");
 }
 
 #[test]
@@ -555,12 +650,13 @@ fn folder_appearances_are_isolated_sanitized_and_cleared() {
             color: None,
         })
     );
-    assert_eq!(state.folder_appearances.len(), 2);
+    assert_eq!(state.folder_appearances.len(), 1);
+    assert!(service.load().unwrap().folder_appearances.is_empty());
 
     let cleared = service
         .set_folder_appearance(workspace_a_key.clone(), "日记".into(), None)
         .unwrap();
-    assert!(!cleared.folder_appearances.contains_key(&workspace_a_key));
+    assert!(cleared.folder_appearances[&workspace_a_key].is_empty());
 
     assert_eq!(
         service

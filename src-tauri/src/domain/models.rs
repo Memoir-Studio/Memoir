@@ -554,6 +554,15 @@ pub struct FolderAppearance {
     pub color: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceState {
+    #[serde(default)]
+    pub favorites: Vec<String>,
+    #[serde(default)]
+    pub folder_appearances: BTreeMap<String, FolderAppearance>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkspaceLayout {

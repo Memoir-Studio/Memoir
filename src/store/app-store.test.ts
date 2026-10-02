@@ -587,6 +587,21 @@ describe("app store actions", () => {
     );
   });
 
+  it("reloads workspace favorites before refreshing a filtered library", async () => {
+    const gateways = createMockGateways();
+    const store = createAppStore(gateways);
+    await store.getState().openWorkspace("/workspace");
+    gateways.persistence.state.favorites = { "/workspace": ["one.md"] };
+    gateways.persistence.state.folderAppearances = { "/workspace": { folder: { color: "blue" } } };
+    const load = vi.spyOn(gateways.persistence, "loadAppState");
+    const reconcile = vi.spyOn(gateways.workspace, "reconcileWorkspace");
+    await store.getState().refreshWorkspace();
+    expect(load).toHaveBeenCalledWith("/workspace");
+    expect(reconcile).toHaveBeenCalledWith("/workspace", expect.objectContaining({ favoritePaths: ["one.md"] }));
+    expect(store.getState().libraryStats.favorites).toBe(1);
+    expect(store.getState().folderAppearances).toEqual({ folder: { color: "blue" } });
+  });
+
   it("scans the last workspace on startup", async () => {
     const gateways = createMockGateways();
     gateways.persistence.state.lastWorkspace = "/workspace";

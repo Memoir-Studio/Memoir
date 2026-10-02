@@ -239,8 +239,8 @@ export class TauriPersistenceGateway implements PersistenceGateway {
     return call<void>("set_last_open_note", { workspaceRoot, relativePath });
   }
 
-  loadAppState() {
-    return call<AppState>("load_app_state");
+  loadAppState(workspaceRoot?: string) {
+    return call<AppState>("load_app_state", { workspaceRoot: workspaceRoot ?? null });
   }
 
   savePreferences(

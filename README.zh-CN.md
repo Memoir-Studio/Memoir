@@ -44,7 +44,8 @@ Memoir 是一款安静的桌面笔记本。把一个装满 `.md` / `.mdx` 的文
 - **资料库** — 文件夹、frontmatter 标签、收藏、最近编辑、标题大纲。
 - **引用** — `[[笔记]]` 维基链接和指向其他笔记的 Markdown 链接，支持反向引用和完整图谱。
 - **默认安全** — 原子写入、可恢复草稿、自动保存；删除进入工作区的 `.memoir-trash/`，而不是直接消失。
-- **资料库加速** — 每个工作区在 `.memoir/index.sqlite` 里放一份可丢弃的索引，打开列表时不必重读每一篇笔记。Markdown 文件仍是唯一真相；请把 `.memoir/` 加入 gitignore，并在 iCloud / Dropbox / OneDrive 中排除它。
+- **工作区设置** — 收藏和目录图标、颜色保存在 `.memoir/workspace-state.json`，随工作区一起迁移；打开工作区时自动迁移原先保存在应用目录中的配置。
+- **资料库加速** — 每个工作区在 `.memoir/index.sqlite` 里放一份可丢弃的索引，打开列表时不必重读每一篇笔记。请在文件同步中排除 `index.sqlite`、`index.sqlite-wal` 和 `index.sqlite-shm`，保留 `.memoir/workspace-state.json`；内置云同步目前仅传输笔记和附件。
 - **外观** — 浅色 / 深色 / 跟随系统、强调色、界面密度、字号，以及中英界面。
 - **路径沙箱** — 只允许工作区内的 `.md` / `.mdx`；拒绝 `..`、符号链接，以及隐藏目录和构建目录。
 

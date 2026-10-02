@@ -44,7 +44,8 @@ Notes are ordinary files. You can open the same folder in git, VS Code, or any o
 - **Library** — folders, frontmatter tags, favorites, recent notes, and a heading outline.
 - **References** — `[[Note]]` wiki links and markdown links to other notes, with backlinks and a workspace graph.
 - **Safe by default** — atomic writes, crash-safe drafts, autosave, and deletes that go to `.memoir-trash/` instead of vanishing.
-- **Fast library** — each workspace keeps a disposable SQLite cache at `.memoir/index.sqlite` so the sidebar does not re-read every note. The markdown files are still the source of truth; gitignore `.memoir/` and exclude it from iCloud / Dropbox / OneDrive.
+- **Workspace settings** — favorites and folder icons/colors live in `.memoir/workspace-state.json` and travel with the workspace. Existing application-level settings migrate automatically when the workspace opens.
+- **Fast library** — each workspace keeps a disposable SQLite cache at `.memoir/index.sqlite` so the sidebar does not re-read every note. Exclude `index.sqlite`, `index.sqlite-wal`, and `index.sqlite-shm` from file sync; keep `.memoir/workspace-state.json` with your notes. Built-in cloud sync currently transfers notes and attachments only.
 - **Appearance** — light / dark / system theme, accent colors, density, type scale, and Chinese / English UI.
 - **Sandboxed paths** — only `.md` / `.mdx` inside the workspace; `..`, symlinks, and hidden/build directories are rejected.
 

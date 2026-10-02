@@ -4,7 +4,7 @@ use crate::{
         cloud_sync::{sanitize_profile, CloudSyncProfile},
         path::{normalize_workspace_key, validate_relative_path},
         AiConversation, AppError, AppResult, AppSettings, AppState, ErrorCode, FolderAppearance,
-        LegacyStatePayload, MigrationResult, WorkspaceLayout,
+        LegacyStatePayload, MigrationResult, WorkspaceLayout, WorkspaceState,
     },
     infrastructure::app_data::AppDataRepository,
 };
@@ -29,6 +29,51 @@ impl AppStateService {
 
     pub fn load(&self) -> AppResult<AppState> {
         self.repository.load_state()
+    }
+
+    pub fn load_for_workspace(&self, workspace_root: Option<&str>) -> AppResult<AppState> {
+        let _guard = self.state_lock.lock().unwrap_or_else(|error| error.into_inner());
+        let mut state = self.repository.load_state()?;
+        let root = workspace_root
+            .map(str::to_string)
+            .or_else(|| state.last_workspace.clone());
+        let Some(root) = root else {
+            return Ok(state);
+        };
+        let workspace_root = match normalize_workspace_key(&root) {
+            Ok(root) => root,
+            Err(_) if workspace_root.is_none() => return Ok(state),
+            Err(error) => return Err(error),
+        };
+        let workspace_state = self.workspace_state(&mut state, &workspace_root)?;
+        project_workspace_state(&mut state, workspace_root, workspace_state);
+        Ok(state)
+    }
+
+    // Write the workspace file before removing legacy data, so failed migration is retryable.
+    fn workspace_state(&self, state: &mut AppState, root: &str) -> AppResult<WorkspaceState> {
+        let path = std::path::Path::new(root);
+        let existing = self.repository.load_workspace_state(path)?;
+        let favorites = state.favorites.remove(root);
+        let folder_appearances = state.folder_appearances.remove(root);
+        let has_legacy = favorites.is_some() || folder_appearances.is_some();
+        let workspace_state = match existing {
+            Some(existing) => existing,
+            None => {
+                let migrated = WorkspaceState {
+                    favorites: favorites.unwrap_or_default(),
+                    folder_appearances: folder_appearances.unwrap_or_default(),
+                };
+                if has_legacy {
+                    self.repository.save_workspace_state(path, &migrated)?;
+                }
+                migrated
+            }
+        };
+        if has_legacy {
+            self.repository.save_state(state)?;
+        }
+        Ok(workspace_state)
     }
 
     pub fn load_ai_conversations(&self, workspace_root: &str) -> AppResult<Vec<AiConversation>> {
@@ -127,22 +172,19 @@ impl AppStateService {
             .lock()
             .unwrap_or_else(|error| error.into_inner());
         let workspace_root = normalize_workspace_key(&workspace_root)?;
+        validate_relative_path(&relative_path)?;
+        let root = std::path::PathBuf::from(&workspace_root);
         let mut state = self.repository.load_state()?;
-        let mut favorites = state
-            .favorites
-            .remove(&workspace_root)
-            .unwrap_or_default()
-            .into_iter()
-            .collect::<BTreeSet<_>>();
+        let mut workspace_state = self.workspace_state(&mut state, &workspace_root)?;
+        let mut favorites = workspace_state.favorites.into_iter().collect::<BTreeSet<_>>();
         if favorite {
             favorites.insert(relative_path);
         } else {
             favorites.remove(&relative_path);
         }
-        state
-            .favorites
-            .insert(workspace_root, favorites.into_iter().collect());
-        self.repository.save_state(&state)?;
+        workspace_state.favorites = favorites.into_iter().collect();
+        self.repository.save_workspace_state(&root, &workspace_state)?;
+        project_workspace_state(&mut state, workspace_root, workspace_state);
         Ok(state)
     }
 
@@ -157,24 +199,20 @@ impl AppStateService {
             .lock()
             .unwrap_or_else(|error| error.into_inner());
         let workspace_root = normalize_workspace_key(&workspace_root)?;
+        let root = std::path::PathBuf::from(&workspace_root);
         let folder = validate_folder_key(&folder)?;
         let appearance = sanitize_folder_appearance(appearance);
         let mut state = self.repository.load_state()?;
-        let mut workspace_map = state
-            .folder_appearances
-            .remove(&workspace_root)
-            .unwrap_or_default();
+        let mut workspace_state = self.workspace_state(&mut state, &workspace_root)?;
+        let mut workspace_map = workspace_state.folder_appearances;
         if let Some(appearance) = appearance {
             workspace_map.insert(folder, appearance);
         } else {
             workspace_map.remove(&folder);
         }
-        if !workspace_map.is_empty() {
-            state
-                .folder_appearances
-                .insert(workspace_root, workspace_map);
-        }
-        self.repository.save_state(&state)?;
+        workspace_state.folder_appearances = workspace_map;
+        self.repository.save_workspace_state(&root, &workspace_state)?;
+        project_workspace_state(&mut state, workspace_root, workspace_state);
         Ok(state)
     }
 
@@ -322,6 +360,13 @@ impl AppStateService {
         migrated_keys.dedup();
         Ok(MigrationResult { migrated_keys })
     }
+}
+
+fn project_workspace_state(state: &mut AppState, root: String, workspace: WorkspaceState) {
+    state.favorites.insert(root.clone(), workspace.favorites);
+    state
+        .folder_appearances
+        .insert(root, workspace.folder_appearances);
 }
 
 fn validate_folder_key(folder: &str) -> AppResult<String> {

@@ -1,14 +1,16 @@
 use crate::{
     domain::{
         cloud_sync::{SyncSnapshot, CLOUD_SYNC_SNAPSHOT_VERSION},
-        AiConversation, AppError, AppResult, AppState, LegacyDraft, APP_STATE_VERSION,
+        AiConversation, AppError, AppResult, AppState, LegacyDraft, WorkspaceState, APP_STATE_VERSION,
     },
     infrastructure::atomic::atomic_write,
 };
 use sha2::{Digest, Sha256};
-#[cfg(test)]
-use std::path::Path;
-use std::{collections::HashSet, fs, path::PathBuf};
+use std::{
+    collections::HashSet,
+    fs,
+    path::{Path, PathBuf},
+};
 
 #[derive(Debug, Clone)]
 pub struct AppDataRepository {
@@ -49,6 +51,28 @@ impl AppDataRepository {
         state.version = APP_STATE_VERSION;
         let bytes = serde_json::to_vec_pretty(&state).map_err(AppError::serialization)?;
         atomic_write(&self.state_path(), &bytes)
+    }
+
+    pub fn load_workspace_state(&self, workspace_root: &Path) -> AppResult<Option<WorkspaceState>> {
+        let path = workspace_state_path(workspace_root)?;
+        if !path.exists() {
+            return Ok(None);
+        }
+        let bytes = fs::read(&path)
+            .map_err(|error| AppError::io("Read workspace state", &path, error))?;
+        serde_json::from_slice(&bytes)
+            .map(Some)
+            .map_err(AppError::serialization)
+    }
+
+    pub fn save_workspace_state(
+        &self,
+        workspace_root: &Path,
+        state: &WorkspaceState,
+    ) -> AppResult<()> {
+        let path = workspace_state_path(workspace_root)?;
+        let bytes = serde_json::to_vec_pretty(state).map_err(AppError::serialization)?;
+        atomic_write(&path, &bytes)
     }
 
     pub fn load_ai_conversations(&self, workspace_root: &str) -> AppResult<Vec<AiConversation>> {
@@ -229,6 +253,22 @@ impl AppDataRepository {
             .join("legacy")
             .join(format!("{}.mdraft", stable_hash(legacy_key.as_bytes())))
     }
+}
+
+fn workspace_state_path(workspace_root: &Path) -> AppResult<PathBuf> {
+    let dir = workspace_root.join(".memoir");
+    let path = dir.join("workspace-state.json");
+    for candidate in [&dir, &path] {
+        match fs::symlink_metadata(candidate) {
+            Ok(metadata) if metadata.file_type().is_symlink() => {
+                return Err(AppError::invalid_path("Workspace state cannot use symbolic links."));
+            }
+            Ok(_) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(AppError::io("Resolve workspace state", candidate, error)),
+        }
+    }
+    Ok(path)
 }
 
 pub fn stable_hash(value: &[u8]) -> String {

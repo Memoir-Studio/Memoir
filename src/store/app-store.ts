@@ -763,6 +763,11 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
       if (!root) return;
       set({ isLoading: true, error: "" });
       try {
+        const workspaceState = await gateways.persistence.loadAppState(root);
+        set({
+          favoritePaths: [...favoriteSet(workspaceState.favorites, root)],
+          folderAppearances: folderAppearancesForWorkspace(workspaceState.folderAppearances, root),
+        });
         const { page, attachments } = await loadWorkspaceSnapshot(gateways, root, currentQuery());
         if (restoreSelection && preferredPath && !page.notes.some((note) => note.relativePath === preferredPath)) {
           // A remembered note can be outside the first page of a large library.
@@ -848,11 +853,16 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
           get().layout,
         );
         const workspaceRoot = persistedState.lastWorkspace || selectedRoot;
+        const workspaceState = await gateways.persistence.loadAppState(workspaceRoot);
         const recentWorkspaces = persistedState.recentWorkspaces.length
           ? persistedState.recentWorkspaces
           : [workspaceRoot];
         if (workspaceRoot === get().workspaceRoot) {
-          set({ recentWorkspaces });
+          set({
+            recentWorkspaces,
+            favoritePaths: [...favoriteSet(workspaceState.favorites, workspaceRoot)],
+            folderAppearances: folderAppearancesForWorkspace(workspaceState.folderAppearances, workspaceRoot),
+          });
           await loadCloudSyncProfile(workspaceRoot);
           await get().refreshWorkspace();
           scheduleCloudSync(CLOUD_SYNC_OPEN_DELAY_MS);
@@ -862,8 +872,8 @@ export function createAppStore(gateways: AppGateways = getGateways()) {
         set({
           workspaceRoot,
           recentWorkspaces,
-          favoritePaths: [...favoriteSet(persistedState.favorites, workspaceRoot)],
-          folderAppearances: folderAppearancesForWorkspace(persistedState.folderAppearances, workspaceRoot),
+          favoritePaths: [...favoriteSet(workspaceState.favorites, workspaceRoot)],
+          folderAppearances: folderAppearancesForWorkspace(workspaceState.folderAppearances, workspaceRoot),
           attachments: [],
           activePath: null,
           loadedContentPath: null,

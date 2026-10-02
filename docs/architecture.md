@@ -19,8 +19,14 @@ not import feature modules.
 ## Data flow
 
 Markdown and MDX files in the selected workspace are the source of truth.
-`.memoir/index.sqlite` is disposable metadata/cache storage. The browser adapter
-uses an in-memory workspace with the same gateway contract.
+`.memoir/index.sqlite` is disposable metadata/cache storage. Favorites and folder
+appearance are persisted separately in `.memoir/workspace-state.json`, using
+workspace-relative paths. Opening a workspace migrates legacy data from the
+application's `app-state.json`; an existing workspace file is authoritative,
+including empty collections. Global preferences remain in application storage.
+`load_app_state` accepts an optional workspace root and projects its settings
+into the existing response maps without saving those maps back to global storage.
+The browser adapter uses an in-memory workspace with the same gateway contract.
 
 ```text
 user action

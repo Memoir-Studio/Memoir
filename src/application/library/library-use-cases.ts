@@ -37,7 +37,7 @@ export async function prepareLibraryProjection(
   root: string,
   page: LibraryPage,
 ): Promise<LibraryProjection> {
-  const appState = await gateways.persistence.loadAppState();
+  const appState = await gateways.persistence.loadAppState(root);
   const favorites = favoriteSet(appState.favorites, root);
   const draftPaths = await gateways.persistence.draftsExist(
     root,

@@ -2,6 +2,7 @@
 use super::schema::{apply_schema_v2, CURRENT_USER_VERSION};
 use super::schema::{schema_is_safe, upgrade_schema, user_version};
 use crate::domain::path::ensure_inside;
+use crate::infrastructure::atomic::atomic_write;
 use rusqlite::Connection;
 use std::{
     fs,
@@ -47,8 +48,8 @@ fn try_open_persistent(root: &Path) -> Option<WorkspaceIndex> {
     ensure_inside(&root, &canonical).ok()?;
 
     let gitignore = dir.join(".gitignore");
-    if !gitignore.exists() {
-        let _ = fs::write(&gitignore, "*\n");
+    if !gitignore.exists() || fs::read_to_string(&gitignore).ok().as_deref() == Some("*\n") {
+        let _ = atomic_write(&gitignore, b"index.sqlite\nindex.sqlite-wal\nindex.sqlite-shm\n");
     }
 
     let db_path = dir.join(INDEX_FILE);
@@ -187,6 +188,25 @@ mod tests {
         )
         .unwrap();
         conn.pragma_update(None, "user_version", 1).unwrap();
+    }
+
+    #[test]
+    fn cache_ignore_rules_keep_workspace_settings_and_custom_rules() {
+        let root = tempdir().unwrap();
+        let dir = root.path().join(".memoir");
+        fs::create_dir(&dir).unwrap();
+        let state = dir.join("workspace-state.json");
+        let ignore = dir.join(".gitignore");
+        fs::write(&state, b"{\"favorites\":[\"note.md\"]}").unwrap();
+        fs::write(&ignore, "*\n").unwrap();
+        let index = open_or_rebuild(root.path());
+        assert!(index.persistent);
+        assert_eq!(fs::read_to_string(&ignore).unwrap(), "index.sqlite\nindex.sqlite-wal\nindex.sqlite-shm\n");
+        assert_eq!(fs::read(&state).unwrap(), b"{\"favorites\":[\"note.md\"]}");
+        drop(index);
+        fs::write(&ignore, "custom-cache\n").unwrap();
+        drop(open_or_rebuild(root.path()));
+        assert_eq!(fs::read_to_string(&ignore).unwrap(), "custom-cache\n");
     }
 
     #[test]

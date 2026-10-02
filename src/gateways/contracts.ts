@@ -93,7 +93,7 @@ export type SystemGateway = Pick<
 export interface PersistenceGateway {
   loadAiConversations(workspaceRoot: string): Promise<AiConversation[]>;
   saveAiConversations(workspaceRoot: string, conversations: AiConversation[]): Promise<void>;
-  loadAppState(): Promise<AppState>;
+  loadAppState(workspaceRoot?: string): Promise<AppState>;
   setLastOpenNote(workspaceRoot: string, relativePath: string | null): Promise<void>;
   savePreferences(
     preferences: AppSettings,
