@@ -37,7 +37,7 @@ import { globalShortcutAction } from "../platform/shortcuts";
 import { applyHostWindowChrome, applyWindowFrameState, watchWindowFrameState } from "../platform/window";
 import { useAppStore } from "../store/app-store";
 import { applyDocumentTheme } from "../styles/document-theme";
-import { accents, colors, media, motion } from "../styles/tokens.stylex";
+import { accents, colors, motion } from "../styles/tokens.stylex";
 
 const SettingsDialog = lazy(() => import("../features/settings/SettingsDialog"));
 const EditorWorkspace = lazy(() => import("../features/editor/EditorWorkspace"));
@@ -539,10 +539,10 @@ const styles = stylex.create({
     boxSizing: "border-box",
     height: {
       default: "100%",
-      [media.mobile]: "auto",
+      "@media (max-width: 760px)": "auto",
     },
     minHeight: {
-      [media.mobile]: "100%",
+      "@media (max-width: 760px)": "100%",
     },
     overflow: "clip",
     borderWidth: {
@@ -550,7 +550,7 @@ const styles = stylex.create({
       [stylex.when.ancestor('[data-maximized="true"]')]: 0,
       [stylex.when.ancestor('[data-window-frame="flush"]')]: 0,
       [stylex.when.ancestor('[data-window-frame="native"]')]: 0,
-      [media.mobile]: 0,
+      "@media (max-width: 760px)": 0,
     },
     borderStyle: "solid",
     borderColor: {
@@ -563,7 +563,7 @@ const styles = stylex.create({
       [stylex.when.ancestor('[data-window-frame="flush"]')]: 0,
       [stylex.when.ancestor('[data-window-frame="native"]')]: 10,
       [stylex.when.ancestor('[data-maximized="true"][data-window-frame="native"]')]: 0,
-      [media.mobile]: 0,
+      "@media (max-width: 760px)": 0,
     },
     backgroundColor: colors.canvas,
     boxShadow: {
@@ -574,14 +574,14 @@ const styles = stylex.create({
       [stylex.when.ancestor('[data-maximized="true"]')]: "none",
       [stylex.when.ancestor('[data-window-frame="flush"]')]: "none",
       [stylex.when.ancestor('[data-window-frame="native"]')]: "none",
-      [media.mobile]: "none",
+      "@media (max-width: 760px)": "none",
     },
     transitionProperty: "grid-template-columns",
     transitionDuration: {
       default: "200ms",
       [stylex.when.ancestor('[data-layout-resizing="true"]')]: "0s",
-      [media.reducedMotion]: "0s",
-      [media.mobile]: "0s",
+      "@media (prefers-reduced-motion: reduce)": "0s",
+      "@media (max-width: 760px)": "0s",
     },
     transitionTimingFunction: motion.ease,
   },
@@ -634,17 +634,17 @@ const styles = stylex.create({
     position: "relative",
     display: {
       default: "grid",
-      [media.mobile]: "block",
+      "@media (max-width: 760px)": "block",
     },
     minWidth: 0,
     minHeight: {
       default: 0,
-      [media.mobile]: "100vh",
+      "@media (max-width: 760px)": "100vh",
     },
     gridTemplateRows: "minmax(0, 1fr)",
     paddingTop: {
       default: 0,
-      [media.mobile]: 48,
+      "@media (max-width: 760px)": 48,
     },
     color: colors.text,
   },
@@ -654,42 +654,42 @@ const styles = stylex.create({
   panelSlot: {
     position: {
       default: "relative",
-      [media.mobile]: "fixed",
+      "@media (max-width: 760px)": "fixed",
     },
     top: {
-      [media.mobile]: 48,
+      "@media (max-width: 760px)": 48,
     },
     bottom: {
-      [media.mobile]: 0,
+      "@media (max-width: 760px)": 0,
     },
     left: {
-      [media.mobile]: 0,
+      "@media (max-width: 760px)": 0,
     },
     zIndex: {
-      [media.mobile]: 20,
+      "@media (max-width: 760px)": 20,
     },
     display: {
       default: "block",
-      [media.mobile]: "none",
+      "@media (max-width: 760px)": "none",
     },
     width: {
       default: "auto",
-      [media.mobile]: "min(86vw, 320px)",
+      "@media (max-width: 760px)": "min(86vw, 320px)",
     },
     height: "100%",
     minWidth: 0,
     minHeight: 0,
     boxShadow: {
-      [media.mobile]: "0 25px 50px -12px rgb(0 0 0 / 25%)",
+      "@media (max-width: 760px)": "0 25px 50px -12px rgb(0 0 0 / 25%)",
     },
   },
   libraryPanelCollapsed: {
-    visibility: { default: "hidden", [media.mobile]: "visible" },
-    overflow: { default: "hidden", [media.mobile]: "visible" },
+    visibility: { default: "hidden", "@media (max-width: 760px)": "visible" },
+    overflow: { default: "hidden", "@media (max-width: 760px)": "visible" },
   },
   mobilePanelActive: {
     display: {
-      [media.mobile]: "flex",
+      "@media (max-width: 760px)": "flex",
     },
   },
   workspaceFallback: {
@@ -709,7 +709,7 @@ const styles = stylex.create({
     zIndex: 10,
     display: {
       default: "none",
-      [media.mobile]: "block",
+      "@media (max-width: 760px)": "block",
     },
     borderWidth: 0,
     backgroundColor: `color-mix(in srgb, ${colors.text} 20%, transparent)`,
@@ -721,7 +721,7 @@ const styles = stylex.create({
     zIndex: 30,
     display: {
       default: "none",
-      [media.mobile]: "grid",
+      "@media (max-width: 760px)": "grid",
     },
     height: 48,
     gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
@@ -742,7 +742,7 @@ const styles = stylex.create({
     transitionProperty: "color, background-color",
     transitionDuration: {
       default: "150ms",
-      [media.reducedMotion]: "0s",
+      "@media (prefers-reduced-motion: reduce)": "0s",
     },
   },
   mobileTabActive: {

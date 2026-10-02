@@ -1,7 +1,7 @@
 import * as stylex from "@stylexjs/stylex";
 import { useEffect, useMemo, useState } from "react";
 import { fallbackLinkPreview } from "../../domain/link-preview";
-import { colors, media, motion } from "../../styles/tokens.stylex";
+import { colors, motion } from "../../styles/tokens.stylex";
 import { getCachedLinkPreview, loadLinkPreview } from "./link-preview-cache";
 
 export function LinkCard({
@@ -126,16 +126,16 @@ const styles = stylex.create({
     flexShrink: 0,
     flexBasis: {
       default: 136,
-      [media.narrow]: 104,
+      "@media (max-width: 560px)": 104,
     },
     alignSelf: "stretch",
     width: {
       default: 136,
-      [media.narrow]: 104,
+      "@media (max-width: 560px)": 104,
     },
     minHeight: {
       default: 96,
-      [media.narrow]: 88,
+      "@media (max-width: 560px)": 88,
     },
     height: "auto",
     margin: 0,

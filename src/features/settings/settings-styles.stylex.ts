@@ -2,7 +2,6 @@ import * as stylex from "@stylexjs/stylex";
 import {
   accents,
   colors,
-  media,
   motion,
   typography,
 } from "../../styles/tokens.stylex";
@@ -12,12 +11,12 @@ export const settingsStyles = stylex.create({
     maxWidth: "860px",
     maxHeight: {
       default: "min(760px, calc(100vh - 40px))",
-      [media.mobile]: "calc(100vh - 20px)",
+      "@media (max-width: 760px)": "calc(100vh - 20px)",
     },
     overflow: "hidden",
     borderRadius: {
       default: "14px",
-      [media.mobile]: "12px",
+      "@media (max-width: 760px)": "12px",
     },
   },
   dialogHeader: {
@@ -34,33 +33,33 @@ export const settingsStyles = stylex.create({
     display: "grid",
     gridTemplateColumns: {
       default: "176px minmax(0, 1fr)",
-      [media.mobile]: "1fr",
+      "@media (max-width: 760px)": "1fr",
     },
     height: {
       default: "min(620px, calc(100vh - 98px))",
-      [media.mobile]: "calc(100vh - 78px)",
+      "@media (max-width: 760px)": "calc(100vh - 78px)",
     },
     minHeight: {
       default: "520px",
-      [media.mobile]: 0,
+      "@media (max-width: 760px)": 0,
     },
   },
   sidebar: {
     display: {
       default: "flex",
-      [media.mobile]: "block",
+      "@media (max-width: 760px)": "block",
     },
     minHeight: 0,
     flexDirection: "column",
     borderRightWidth: {
       default: "1px",
-      [media.mobile]: 0,
+      "@media (max-width: 760px)": 0,
     },
     borderRightStyle: "solid",
     borderRightColor: `color-mix(in srgb, ${colors.border} 88%, transparent)`,
     borderBottomWidth: {
       default: 0,
-      [media.mobile]: "1px",
+      "@media (max-width: 760px)": "1px",
     },
     borderBottomStyle: "solid",
     borderBottomColor: colors.border,
@@ -68,22 +67,22 @@ export const settingsStyles = stylex.create({
     backgroundColor: colors.panel,
     padding: {
       default: "18px 12px 14px",
-      [media.mobile]: "9px 10px",
+      "@media (max-width: 760px)": "9px 10px",
     },
   },
   navigation: {
     display: "grid",
     gridTemplateColumns: {
       default: null,
-      [media.mobile]: "repeat(6, minmax(104px, 1fr))",
+      "@media (max-width: 760px)": "repeat(6, minmax(104px, 1fr))",
     },
     gap: {
       default: "4px",
-      [media.mobile]: "5px",
+      "@media (max-width: 760px)": "5px",
     },
     overflowX: {
       default: "visible",
-      [media.mobile]: "auto",
+      "@media (max-width: 760px)": "auto",
     },
   },
   navItem: {
@@ -93,12 +92,12 @@ export const settingsStyles = stylex.create({
     height: "36px",
     gridTemplateColumns: {
       default: "15px minmax(0, 1fr)",
-      [media.mobile]: "15px auto",
+      "@media (max-width: 760px)": "15px auto",
     },
     alignItems: "center",
     justifyContent: {
       default: "normal",
-      [media.mobile]: "center",
+      "@media (max-width: 760px)": "center",
     },
     gap: "8px",
     borderWidth: 0,
@@ -122,7 +121,7 @@ export const settingsStyles = stylex.create({
     textAlign: "left",
     transitionDuration: {
       default: "150ms",
-      [media.reducedMotion]: "0s",
+      "@media (prefers-reduced-motion: reduce)": "0s",
     },
     transitionProperty: "color, background-color, box-shadow",
     transitionTimingFunction: motion.ease,
@@ -144,7 +143,7 @@ export const settingsStyles = stylex.create({
   resetButton: {
     display: {
       default: "inline-flex",
-      [media.mobile]: "none",
+      "@media (max-width: 760px)": "none",
     },
     width: "100%",
     height: "36px",
@@ -171,7 +170,7 @@ export const settingsStyles = stylex.create({
   section: {
     padding: {
       default: "0 20px 24px",
-      [media.mobile]: "0 16px 24px",
+      "@media (max-width: 760px)": "0 16px 24px",
     },
   },
   row: {
@@ -188,7 +187,7 @@ export const settingsStyles = stylex.create({
     minHeight: "59px",
     padding: {
       default: "10px 0",
-      [media.mobile]: "12px 0",
+      "@media (max-width: 760px)": "12px 0",
     },
     borderTopWidth: {
       default: 0,
@@ -246,7 +245,7 @@ export const settingsStyles = stylex.create({
     minWidth: 0,
     width: {
       default: "auto",
-      [media.mobile]: "100%",
+      "@media (max-width: 760px)": "100%",
     },
     justifyContent: {
       default: "flex-end",
@@ -256,7 +255,7 @@ export const settingsStyles = stylex.create({
   select: {
     width: {
       default: "auto",
-      [media.mobile]: "100%",
+      "@media (max-width: 760px)": "100%",
     },
   },
   swatches: {
@@ -264,7 +263,7 @@ export const settingsStyles = stylex.create({
     alignItems: "center",
     flexWrap: {
       default: "nowrap",
-      [media.mobile]: "wrap",
+      "@media (max-width: 760px)": "wrap",
     },
     gap: "9px",
   },
@@ -283,11 +282,11 @@ export const settingsStyles = stylex.create({
     transform: {
       default: "none",
       ":hover": "translateY(-1px) scale(1.04)",
-      [media.reducedMotion]: "none",
+      "@media (prefers-reduced-motion: reduce)": "none",
     },
     transitionDuration: {
       default: "150ms",
-      [media.reducedMotion]: "0s",
+      "@media (prefers-reduced-motion: reduce)": "0s",
     },
     transitionProperty: "transform, box-shadow",
     transitionTimingFunction: motion.ease,
@@ -308,11 +307,11 @@ export const settingsStyles = stylex.create({
     display: "grid",
     width: {
       default: "auto",
-      [media.mobile]: "100%",
+      "@media (max-width: 760px)": "100%",
     },
     gridTemplateColumns: {
       default: "142px 38px",
-      [media.mobile]: "minmax(120px, 1fr) 38px",
+      "@media (max-width: 760px)": "minmax(120px, 1fr) 38px",
     },
     alignItems: "center",
     gap: "12px",
@@ -320,7 +319,7 @@ export const settingsStyles = stylex.create({
   range: {
     width: {
       default: "142px",
-      [media.mobile]: "100%",
+      "@media (max-width: 760px)": "100%",
     },
     height: "18px",
     margin: 0,
@@ -505,7 +504,7 @@ export const settingsStyles = stylex.create({
   aiSection: {
     padding: {
       default: "0 24px 30px",
-      [media.mobile]: "0 16px 24px",
+      "@media (max-width: 760px)": "0 16px 24px",
     },
   },
   aiIntro: {

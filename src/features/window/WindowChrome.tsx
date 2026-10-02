@@ -2,7 +2,7 @@ import * as stylex from "@stylexjs/stylex";
 import type { MouseEvent, ReactNode } from "react";
 import { useI18n } from "../../i18n/react";
 import { isTauriRuntime } from "../../platform/runtime";
-import { layout, media } from "../../styles/tokens.stylex";
+import { layout } from "../../styles/tokens.stylex";
 import {
   performWindowAction,
   startWindowResize,
@@ -128,18 +128,18 @@ const styles = stylex.create({
     width: "100%",
     height: {
       default: "100%",
-      [media.mobile]: "auto",
+      "@media (max-width: 760px)": "auto",
     },
     minHeight: {
       default: null,
-      [media.mobile]: "100%",
+      "@media (max-width: 760px)": "100%",
     },
     padding: {
       default: layout.windowInset,
       [stylex.when.ancestor('[data-maximized="true"]')]: 0,
       [stylex.when.ancestor('[data-window-frame="flush"]')]: 0,
       [stylex.when.ancestor('[data-window-frame="native"]')]: 0,
-      [media.mobile]: 0,
+      "@media (max-width: 760px)": 0,
     },
     backgroundColor: "transparent",
   },
@@ -150,7 +150,7 @@ const styles = stylex.create({
     zIndex: 30,
     display: {
       default: "flex",
-      [media.mobile]: "none",
+      "@media (max-width: 760px)": "none",
     },
     gap: 8,
   },
@@ -185,7 +185,7 @@ const styles = stylex.create({
     zIndex: 25,
     display: {
       default: "block",
-      [media.mobile]: "none",
+      "@media (max-width: 760px)": "none",
     },
     height: 44,
   },

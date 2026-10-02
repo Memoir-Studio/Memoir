@@ -1,6 +1,6 @@
 import * as stylex from "@stylexjs/stylex";
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import { accents, media, motion } from "../../styles/tokens.stylex";
+import { accents, motion } from "../../styles/tokens.stylex";
 
 function clamp(value: number, min: number, max: number) {
   if (min > max) return min;
@@ -154,7 +154,7 @@ const styles = stylex.create({
     zIndex: 28,
     display: {
       default: "block",
-      [media.mobile]: "none",
+      "@media (max-width: 760px)": "none",
     },
     width: 8,
     height: "100%",
@@ -185,7 +185,7 @@ const styles = stylex.create({
     transitionProperty: "background-color",
     transitionDuration: {
       default: "120ms",
-      [media.reducedMotion]: "0s",
+      "@media (prefers-reduced-motion: reduce)": "0s",
     },
     transitionTimingFunction: motion.ease,
   },

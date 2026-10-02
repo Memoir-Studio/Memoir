@@ -13,7 +13,7 @@ import { createPortal } from "react-dom";
 import { usePresence } from "../../components/ui";
 import { useI18n } from "../../i18n/react";
 import { useAppStore } from "../../store/app-store";
-import { accents, colors, media, motion } from "../../styles/tokens.stylex";
+import { accents, colors, motion } from "../../styles/tokens.stylex";
 import { mergeRecentWorkspaces, workspaceDisplayName } from "./workspace-utils";
 
 const MENU_GAP = 6;
@@ -282,7 +282,7 @@ const styles = stylex.create({
     transitionProperty: "background-color",
     transitionDuration: {
       default: "150ms",
-      [media.reducedMotion]: "0s",
+      "@media (prefers-reduced-motion: reduce)": "0s",
     },
     transitionTimingFunction: motion.ease,
   },
@@ -349,7 +349,7 @@ const styles = stylex.create({
     transitionProperty: "opacity, transform",
     transitionDuration: {
       default: motion.fast,
-      [media.reducedMotion]: "0s",
+      "@media (prefers-reduced-motion: reduce)": "0s",
     },
     transitionTimingFunction: motion.ease,
   },

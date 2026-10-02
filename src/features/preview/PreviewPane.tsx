@@ -1,7 +1,7 @@
 import * as stylex from "@stylexjs/stylex";
 import { useI18n } from "../../i18n/react";
 import type { NoteMeta } from "../../domain/notes";
-import { colors, commonStyles, media } from "../../styles/tokens.stylex";
+import { colors, commonStyles } from "../../styles/tokens.stylex";
 import { NotePreviewArticle } from "./NotePreviewArticle";
 
 export function PreviewPane({
@@ -62,13 +62,13 @@ const styles = stylex.create({
     minWidth: 0,
     minHeight: {
       default: 0,
-      [media.mobile]: "calc(100vh - 138px)",
+      "@media (max-width: 760px)": "calc(100vh - 138px)",
     },
     overflow: "auto",
     overflowAnchor: "none",
     overscrollBehavior: "contain",
     borderRightWidth: {
-      [media.mobile]: 0,
+      "@media (max-width: 760px)": 0,
     },
     backgroundColor: colors.canvas,
   },

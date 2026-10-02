@@ -98,13 +98,6 @@ export const layout = stylex.defineVars({
   windowInset: "8px",
 });
 
-export const media = stylex.defineConsts({
-  mobile: "@media (max-width: 760px)",
-  narrow: "@media (max-width: 560px)",
-  medium: "@media (max-width: 980px)",
-  reducedMotion: "@media (prefers-reduced-motion: reduce)",
-});
-
 export const fadeIn = stylex.keyframes({
   from: { opacity: 0 },
   to: { opacity: 1 },
@@ -122,7 +115,7 @@ export const commonStyles = stylex.create({
     animationFillMode: "both",
     animationName: {
       default: fadeIn,
-      [media.reducedMotion]: "none",
+      "@media (prefers-reduced-motion: reduce)": "none",
     },
   },
   noticeIn: {
@@ -131,7 +124,7 @@ export const commonStyles = stylex.create({
     animationFillMode: "both",
     animationName: {
       default: noticeIn,
-      [media.reducedMotion]: "none",
+      "@media (prefers-reduced-motion: reduce)": "none",
     },
   },
 });

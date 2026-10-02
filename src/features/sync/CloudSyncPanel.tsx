@@ -18,7 +18,7 @@ import type { MessageKey, MessageParams } from "../../i18n/translate";
 import { isTauriRuntime } from "../../platform/runtime";
 import { useAppStore } from "../../store/app-store";
 import { handleWindowDragMouseDown } from "../window/window-drag";
-import { accents, colors, commonStyles, media, motion } from "../../styles/tokens.stylex";
+import { accents, colors, commonStyles, motion } from "../../styles/tokens.stylex";
 
 type SyncSection = "status" | "setup";
 
@@ -712,7 +712,7 @@ const styles = stylex.create({
     width: "38%",
     animationName: {
       default: indeterminate,
-      [media.reducedMotion]: "none",
+      "@media (prefers-reduced-motion: reduce)": "none",
     },
     animationDuration: "1.15s",
     animationTimingFunction: "ease-in-out",
