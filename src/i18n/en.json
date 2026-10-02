@@ -1,6 +1,4 @@
-import type { MessageKey } from "./zh";
-
-export const en = {
+{
   "echo.title": "Echo",
   "echo.selection": "Selected text",
   "echo.paragraph": "Current paragraph",
@@ -24,7 +22,6 @@ export const en = {
   "echo.stale": "The writing position changed. Close the preview and select an insertion point again.",
   "echo.back": "Back to matched note",
   "echo.loading": "Reading original note…",
-
   "common.cancel": "Cancel",
   "common.close": "Close",
   "common.create": "Create",
@@ -34,27 +31,21 @@ export const en = {
   "common.save": "Save",
   "common.settings": "Settings",
   "common.closeNotice": "Dismiss notification",
-
   "locale.system": "System",
   "locale.zh": "中文",
   "locale.en": "English",
-
   "app.loading": "Loading Memoir…",
-  "app.emptyDescription":
-    "Open a folder of Markdown or MDX files to build a searchable, previewable notebook.",
+  "app.emptyDescription": "Open a folder of Markdown or MDX files to build a searchable, previewable notebook.",
   "app.openFolder": "Open folder",
   "app.loadDemo": "Load demo notes",
   "app.loadingWorkspace": "Loading the editor…",
-  "app.migrationFailed":
-    "Legacy data could not be migrated; the original data was kept and will retry next launch: {message}",
+  "app.migrationFailed": "Legacy data could not be migrated; the original data was kept and will retry next launch: {message}",
   "app.closeDrawer": "Close sidebar drawer",
-
   "layout.resizeSidebar": "Resize navigation",
   "layout.enterFocus": "Focus writing",
   "layout.exitFocus": "Exit focus",
   "layout.resizeLibrary": "Resize notes list",
   "layout.resizeEditor": "Resize editor",
-
   "nav.navigation": "Navigate",
   "nav.notes": "Notes",
   "nav.editor": "Edit",
@@ -81,7 +72,6 @@ export const en = {
   "nav.recentWorkspaces": "Recent workspaces",
   "nav.openAnotherWorkspace": "Open another folder",
   "nav.currentWorkspace": "Current workspace",
-
   "library.notes": "Notes",
   "library.outline": "Outline",
   "library.links": "Links",
@@ -158,7 +148,6 @@ export const en = {
   "library.vectorUpdated": "Last updated",
   "library.updateVectorIndex": "Update vectors",
   "library.rebuildVectorIndex": "Rebuild vectors",
-
   "menu.insertAttachment": "Insert into note",
   "dialog.deleteAttachment": "Delete attachment",
   "dialog.deleteAttachmentConfirm": "Delete “{name}”?",
@@ -167,12 +156,10 @@ export const en = {
   "dialog.rebuildIndexConfirm": "Rebuild the library index for this workspace?",
   "dialog.rebuildIndexHint": "This deletes .memoir/index.sqlite and rescans every note. The notes themselves are not changed.",
   "dialog.rebuildIndexAction": "Rebuild",
-
   "outline.label": "Outline",
   "outline.empty": "This note has no headings.",
   "outline.expand": "Expand “{title}”",
   "outline.collapse": "Collapse “{title}”",
-
   "links.outgoing": "Outgoing",
   "links.incoming": "Backlinks",
   "links.unresolved": "Unresolved",
@@ -184,7 +171,6 @@ export const en = {
   "links.missing": "Missing",
   "links.count": "{count} links",
   "links.count_one": "{count} link",
-
   "graph.label": "Note graph",
   "graph.search": "Filter nodes",
   "graph.searchPlaceholder": "Filter by title or path…",
@@ -208,7 +194,6 @@ export const en = {
   "graph.noMatches": "No matching nodes.",
   "graph.connected": "{count} connections",
   "graph.connected_one": "{count} connection",
-
   "menu.actions": "Actions for {title}",
   "menu.open": "Open",
   "menu.favorite": "Favorite",
@@ -222,14 +207,12 @@ export const en = {
   "menu.fallback": "Context menu",
   "menu.openFolder": "Open",
   "menu.customizeFolder": "Customize appearance",
-
   "time.unknown": "Unknown",
   "time.justNow": "Just now",
   "time.minutesAgo": "{count} minutes ago",
   "time.minutesAgo_one": "{count} minute ago",
   "time.hoursAgo": "{count} hours ago",
   "time.hoursAgo_one": "{count} hour ago",
-
   "editor.noNoteTitle": "No note open",
   "editor.noNoteSubtitle": "Create or select a note to start writing",
   "editor.emptyTitle": "No note is open in this workspace",
@@ -282,7 +265,6 @@ export const en = {
   "editor.minutes": "~{count} min",
   "editor.minutes_one": "~{count} min",
   "editor.untitledFallback": "Untitled",
-
   "aiRewrite.button": "AI assistant",
   "aiRewrite.title": "AI assistant",
   "aiRewrite.selectionDescription": "Working with the current selection",
@@ -366,7 +348,6 @@ export const en = {
   "aiRewrite.formatResult": "Prepare Markdown result",
   "aiRewrite.formatPending": "Waiting for the model response",
   "aiRewrite.formatDone": "Format checks complete",
-
   "toolbar.heading": "Heading style",
   "toolbar.heading2": "Heading 2",
   "toolbar.headingLevel": "Heading {level}",
@@ -402,7 +383,6 @@ export const en = {
   "toolbar.placeholderCalloutTitle": "Note",
   "toolbar.placeholderCalloutBody": "Write something here",
   "toolbar.tableTemplate": "| Column 1 | Column 2 |\n| --- | --- |\n| Value 1 | Value 2 |",
-
   "preview.label": "Live preview",
   "preview.toggleTask": "Toggle task",
   "preview.loadingMermaid": "Loading Mermaid…",
@@ -424,7 +404,6 @@ export const en = {
   "properties.listHint": "Separate values with commas",
   "properties.editHint": "Enter to save, Esc to cancel",
   "properties.invalid": "Unable to update property. Check the value and frontmatter format.",
-
   "dialog.newNote": "New note",
   "dialog.newFolder": "New folder",
   "dialog.renameNote": "Rename note",
@@ -464,11 +443,9 @@ export const en = {
   "folder.reset": "Restore default",
   "folder.done": "Done",
   "folder.defaultColor": "Default",
-
   "create.untitledNote": "Untitled Note",
   "create.untitledMdx": "Untitled MDX",
   "create.newTag": "new-tag",
-
   "settings.title": "Settings",
   "settings.general": "General",
   "settings.appearance": "Appearance",
@@ -526,8 +503,7 @@ export const en = {
   "settings.widthFull": "Full",
   "settings.previewLabel": "Preview",
   "settings.previewTitle": "Ding Feng Bo · Do not listen to the rain",
-  "settings.previewBody":
-    "Do not listen to the rain lashing the woods — whistle, and walk on. A bamboo staff and straw sandals beat a horse. Who is afraid? A raincoat will do for a life of mist.",
+  "settings.previewBody": "Do not listen to the rain lashing the woods — whistle, and walk on. A bamboo staff and straw sandals beat a horse. Who is afraid? A raincoat will do for a life of mist.",
   "settings.previewTag": "Cloud sync",
   "settings.editorFontSize": "Editor size",
   "settings.editorFontSizeHint": "Affects only the Markdown source editor.",
@@ -589,13 +565,11 @@ export const en = {
   "settings.updateAvailable": "Version {version} is available",
   "settings.updateSkipped": "Skipped {version}",
   "settings.updateFailed": "Couldn't check for updates: {message}",
-
   "update.title": "Update available",
   "update.description": "Memoir {version} is out.",
   "update.skip": "Skip this version",
   "update.later": "Later",
   "update.download": "Download",
-
   "sync.title": "Cloud sync",
   "sync.tabStatus": "Sync",
   "sync.tabSetup": "Setup",
@@ -672,11 +646,9 @@ export const en = {
   "sync.needsUrl": "Enter a WebDAV URL first.",
   "sync.needsConfiguration": "Complete the connection settings for the selected provider first.",
   "sync.needsEnable": "Turn on sync before running it.",
-
   "window.close": "Close window",
   "window.minimize": "Minimize",
   "window.maximize": "Maximize",
-
   "status.openFolder": "Open a folder to start writing",
   "status.noteCount": "{count} notes",
   "status.noteCount_one": "{count} note",
@@ -690,7 +662,6 @@ export const en = {
   "status.indexRebuilt": "Index rebuilt",
   "status.cloudSyncSaved": "Cloud sync settings saved",
   "status.cloudSyncComplete": "Cloud sync finished",
-
   "errors.savePreferences": "Couldn't save settings: {message}",
   "errors.saveDraft": "Couldn't save draft: {message}",
   "errors.loadAppState": "Couldn't load app state: {message}",
@@ -728,6 +699,5 @@ export const en = {
   "errors.testCloudSync": "Couldn't test the connection: {message}",
   "errors.runCloudSync": "Couldn't sync: {message}",
   "errors.aiNeedsSetup": "Enable AI and configure a chat model in Settings first.",
-
-  "workspace.chooseFolder": "Choose a notes folder",
-} satisfies Record<MessageKey, string>;
+  "workspace.chooseFolder": "Choose a notes folder"
+}

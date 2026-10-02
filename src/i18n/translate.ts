@@ -1,8 +1,8 @@
 import type { AppLocale } from "../domain/settings";
-import { en } from "./en";
-import { zh, type MessageKey } from "./zh";
+import en from "./en.json";
+import zh from "./zh.json";
 
-export type { MessageKey };
+export type MessageKey = keyof typeof zh;
 export type MessageParams = Record<string, string | number>;
 
 const catalogs: Record<AppLocale, Record<MessageKey, string>> = {

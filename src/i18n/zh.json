@@ -1,4 +1,4 @@
-export const zh = {
+{
   "echo.title": "回响",
   "echo.selection": "选中文字",
   "echo.paragraph": "当前段落",
@@ -22,7 +22,6 @@ export const zh = {
   "echo.stale": "写作位置已变化，请关闭预览并重新选择插入位置。",
   "echo.back": "返回命中笔记",
   "echo.loading": "正在读取原文…",
-
   "common.cancel": "取消",
   "common.close": "关闭",
   "common.create": "创建",
@@ -32,26 +31,21 @@ export const zh = {
   "common.save": "保存",
   "common.settings": "设置",
   "common.closeNotice": "关闭提示",
-
   "locale.system": "跟随系统",
   "locale.zh": "中文",
   "locale.en": "English",
-
   "app.loading": "正在加载 Memoir…",
-  "app.emptyDescription":
-    "打开包含 Markdown 或 MDX 的文件夹，建立可搜索、可预览、可直接保存的笔记库。",
+  "app.emptyDescription": "打开包含 Markdown 或 MDX 的文件夹，建立可搜索、可预览、可直接保存的笔记库。",
   "app.openFolder": "打开文件夹",
   "app.loadDemo": "载入演示文档",
   "app.loadingWorkspace": "正在加载编辑工作区…",
   "app.migrationFailed": "旧数据迁移失败，原数据已保留；下次启动会自动重试：{message}",
   "app.closeDrawer": "关闭侧边抽屉",
-
   "layout.resizeSidebar": "调整导航栏宽度",
   "layout.enterFocus": "专注书写",
   "layout.exitFocus": "退出专注",
   "layout.resizeLibrary": "调整笔记列表宽度",
   "layout.resizeEditor": "调整编辑区宽度",
-
   "nav.navigation": "导航",
   "nav.notes": "笔记",
   "nav.editor": "编辑",
@@ -78,7 +72,6 @@ export const zh = {
   "nav.recentWorkspaces": "最近工作区",
   "nav.openAnotherWorkspace": "打开另一个文件夹",
   "nav.currentWorkspace": "当前工作区",
-
   "library.notes": "笔记",
   "library.outline": "大纲",
   "library.links": "引用",
@@ -155,7 +148,6 @@ export const zh = {
   "library.vectorUpdated": "上次更新",
   "library.updateVectorIndex": "增量更新",
   "library.rebuildVectorIndex": "重建向量",
-
   "menu.insertAttachment": "插入到笔记",
   "dialog.deleteAttachment": "删除附件",
   "dialog.deleteAttachmentConfirm": "确认删除“{name}”？",
@@ -164,12 +156,10 @@ export const zh = {
   "dialog.rebuildIndexConfirm": "确认重建当前工作区的库索引？",
   "dialog.rebuildIndexHint": "这会删除 .memoir/index.sqlite 并重新扫描全部笔记。笔记原文不会改动。",
   "dialog.rebuildIndexAction": "重建",
-
   "outline.label": "大纲",
   "outline.empty": "当前笔记没有标题。",
   "outline.expand": "展开“{title}”",
   "outline.collapse": "折叠“{title}”",
-
   "links.outgoing": "引用",
   "links.incoming": "反向引用",
   "links.unresolved": "未解析",
@@ -181,7 +171,6 @@ export const zh = {
   "links.missing": "未找到",
   "links.count": "{count} 条",
   "links.count_one": "{count} 条",
-
   "graph.label": "笔记图谱",
   "graph.search": "筛选节点",
   "graph.searchPlaceholder": "按标题或路径筛选…",
@@ -205,7 +194,6 @@ export const zh = {
   "graph.noMatches": "没有匹配的节点。",
   "graph.connected": "{count} 条连接",
   "graph.connected_one": "{count} 条连接",
-
   "menu.actions": "{title} 的操作",
   "menu.open": "打开",
   "menu.favorite": "收藏",
@@ -219,14 +207,12 @@ export const zh = {
   "menu.fallback": "上下文菜单",
   "menu.openFolder": "打开",
   "menu.customizeFolder": "自定义外观",
-
   "time.unknown": "未知",
   "time.justNow": "刚刚",
   "time.minutesAgo": "{count}分钟前",
   "time.minutesAgo_one": "{count}分钟前",
   "time.hoursAgo": "{count}小时前",
   "time.hoursAgo_one": "{count}小时前",
-
   "editor.noNoteTitle": "没有打开的笔记",
   "editor.noNoteSubtitle": "创建或选择一篇笔记开始编辑",
   "editor.emptyTitle": "当前工作区还没有打开的笔记",
@@ -279,7 +265,6 @@ export const zh = {
   "editor.minutes": "约{count}分钟",
   "editor.minutes_one": "约{count}分钟",
   "editor.untitledFallback": "Untitled",
-
   "aiRewrite.button": "AI 助手",
   "aiRewrite.title": "AI 助手",
   "aiRewrite.selectionDescription": "正在处理当前选中内容",
@@ -363,7 +348,6 @@ export const zh = {
   "aiRewrite.formatResult": "整理 Markdown 结果",
   "aiRewrite.formatPending": "等待模型返回后处理",
   "aiRewrite.formatDone": "格式检查已完成",
-
   "toolbar.heading": "标题样式",
   "toolbar.heading2": "二级标题",
   "toolbar.headingLevel": "{level} 级标题",
@@ -399,7 +383,6 @@ export const zh = {
   "toolbar.placeholderCalloutTitle": "提示",
   "toolbar.placeholderCalloutBody": "在这里输入内容",
   "toolbar.tableTemplate": "| 列 1 | 列 2 |\n| --- | --- |\n| 内容 1 | 内容 2 |",
-
   "preview.label": "实时预览",
   "preview.toggleTask": "切换任务状态",
   "preview.loadingMermaid": "正在加载 Mermaid…",
@@ -421,7 +404,6 @@ export const zh = {
   "properties.listHint": "用逗号分隔多个值",
   "properties.editHint": "Enter 保存，Esc 取消",
   "properties.invalid": "无法更新属性，请检查属性值和文件头部的格式。",
-
   "dialog.newNote": "新建笔记",
   "dialog.newFolder": "新建文件夹",
   "dialog.renameNote": "重命名笔记",
@@ -461,11 +443,9 @@ export const zh = {
   "folder.reset": "恢复默认",
   "folder.done": "完成",
   "folder.defaultColor": "默认",
-
   "create.untitledNote": "未命名笔记",
   "create.untitledMdx": "未命名 MDX",
   "create.newTag": "新标签",
-
   "settings.title": "设置",
   "settings.general": "通用",
   "settings.appearance": "外观",
@@ -523,8 +503,7 @@ export const zh = {
   "settings.widthFull": "满",
   "settings.previewLabel": "效果预览",
   "settings.previewTitle": "定风波·莫听穿林打叶声",
-  "settings.previewBody":
-    "莫听穿林打叶声，何妨吟啸且徐行。竹杖芒鞋轻胜马，谁怕？一蓑烟雨任平生。",
+  "settings.previewBody": "莫听穿林打叶声，何妨吟啸且徐行。竹杖芒鞋轻胜马，谁怕？一蓑烟雨任平生。",
   "settings.previewTag": "云同步",
   "settings.editorFontSize": "编辑器字号",
   "settings.editorFontSizeHint": "仅影响 Markdown 源码编辑区。",
@@ -586,13 +565,11 @@ export const zh = {
   "settings.updateAvailable": "可更新到 {version}",
   "settings.updateSkipped": "已跳过 {version}",
   "settings.updateFailed": "无法检查更新：{message}",
-
   "update.title": "发现新版本",
   "update.description": "Memoir {version} 已经发布。",
   "update.skip": "跳过此版本",
   "update.later": "稍后",
   "update.download": "前往下载",
-
   "sync.title": "云同步",
   "sync.tabStatus": "同步",
   "sync.tabSetup": "配置",
@@ -669,11 +646,9 @@ export const zh = {
   "sync.needsUrl": "请先填写 WebDAV 地址。",
   "sync.needsConfiguration": "请先补全当前同步方式的连接配置。",
   "sync.needsEnable": "请先启用同步，再执行同步。",
-
   "window.close": "关闭窗口",
   "window.minimize": "最小化",
   "window.maximize": "最大化",
-
   "status.openFolder": "打开文件夹开始编辑",
   "status.noteCount": "{count} 篇笔记",
   "status.noteCount_one": "{count} 篇笔记",
@@ -687,7 +662,6 @@ export const zh = {
   "status.indexRebuilt": "索引已重建",
   "status.cloudSyncSaved": "云同步设置已保存",
   "status.cloudSyncComplete": "云同步完成",
-
   "errors.savePreferences": "设置保存失败：{message}",
   "errors.saveDraft": "草稿保存失败：{message}",
   "errors.loadAppState": "应用状态加载失败：{message}",
@@ -725,8 +699,5 @@ export const zh = {
   "errors.testCloudSync": "连接测试失败：{message}",
   "errors.runCloudSync": "云同步失败：{message}",
   "errors.aiNeedsSetup": "请先在设置中启用并配置 AI 对话模型。",
-
-  "workspace.chooseFolder": "选择笔记文件夹",
-} as const;
-
-export type MessageKey = keyof typeof zh;
+  "workspace.chooseFolder": "选择笔记文件夹"
+}

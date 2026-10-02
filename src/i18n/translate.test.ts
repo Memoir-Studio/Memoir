@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { formatRelativeTime, formatSyncDuration } from "./format";
 import { detectSystemLocale, htmlLang, resolveLocale } from "./locale";
-import { en } from "./en";
-import { zh } from "./zh";
+import en from "./en.json";
+import zh from "./zh.json";
 import { interpolate, messageKeys, t, tc } from "./translate";
 
 describe("i18n", () => {
