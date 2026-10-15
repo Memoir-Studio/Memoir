@@ -38,6 +38,7 @@ import { useNoteGraph } from "../graph/useNoteGraph";
 import { LinkCard } from "./LinkCard";
 import { NoteProperties } from "./NoteProperties";
 import { readLinkCardProp, remarkLinkCards } from "./remark-link-cards";
+import { MDX_IMPORT_EXPORT_DISABLED, remarkDisableMdxEsm } from "./remark-disable-mdx-esm";
 import { remarkWikiLinks, wikiInnerFromHref } from "./remark-wiki-links";
 import { useAppStore } from "../../store/app-store";
 import { useI18n } from "../../i18n/react";
@@ -47,7 +48,6 @@ import { rehypeTaskOffsets, toggleTaskAtOffset } from "./task-list";
 import { accents, colors, typography } from "../../styles/tokens.stylex";
 import { LONG_NOTE_DEFER_THRESHOLD } from "../editor/editor-performance";
 
-const MDX_IMPORT_EXPORT_DISABLED = "MDX_IMPORT_EXPORT_DISABLED";
 export const MARKDOWN_PREVIEW_DELAY_MS = 200;
 
 const MermaidBlock = lazy(() => import("./MermaidBlock"));
@@ -245,16 +245,13 @@ function previewComponents(
 }
 
 async function compileMdx(source: string) {
-  if (/^\s*(import|export)\s/m.test(source)) {
-    throw new Error(MDX_IMPORT_EXPORT_DISABLED);
-  }
   const cached = mdxCache.get(source);
   if (cached) return cached;
   const { compile } = await import("@mdx-js/mdx");
   const compiled = await compile(source, {
     outputFormat: "function-body",
     providerImportSource: "@mdx-js/react",
-    remarkPlugins,
+    remarkPlugins: [remarkDisableMdxEsm, ...remarkPlugins],
     rehypePlugins,
     development: false,
   });

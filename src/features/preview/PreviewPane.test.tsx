@@ -65,6 +65,46 @@ describe("PreviewPane wiki links", () => {
   });
 });
 
+describe("PreviewPane MDX code examples", () => {
+  it("renders imports and exports inside code blocks alongside MDX expressions", async () => {
+    const content = [
+      "{1 + 1}",
+      "",
+      "```python",
+      "import sys",
+      "from collections import Counter",
+      "```",
+      "",
+      "~~~js",
+      "export const value = 1;",
+      "~~~",
+    ].join("\n");
+    const view = render(
+      <PreviewPane
+        activePath="examples.mdx"
+        content={content}
+        note={{ ...note, extension: "mdx", fileName: "examples.mdx", relativePath: "examples.mdx" }}
+        onContentChange={() => undefined}
+        root="/notes"
+      />,
+    );
+
+    await waitFor(
+      () => {
+        expect(view.container.querySelector("[data-mdx-pending]")).not.toBeInTheDocument();
+      },
+      { timeout: 1500 },
+    );
+
+    expect(view.getByText("2")).toBeInTheDocument();
+    const blocks = view.container.querySelectorAll("pre code");
+    expect(blocks).toHaveLength(2);
+    expect(blocks[0]).toHaveTextContent("import sys");
+    expect(blocks[0]).toHaveTextContent("from collections import Counter");
+    expect(blocks[1]).toHaveTextContent("export const value = 1;");
+  });
+});
+
 describe("PreviewPane task list", () => {
   it("updates the matching Markdown task when a preview checkbox is clicked", async () => {
     const content = [
